@@ -4,7 +4,12 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.modules.auth import service
-from app.modules.auth.schema import SignupRequest, SignupSuccessResponse
+from app.modules.auth.schema import (
+    SignupRequest,
+    SignupSuccessResponse,
+    VerifyEmailRequest,
+    VerifyEmailSuccessResponse,
+)
 
 router = APIRouter(
     prefix="/auth",
@@ -47,5 +52,39 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)):
             content={
                 "success": False,
                 "message": "Email already registered",
+            },
+        )
+
+
+@signup_router.post(
+    "/signup-verification",
+    status_code=status.HTTP_200_OK,
+    response_model=VerifyEmailSuccessResponse,
+)
+def signup_verification(payload: VerifyEmailRequest, db: Session = Depends(get_db)):
+    try:
+        return service.verify_user_email(db, payload)
+    except service.EmailAlreadyVerifiedError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": "Email is already verified",
+            },
+        )
+    except service.ExpiredVerificationCodeError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": "Verification code has expired",
+            },
+        )
+    except service.InvalidVerificationCodeError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": "Invalid verification code",
             },
         )

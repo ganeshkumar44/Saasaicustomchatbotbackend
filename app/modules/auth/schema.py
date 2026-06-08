@@ -26,3 +26,19 @@ class SignupSuccessResponse(BaseModel):
     success: bool = True
     message: str
     data: SignupUserData
+
+
+class VerifyEmailRequest(BaseModel):
+    email: EmailStr = Field(..., description="Registered email address")
+    verification_code: str = Field(
+        ...,
+        min_length=6,
+        max_length=6,
+        pattern=r"^\d{6}$",
+        description="6-digit verification code",
+    )
+
+
+class VerifyEmailSuccessResponse(BaseModel):
+    success: bool = True
+    message: str

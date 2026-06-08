@@ -19,10 +19,15 @@ class User(Base):
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
-    mobile: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True)
+    mobile: Mapped[str | None] = mapped_column(String(20), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(50), default="user", nullable=False)
     is_email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    verification_code: Mapped[str | None] = mapped_column(String(6), nullable=True)
+    verification_code_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     is_mobile_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     profile_image: Mapped[str | None] = mapped_column(String(500), nullable=True)
