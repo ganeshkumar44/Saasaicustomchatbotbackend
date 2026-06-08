@@ -52,26 +52,26 @@ def get_verification_code_expiry() -> datetime:
     return datetime.now(timezone.utc) + timedelta(minutes=OTP_EXPIRY_MINUTES)
 
 
-def send_verification_email(first_name: str, to_email: str, verification_code: str) -> None:
-    """Send the email verification OTP to the registered user."""
+def is_code_expired(expires_at: datetime | None) -> bool:
+    """Return True when an OTP expiry timestamp is missing or in the past."""
+    if not expires_at:
+        return True
+
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    return expires_at < datetime.now(timezone.utc)
+
+
+def _send_email(to_email: str, subject: str, body: str) -> None:
+    """Send a plain-text email using the configured SMTP settings."""
     smtp = _get_smtp_settings()
     smtp_user = str(smtp["user"])
     smtp_password = str(smtp["password"])
 
     if not smtp_user or not smtp_password:
-        logger.error("SMTP credentials are not configured; verification email not sent.")
+        logger.error("SMTP credentials are not configured; email not sent to %s.", to_email)
         return
-
-    subject = "Verify Your Email Address"
-    body = (
-        f"Hello {first_name},\n\n"
-        "Thank you for registering.\n\n"
-        "Your verification code is:\n\n"
-        f"{verification_code}\n\n"
-        f"This code will expire in {OTP_EXPIRY_MINUTES} minutes.\n\n"
-        "Regards,\n"
-        "SaaS AI Custom Chatbot Team"
-    )
 
     from_email = str(smtp["from_email"])
 
@@ -86,9 +86,39 @@ def send_verification_email(first_name: str, to_email: str, verification_code: s
             server.starttls()
             server.login(smtp_user, smtp_password)
             server.sendmail(from_email, to_email, message.as_string())
-        logger.info("Verification email sent to %s", to_email)
+        logger.info("Email sent to %s with subject '%s'", to_email, subject)
     except smtplib.SMTPException:
-        logger.exception("Failed to send verification email to %s", to_email)
+        logger.exception("Failed to send email to %s", to_email)
+
+
+def send_verification_email(first_name: str, to_email: str, verification_code: str) -> None:
+    """Send the email verification OTP to the registered user."""
+    subject = "Verify Your Email Address"
+    body = (
+        f"Hello {first_name},\n\n"
+        "Thank you for registering.\n\n"
+        "Your verification code is:\n\n"
+        f"{verification_code}\n\n"
+        f"This code will expire in {OTP_EXPIRY_MINUTES} minutes.\n\n"
+        "Regards,\n"
+        "SaaS AI Custom Chatbot Team"
+    )
+    _send_email(to_email, subject, body)
+
+
+def send_forgot_password_email(to_email: str, verification_code: str) -> None:
+    """Send the forgot-password verification code to the user's email."""
+    subject = "Forgot Password Verification Code"
+    body = (
+        "Hello,\n\n"
+        "Your password reset verification code is:\n\n"
+        f"{verification_code}\n\n"
+        f"This code will expire in {OTP_EXPIRY_MINUTES} minutes.\n\n"
+        "If you did not request a password reset, please ignore this email.\n\n"
+        "Regards,\n"
+        "SaaS AI Custom Chatbot Team"
+    )
+    _send_email(to_email, subject, body)
 
 
 def apply_verification_migrations(db_engine: Engine) -> None:
@@ -112,6 +142,20 @@ def apply_verification_migrations(db_engine: Engine) -> None:
         statements.append(
             "ALTER TABLE users ADD COLUMN verification_code_expires_at "
             "TIMESTAMP WITH TIME ZONE"
+        )
+    if "forgot_password_code" not in existing_columns:
+        statements.append(
+            "ALTER TABLE users ADD COLUMN forgot_password_code VARCHAR(6)"
+        )
+    if "forgot_password_code_expires_at" not in existing_columns:
+        statements.append(
+            "ALTER TABLE users ADD COLUMN forgot_password_code_expires_at "
+            "TIMESTAMP WITH TIME ZONE"
+        )
+    if "forgot_password_verified" not in existing_columns:
+        statements.append(
+            "ALTER TABLE users ADD COLUMN forgot_password_verified "
+            "BOOLEAN NOT NULL DEFAULT FALSE"
         )
 
     # Allow the same mobile number across different accounts.

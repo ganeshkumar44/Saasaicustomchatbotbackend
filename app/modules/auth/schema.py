@@ -42,3 +42,39 @@ class VerifyEmailRequest(BaseModel):
 class VerifyEmailSuccessResponse(BaseModel):
     success: bool = True
     message: str
+
+
+class ForgotPasswordEmailRequest(BaseModel):
+    email: EmailStr = Field(..., description="Registered email address")
+
+
+class ForgotPasswordEmailSuccessResponse(BaseModel):
+    success: bool = True
+    message: str
+
+
+class ForgotPasswordVerifyCodeRequest(BaseModel):
+    email: EmailStr = Field(..., description="Registered email address")
+    verification_code: str = Field(
+        ...,
+        min_length=6,
+        max_length=6,
+        pattern=r"^\d{6}$",
+        description="6-digit forgot-password verification code",
+    )
+
+
+class ForgotPasswordVerifyCodeSuccessResponse(BaseModel):
+    success: bool = True
+    message: str
+
+
+class ForgotPasswordResetRequest(BaseModel):
+    email: EmailStr = Field(..., description="Registered email address")
+    new_password: str = Field(..., min_length=1, description="New account password")
+    confirm_password: str = Field(..., min_length=1, description="New password confirmation")
+
+
+class ForgotPasswordResetSuccessResponse(BaseModel):
+    success: bool = True
+    message: str

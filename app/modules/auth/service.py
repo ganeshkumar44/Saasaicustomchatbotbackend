@@ -6,6 +6,12 @@ from sqlalchemy.orm import Session
 
 from app.modules.auth.model import User
 from app.modules.auth.schema import (
+    ForgotPasswordEmailRequest,
+    ForgotPasswordEmailSuccessResponse,
+    ForgotPasswordResetRequest,
+    ForgotPasswordResetSuccessResponse,
+    ForgotPasswordVerifyCodeRequest,
+    ForgotPasswordVerifyCodeSuccessResponse,
     SignupRequest,
     SignupSuccessResponse,
     SignupUserData,
@@ -16,6 +22,8 @@ from app.modules.auth.utils import (
     generate_verification_code,
     get_verification_code_expiry,
     hash_password,
+    is_code_expired,
+    send_forgot_password_email,
     send_verification_email,
 )
 
@@ -38,6 +46,14 @@ class ExpiredVerificationCodeError(Exception):
 
 class EmailAlreadyVerifiedError(Exception):
     """Raised when the email address is already verified."""
+
+
+class EmailNotFoundError(Exception):
+    """Raised when no user exists for the provided email address."""
+
+
+class ForgotPasswordNotVerifiedError(Exception):
+    """Raised when forgot-password code has not been verified yet."""
 
 
 def auth_service():
@@ -170,3 +186,83 @@ def verify_user_email(
     db.commit()
 
     return VerifyEmailSuccessResponse(message="Email verified successfully")
+
+
+def request_forgot_password_code(
+    db: Session,
+    payload: ForgotPasswordEmailRequest,
+) -> ForgotPasswordEmailSuccessResponse:
+    """Generate and email a forgot-password verification code."""
+    user = db.execute(
+        select(User).where(User.email == str(payload.email).lower())
+    ).scalar_one_or_none()
+
+    if not user:
+        raise EmailNotFoundError()
+
+    verification_code = generate_verification_code()
+    user.forgot_password_code = verification_code
+    user.forgot_password_code_expires_at = get_verification_code_expiry()
+    user.forgot_password_verified = False
+
+    db.commit()
+    send_forgot_password_email(user.email, verification_code)
+
+    return ForgotPasswordEmailSuccessResponse(
+        message="Verification code sent successfully",
+    )
+
+
+def verify_forgot_password_code(
+    db: Session,
+    payload: ForgotPasswordVerifyCodeRequest,
+) -> ForgotPasswordVerifyCodeSuccessResponse:
+    """Validate the forgot-password verification code sent to the user's email."""
+    user = db.execute(
+        select(User).where(User.email == str(payload.email).lower())
+    ).scalar_one_or_none()
+
+    if not user:
+        raise InvalidVerificationCodeError()
+
+    submitted_code = payload.verification_code.strip()
+    if not user.forgot_password_code or user.forgot_password_code != submitted_code:
+        raise InvalidVerificationCodeError()
+
+    if is_code_expired(user.forgot_password_code_expires_at):
+        raise ExpiredVerificationCodeError()
+
+    user.forgot_password_verified = True
+    db.commit()
+
+    return ForgotPasswordVerifyCodeSuccessResponse(
+        message="Verification code verified successfully",
+    )
+
+
+def reset_forgot_password(
+    db: Session,
+    payload: ForgotPasswordResetRequest,
+) -> ForgotPasswordResetSuccessResponse:
+    """Reset the user's password after forgot-password verification."""
+    if payload.new_password != payload.confirm_password:
+        raise PasswordMismatchError()
+
+    user = db.execute(
+        select(User).where(User.email == str(payload.email).lower())
+    ).scalar_one_or_none()
+
+    if not user:
+        raise EmailNotFoundError()
+
+    if not user.forgot_password_verified:
+        raise ForgotPasswordNotVerifiedError()
+
+    user.password_hash = hash_password(payload.new_password)
+    user.forgot_password_code = None
+    user.forgot_password_code_expires_at = None
+    user.forgot_password_verified = False
+
+    db.commit()
+
+    return ForgotPasswordResetSuccessResponse(message="Password reset successfully")

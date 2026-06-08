@@ -28,6 +28,16 @@ class User(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+    forgot_password_code: Mapped[str | None] = mapped_column(String(6), nullable=True)
+    forgot_password_code_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    forgot_password_verified: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
     is_mobile_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     profile_image: Mapped[str | None] = mapped_column(String(500), nullable=True)

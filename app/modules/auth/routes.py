@@ -5,6 +5,12 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.modules.auth import service
 from app.modules.auth.schema import (
+    ForgotPasswordEmailRequest,
+    ForgotPasswordEmailSuccessResponse,
+    ForgotPasswordResetRequest,
+    ForgotPasswordResetSuccessResponse,
+    ForgotPasswordVerifyCodeRequest,
+    ForgotPasswordVerifyCodeSuccessResponse,
     SignupRequest,
     SignupSuccessResponse,
     VerifyEmailRequest,
@@ -86,5 +92,89 @@ def signup_verification(payload: VerifyEmailRequest, db: Session = Depends(get_d
             content={
                 "success": False,
                 "message": "Invalid verification code",
+            },
+        )
+
+
+@signup_router.post(
+    "/verify-forgot-password-email",
+    status_code=status.HTTP_200_OK,
+    response_model=ForgotPasswordEmailSuccessResponse,
+)
+def verify_forgot_password_email(
+    payload: ForgotPasswordEmailRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        return service.request_forgot_password_code(db, payload)
+    except service.EmailNotFoundError:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "success": False,
+                "message": "Email not found",
+            },
+        )
+
+
+@signup_router.post(
+    "/verify-forgot-password-uniquecode",
+    status_code=status.HTTP_200_OK,
+    response_model=ForgotPasswordVerifyCodeSuccessResponse,
+)
+def verify_forgot_password_uniquecode(
+    payload: ForgotPasswordVerifyCodeRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        return service.verify_forgot_password_code(db, payload)
+    except service.ExpiredVerificationCodeError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": "Verification code has expired",
+            },
+        )
+    except service.InvalidVerificationCodeError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": "Invalid verification code",
+            },
+        )
+
+
+@signup_router.post(
+    "/forgot-password",
+    status_code=status.HTTP_200_OK,
+    response_model=ForgotPasswordResetSuccessResponse,
+)
+def forgot_password(payload: ForgotPasswordResetRequest, db: Session = Depends(get_db)):
+    try:
+        return service.reset_forgot_password(db, payload)
+    except service.ForgotPasswordNotVerifiedError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": "Please verify your verification code first",
+            },
+        )
+    except service.PasswordMismatchError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": "Passwords do not match",
+            },
+        )
+    except service.EmailNotFoundError:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "success": False,
+                "message": "Email not found",
             },
         )
