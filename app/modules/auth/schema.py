@@ -78,3 +78,38 @@ class ForgotPasswordResetRequest(BaseModel):
 class ForgotPasswordResetSuccessResponse(BaseModel):
     success: bool = True
     message: str
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr = Field(..., description="Registered email address")
+    password: str = Field(..., min_length=1, description="Account password")
+
+
+class LoginUserData(BaseModel):
+    id: int
+    first_name: str
+    last_name: str | None
+    email: str
+    role: str
+    is_email_verified: bool
+
+
+class LoginSuccessResponse(BaseModel):
+    success: bool = True
+    message: str
+    data: LoginUserData
+    access_token: str
+    token_type: str = "Bearer"
+
+
+class MeUserData(BaseModel):
+    id: int
+    first_name: str
+    last_name: str | None
+    email: str
+    role: str
+
+
+class MeSuccessResponse(BaseModel):
+    success: bool = True
+    data: MeUserData

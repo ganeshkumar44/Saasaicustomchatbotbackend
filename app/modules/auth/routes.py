@@ -11,11 +11,15 @@ from app.modules.auth.schema import (
     ForgotPasswordResetSuccessResponse,
     ForgotPasswordVerifyCodeRequest,
     ForgotPasswordVerifyCodeSuccessResponse,
+    LoginRequest,
+    LoginSuccessResponse,
+    MeSuccessResponse,
     SignupRequest,
     SignupSuccessResponse,
     VerifyEmailRequest,
     VerifyEmailSuccessResponse,
 )
+from app.modules.auth.utils import get_current_user
 
 router = APIRouter(
     prefix="/auth",
@@ -178,3 +182,54 @@ def forgot_password(payload: ForgotPasswordResetRequest, db: Session = Depends(g
                 "message": "Email not found",
             },
         )
+
+
+@signup_router.post(
+    "/signin",
+    status_code=status.HTTP_200_OK,
+    response_model=LoginSuccessResponse,
+)
+def signin(payload: LoginRequest, db: Session = Depends(get_db)):
+    try:
+        return service.login_user(db, payload)
+    except service.LoginUserNotFoundError:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "success": False,
+                "message": "Invalid email or password",
+            },
+        )
+    except service.LoginInvalidPasswordError:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={
+                "success": False,
+                "message": "Invalid email or password",
+            },
+        )
+    except service.AccountDisabledError:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={
+                "success": False,
+                "message": "Account has been disabled",
+            },
+        )
+    except service.EmailNotVerifiedForLoginError:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={
+                "success": False,
+                "message": "Please verify your email before login",
+            },
+        )
+
+
+@signup_router.get(
+    "/me",
+    status_code=status.HTTP_200_OK,
+    response_model=MeSuccessResponse,
+)
+def get_me(current_user=Depends(get_current_user)):
+    return service.get_current_user_profile(current_user)

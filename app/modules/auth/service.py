@@ -12,6 +12,11 @@ from app.modules.auth.schema import (
     ForgotPasswordResetSuccessResponse,
     ForgotPasswordVerifyCodeRequest,
     ForgotPasswordVerifyCodeSuccessResponse,
+    LoginRequest,
+    LoginSuccessResponse,
+    LoginUserData,
+    MeSuccessResponse,
+    MeUserData,
     SignupRequest,
     SignupSuccessResponse,
     SignupUserData,
@@ -19,12 +24,14 @@ from app.modules.auth.schema import (
     VerifyEmailSuccessResponse,
 )
 from app.modules.auth.utils import (
+    create_access_token,
     generate_verification_code,
     get_verification_code_expiry,
     hash_password,
     is_code_expired,
     send_forgot_password_email,
     send_verification_email,
+    verify_password,
 )
 
 
@@ -54,6 +61,22 @@ class EmailNotFoundError(Exception):
 
 class ForgotPasswordNotVerifiedError(Exception):
     """Raised when forgot-password code has not been verified yet."""
+
+
+class LoginUserNotFoundError(Exception):
+    """Raised when login email does not match any user."""
+
+
+class LoginInvalidPasswordError(Exception):
+    """Raised when the submitted login password is incorrect."""
+
+
+class AccountDisabledError(Exception):
+    """Raised when the user account is inactive."""
+
+
+class EmailNotVerifiedForLoginError(Exception):
+    """Raised when the user attempts login before verifying email."""
 
 
 def auth_service():
@@ -266,3 +289,60 @@ def reset_forgot_password(
     db.commit()
 
     return ForgotPasswordResetSuccessResponse(message="Password reset successfully")
+
+
+def login_user(db: Session, payload: LoginRequest) -> LoginSuccessResponse:
+    """Authenticate a user and return a JWT access token."""
+    normalized_email = str(payload.email).lower()
+
+    user = db.execute(
+        select(User).where(User.email == normalized_email)
+    ).scalar_one_or_none()
+
+    if not user:
+        raise LoginUserNotFoundError()
+
+    if not verify_password(payload.password, user.password_hash):
+        raise LoginInvalidPasswordError()
+
+    if not user.is_active:
+        raise AccountDisabledError()
+
+    if not user.is_email_verified:
+        raise EmailNotVerifiedForLoginError()
+
+    user.last_login = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
+
+    access_token = create_access_token(
+        user_id=user.id,
+        email=user.email,
+        role=user.role,
+    )
+
+    return LoginSuccessResponse(
+        message="Login successful",
+        data=LoginUserData(
+            id=user.id,
+            first_name=user.first_name,
+            last_name=user.last_name or None,
+            email=user.email,
+            role=user.role,
+            is_email_verified=user.is_email_verified,
+        ),
+        access_token=access_token,
+    )
+
+
+def get_current_user_profile(user: User) -> MeSuccessResponse:
+    """Return the authenticated user's basic profile."""
+    return MeSuccessResponse(
+        data=MeUserData(
+            id=user.id,
+            first_name=user.first_name,
+            last_name=user.last_name or None,
+            email=user.email,
+            role=user.role,
+        ),
+    )
