@@ -1,4 +1,20 @@
+from enum import Enum
+
 from pydantic import BaseModel, Field
+
+
+class PersonalityEnum(str, Enum):
+    PROFESSIONAL = "Professional"
+    FRIENDLY = "Friendly"
+    CASUAL = "Casual"
+
+
+class AIModelEnum(str, Enum):
+    LLAMA_3_1 = "Llama 3.1"
+
+
+class LanguageEnum(str, Enum):
+    ENGLISH = "English"
 
 
 class CreateChatbotDraftData(BaseModel):
@@ -34,3 +50,22 @@ class UpdateBasicInfoSuccessResponse(BaseModel):
     success: bool = True
     message: str
     data: UpdateBasicInfoData
+
+
+class UpdateBehaviourRequest(BaseModel):
+    personality: str = Field(..., description="Chatbot personality style")
+    ai_model: str = Field(..., description="AI model used by the chatbot")
+    language: str = Field(..., description="Chatbot response language")
+
+
+class UpdateBehaviourData(BaseModel):
+    chatbot_id: int
+    personality: str
+    ai_model: str
+    language: str
+
+
+class UpdateBehaviourSuccessResponse(BaseModel):
+    success: bool = True
+    message: str
+    data: UpdateBehaviourData
