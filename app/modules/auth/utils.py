@@ -1,5 +1,4 @@
 import logging
-import os
 import random
 import smtplib
 from datetime import datetime, timedelta, timezone
@@ -15,6 +14,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.database import get_db
 
 logger = logging.getLogger(__name__)
@@ -29,11 +29,12 @@ class InvalidTokenError(Exception):
 
 
 def _get_jwt_settings() -> dict[str, str | int]:
-    """Read JWT configuration from environment variables."""
+    """Read JWT configuration from application settings."""
+    settings = get_settings()
     return {
-        "secret_key": os.getenv("JWT_SECRET_KEY", ""),
-        "algorithm": os.getenv("JWT_ALGORITHM", "HS256"),
-        "expire_minutes": int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "1440")),
+        "secret_key": settings.JWT_SECRET_KEY,
+        "algorithm": settings.JWT_ALGORITHM,
+        "expire_minutes": settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES,
     }
 
 
@@ -117,14 +118,14 @@ def get_current_user(
 
 
 def _get_smtp_settings() -> dict[str, str | int]:
-    """Read SMTP configuration from environment variables at send time."""
-    smtp_user = os.getenv("SMTP_USER", "")
+    """Read SMTP configuration from application settings at send time."""
+    settings = get_settings()
     return {
-        "host": os.getenv("SMTP_HOST", "smtp.gmail.com"),
-        "port": int(os.getenv("SMTP_PORT", "587")),
-        "user": smtp_user,
-        "password": os.getenv("SMTP_PASSWORD", "").replace(" ", ""),
-        "from_email": os.getenv("SMTP_FROM", smtp_user),
+        "host": settings.SMTP_HOST,
+        "port": settings.SMTP_PORT,
+        "user": settings.SMTP_USER,
+        "password": settings.SMTP_PASSWORD,
+        "from_email": settings.SMTP_FROM,
     }
 
 

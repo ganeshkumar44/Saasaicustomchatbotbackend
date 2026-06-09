@@ -20,14 +20,30 @@ class Settings:
     """Centralized application settings backed by environment variables."""
 
     def __init__(self) -> None:
+        # PostgreSQL connection settings
         self.DB_HOST: str = os.getenv("DB_HOST", "localhost")
         self.DB_PORT: int = int(os.getenv("DB_PORT", "5432"))
         self.DB_NAME: str = os.getenv("DB_NAME", "saas_aicustom_chatbot")
         self.DB_USER: str = os.getenv("DB_USER", "postgres")
         self.DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
 
+        # SQLAlchemy connection pool tuning
         self.DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "10"))
         self.DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "20"))
+
+        # SMTP configuration for email verification
+        self.SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
+        self.SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+        self.SMTP_USER: str = os.getenv("SMTP_USER", "")
+        self.SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "").replace(" ", "")
+        self.SMTP_FROM: str = os.getenv("SMTP_FROM", os.getenv("SMTP_USER", ""))
+
+        # JWT authentication settings
+        self.JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "")
+        self.JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
+        self.JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
+            os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "1440")
+        )
 
     @property
     def database_url(self) -> str:
