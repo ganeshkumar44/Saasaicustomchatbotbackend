@@ -45,6 +45,11 @@ class Settings:
             os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "1440")
         )
 
+        # Chatbot widget embed base URL
+        self.WIDGET_BASE_URL: str = os.getenv(
+            "WIDGET_BASE_URL", "http://127.0.0.1:8000"
+        )
+
     @property
     def database_url(self) -> str:
         """Build the SQLAlchemy PostgreSQL connection URL."""

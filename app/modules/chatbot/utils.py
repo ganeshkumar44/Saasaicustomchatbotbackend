@@ -2,7 +2,6 @@
 Chatbot module helper utilities.
 """
 
-import os
 import secrets
 
 from fastapi import Depends, HTTPException, status
@@ -11,6 +10,7 @@ from sqlalchemy import inspect, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.modules.chatbot.model import ChatbotSettings
 from app.modules.auth.model import User
@@ -158,12 +158,11 @@ DEFAULT_WELCOME_MESSAGE = (
     "Hi there! 👋 Welcome to our support chat. How can we assist you today?"
 )
 DEFAULT_INPUT_PLACEHOLDER = "Type your message..."
-DEFAULT_WIDGET_BASE_URL = "https://yourdomain.com"
 
 
 def get_widget_base_url() -> str:
     """Return the base URL used in generated embed code."""
-    return os.getenv("WIDGET_BASE_URL", DEFAULT_WIDGET_BASE_URL).rstrip("/")
+    return get_settings().WIDGET_BASE_URL.rstrip("/")
 
 
 def generate_public_key() -> str:
