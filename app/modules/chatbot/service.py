@@ -1,8 +1,14 @@
 from datetime import datetime, timezone
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.auth.model import User
+from app.modules.knowledgebase.model import (
+    SOURCE_TYPE_FILE,
+    SOURCE_TYPE_URL,
+    KnowledgebaseDocument,
+)
 from app.modules.chatbot.model import CHATBOT_STATUS_DRAFT, Chatbot
 from app.modules.chatbot.schema import (
     AIModelEnum,
@@ -16,6 +22,9 @@ from app.modules.chatbot.schema import (
     UpdateBehaviourRequest,
     UpdateBehaviourData,
     UpdateBehaviourSuccessResponse,
+    ChatbotReviewData,
+    ChatbotReviewSuccessResponse,
+    KnowledgebaseSummary,
 )
 
 
@@ -152,5 +161,54 @@ def update_behaviour(
             personality=chatbot.personality,
             ai_model=chatbot.ai_model,
             language=chatbot.language,
+        ),
+    )
+
+
+def _build_knowledgebase_summary(
+    db: Session,
+    chatbot_id: int,
+) -> KnowledgebaseSummary:
+    """Calculate knowledge base source counts for a chatbot."""
+    documents = db.execute(
+        select(KnowledgebaseDocument).where(
+            KnowledgebaseDocument.chatbot_id == chatbot_id
+        )
+    ).scalars().all()
+
+    total_files_uploaded = sum(
+        1 for document in documents if document.source_type == SOURCE_TYPE_FILE
+    )
+    total_urls_uploaded = sum(
+        1 for document in documents if document.source_type == SOURCE_TYPE_URL
+    )
+
+    return KnowledgebaseSummary(
+        total_files_uploaded=total_files_uploaded,
+        total_urls_uploaded=total_urls_uploaded,
+        total_knowledge_sources=len(documents),
+    )
+
+
+def get_chatbot_review(
+    db: Session,
+    user: User,
+    chatbot_id: int,
+) -> ChatbotReviewSuccessResponse:
+    """Return a review summary of all chatbot builder steps."""
+    chatbot = _get_owned_chatbot(db, user, chatbot_id)
+    knowledgebase_summary = _build_knowledgebase_summary(db, chatbot_id)
+
+    return ChatbotReviewSuccessResponse(
+        message="Chatbot review data fetched successfully",
+        data=ChatbotReviewData(
+            chatbot_id=chatbot.id,
+            chatbot_name=chatbot.chatbot_name,
+            description=chatbot.description,
+            personality=chatbot.personality,
+            ai_model=chatbot.ai_model,
+            language=chatbot.language,
+            status=chatbot.status,
+            knowledgebase=knowledgebase_summary,
         ),
     )

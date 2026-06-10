@@ -69,3 +69,26 @@ class UpdateBehaviourSuccessResponse(BaseModel):
     success: bool = True
     message: str
     data: UpdateBehaviourData
+
+
+class KnowledgebaseSummary(BaseModel):
+    total_files_uploaded: int
+    total_urls_uploaded: int
+    total_knowledge_sources: int
+
+
+class ChatbotReviewData(BaseModel):
+    chatbot_id: int
+    chatbot_name: str | None
+    description: str | None
+    personality: str | None
+    ai_model: str | None
+    language: str | None
+    status: str
+    knowledgebase: KnowledgebaseSummary
+
+
+class ChatbotReviewSuccessResponse(BaseModel):
+    success: bool = True
+    message: str
+    data: ChatbotReviewData

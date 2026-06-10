@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.modules.auth.model import User
 from app.modules.chatbot import service
 from app.modules.chatbot.schema import (
+    ChatbotReviewSuccessResponse,
     CreateChatbotDraftSuccessResponse,
     UpdateBasicInfoRequest,
     UpdateBasicInfoSuccessResponse,
@@ -125,5 +126,36 @@ def update_behaviour(
             content={
                 "success": False,
                 "message": "You do not have permission to update this chatbot",
+            },
+        )
+
+
+@router.get(
+    "/chatbots/{chatbot_id}/review",
+    status_code=status.HTTP_200_OK,
+    response_model=ChatbotReviewSuccessResponse,
+)
+def get_chatbot_review(
+    chatbot_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_authenticated_user),
+):
+    """Return a review summary of all chatbot builder steps."""
+    try:
+        return service.get_chatbot_review(db, current_user, chatbot_id)
+    except service.ChatbotNotFoundError:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "success": False,
+                "message": "Chatbot not found",
+            },
+        )
+    except service.ChatbotPermissionError:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={
+                "success": False,
+                "message": "You do not have permission to access this chatbot",
             },
         )
