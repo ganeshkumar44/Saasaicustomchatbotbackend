@@ -2,13 +2,17 @@
 Chatbot module helper utilities.
 """
 
+import os
+import secrets
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.modules.chatbot.model import ChatbotSettings
 from app.modules.auth.model import User
 from app.modules.auth.utils import InvalidTokenError, decode_access_token
 
@@ -118,6 +122,10 @@ def apply_chatbot_migrations(db_engine: Engine) -> None:
             "ALTER TABLE chatbots ADD COLUMN updated_at "
             "TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()"
         )
+    if "published_at" not in existing_columns:
+        statements.append(
+            "ALTER TABLE chatbots ADD COLUMN published_at TIMESTAMP WITH TIME ZONE"
+        )
 
     # Draft builder fields must allow NULL until the user completes each step.
     for column_name in (
@@ -138,3 +146,46 @@ def apply_chatbot_migrations(db_engine: Engine) -> None:
     with db_engine.begin() as connection:
         for statement in statements:
             connection.execute(text(statement))
+
+
+DEFAULT_TYPING_INDICATOR = True
+DEFAULT_PRIMARY_COLOR = "#000000"
+DEFAULT_TEXT_COLOR = "#ffffff"
+DEFAULT_WIDGET_POSITION = "bottom-right"
+DEFAULT_SHOW_AVATAR = True
+DEFAULT_CHAT_TITLE = "Chat with us"
+DEFAULT_WELCOME_MESSAGE = (
+    "Hi there! 👋 Welcome to our support chat. How can we assist you today?"
+)
+DEFAULT_INPUT_PLACEHOLDER = "Type your message..."
+DEFAULT_WIDGET_BASE_URL = "https://yourdomain.com"
+
+
+def get_widget_base_url() -> str:
+    """Return the base URL used in generated embed code."""
+    return os.getenv("WIDGET_BASE_URL", DEFAULT_WIDGET_BASE_URL).rstrip("/")
+
+
+def generate_public_key() -> str:
+    """Generate a unique URL-safe public chatbot key."""
+    return f"cb_{secrets.token_hex(6)}"
+
+
+def generate_unique_public_key(db: Session) -> str:
+    """Generate a public key that does not already exist in the database."""
+    while True:
+        public_key = generate_public_key()
+        existing = db.execute(
+            select(ChatbotSettings.id).where(ChatbotSettings.public_key == public_key)
+        ).scalar_one_or_none()
+        if existing is None:
+            return public_key
+
+
+def generate_embed_code(public_key: str) -> str:
+    """Build the widget embed code for a published chatbot."""
+    widget_url = f"{get_widget_base_url()}/widget.js"
+    return (
+        f"<script src='{widget_url}' "
+        f"data-chatbot-key='{public_key}'></script>"
+    )

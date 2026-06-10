@@ -9,7 +9,24 @@ from app.modules.knowledgebase.model import (
     SOURCE_TYPE_URL,
     KnowledgebaseDocument,
 )
-from app.modules.chatbot.model import CHATBOT_STATUS_DRAFT, Chatbot
+from app.modules.chatbot.model import (
+    CHATBOT_STATUS_DRAFT,
+    CHATBOT_STATUS_PUBLISHED,
+    Chatbot,
+    ChatbotSettings,
+)
+from app.modules.chatbot.utils import (
+    DEFAULT_CHAT_TITLE,
+    DEFAULT_INPUT_PLACEHOLDER,
+    DEFAULT_PRIMARY_COLOR,
+    DEFAULT_SHOW_AVATAR,
+    DEFAULT_TEXT_COLOR,
+    DEFAULT_TYPING_INDICATOR,
+    DEFAULT_WELCOME_MESSAGE,
+    DEFAULT_WIDGET_POSITION,
+    generate_embed_code,
+    generate_unique_public_key,
+)
 from app.modules.chatbot.schema import (
     AIModelEnum,
     CreateChatbotDraftData,
@@ -25,6 +42,8 @@ from app.modules.chatbot.schema import (
     ChatbotReviewData,
     ChatbotReviewSuccessResponse,
     KnowledgebaseSummary,
+    PublishChatbotData,
+    PublishChatbotSuccessResponse,
 )
 
 
@@ -50,6 +69,14 @@ class InvalidAIModelError(Exception):
 
 class InvalidLanguageError(Exception):
     """Raised when language is not an allowed value."""
+
+
+class ChatbotIncompleteConfigError(Exception):
+    """Raised when required builder steps are not completed before publish."""
+
+    def __init__(self, missing_steps: list[str]) -> None:
+        self.missing_steps = missing_steps
+        super().__init__()
 
 
 def create_chatbot_draft(db: Session, user: User) -> CreateChatbotDraftSuccessResponse:
@@ -210,5 +237,94 @@ def get_chatbot_review(
             language=chatbot.language,
             status=chatbot.status,
             knowledgebase=knowledgebase_summary,
+        ),
+    )
+
+
+def _get_missing_publish_steps(chatbot: Chatbot, db: Session, chatbot_id: int) -> list[str]:
+    """Return human-readable labels for incomplete builder steps."""
+    missing_steps: list[str] = []
+
+    if not chatbot.chatbot_name or not chatbot.chatbot_name.strip():
+        missing_steps.append("Basic Info")
+
+    if not chatbot.personality or not chatbot.ai_model or not chatbot.language:
+        missing_steps.append("Behaviour")
+
+    knowledgebase_summary = _build_knowledgebase_summary(db, chatbot_id)
+    if knowledgebase_summary.total_knowledge_sources < 1:
+        missing_steps.append("Knowledge Base")
+
+    return missing_steps
+
+
+def _create_default_chatbot_settings(
+    db: Session,
+    chatbot_id: int,
+) -> ChatbotSettings:
+    """Create default widget settings for a newly published chatbot."""
+    public_key = generate_unique_public_key(db)
+    embed_code = generate_embed_code(public_key)
+
+    settings = ChatbotSettings(
+        chatbot_id=chatbot_id,
+        typing_indicator=DEFAULT_TYPING_INDICATOR,
+        primary_color=DEFAULT_PRIMARY_COLOR,
+        text_color=DEFAULT_TEXT_COLOR,
+        widget_position=DEFAULT_WIDGET_POSITION,
+        show_avatar=DEFAULT_SHOW_AVATAR,
+        chat_title=DEFAULT_CHAT_TITLE,
+        welcome_message=DEFAULT_WELCOME_MESSAGE,
+        input_placeholder=DEFAULT_INPUT_PLACEHOLDER,
+        public_key=public_key,
+        embed_code=embed_code,
+    )
+    db.add(settings)
+    return settings
+
+
+def publish_chatbot(
+    db: Session,
+    user: User,
+    chatbot_id: int,
+) -> PublishChatbotSuccessResponse:
+    """Validate builder steps, publish the chatbot, and create default settings."""
+    chatbot = _get_owned_chatbot(db, user, chatbot_id)
+
+    missing_steps = _get_missing_publish_steps(chatbot, db, chatbot_id)
+    if missing_steps:
+        raise ChatbotIncompleteConfigError(missing_steps)
+
+    if chatbot.status == CHATBOT_STATUS_PUBLISHED and chatbot.settings is not None:
+        return PublishChatbotSuccessResponse(
+            message="Chatbot published successfully",
+            data=PublishChatbotData(
+                chatbot_id=chatbot.id,
+                status=chatbot.status,
+                public_key=chatbot.settings.public_key,
+                embed_code=chatbot.settings.embed_code,
+            ),
+        )
+
+    now = datetime.now(timezone.utc)
+    chatbot.status = CHATBOT_STATUS_PUBLISHED
+    chatbot.published_at = now
+    chatbot.updated_at = now
+
+    settings = chatbot.settings
+    if settings is None:
+        settings = _create_default_chatbot_settings(db, chatbot.id)
+
+    db.commit()
+    db.refresh(chatbot)
+    db.refresh(settings)
+
+    return PublishChatbotSuccessResponse(
+        message="Chatbot published successfully",
+        data=PublishChatbotData(
+            chatbot_id=chatbot.id,
+            status=chatbot.status,
+            public_key=settings.public_key,
+            embed_code=settings.embed_code,
         ),
     )

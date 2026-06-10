@@ -92,3 +92,16 @@ class ChatbotReviewSuccessResponse(BaseModel):
     success: bool = True
     message: str
     data: ChatbotReviewData
+
+
+class PublishChatbotData(BaseModel):
+    chatbot_id: int
+    status: str
+    public_key: str
+    embed_code: str
+
+
+class PublishChatbotSuccessResponse(BaseModel):
+    success: bool = True
+    message: str
+    data: PublishChatbotData
