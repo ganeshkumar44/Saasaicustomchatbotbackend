@@ -183,7 +183,7 @@ def generate_unique_public_key(db: Session) -> str:
 
 def generate_embed_code(public_key: str) -> str:
     """Build the widget embed code for a published chatbot."""
-    widget_url = f"{get_widget_base_url()}/widget.js"
+    widget_url = f"{get_widget_base_url()}/static/widget.js"
     return (
         f"<script src='{widget_url}' "
         f"data-chatbot-key='{public_key}'></script>"

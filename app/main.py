@@ -10,6 +10,7 @@ from app.modules.chatbot.routes import router as chatbot_router
 from app.modules.chatbot.utils import apply_chatbot_migrations
 from app.modules.health.routes import router as health_router
 from app.modules.knowledgebase.routes import router as knowledgebase_router
+from app.modules.widget.routes import router as widget_router
 
 # Import all ORM models so they register with Base.metadata before create_all().
 import app.modules.auth.model  # noqa: F401
@@ -41,3 +42,4 @@ app.include_router(auth_router)
 app.include_router(signup_router)
 app.include_router(chatbot_router)
 app.include_router(knowledgebase_router)
+app.include_router(widget_router)
