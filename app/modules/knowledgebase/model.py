@@ -1,0 +1,63 @@
+"""
+Knowledge base ORM models.
+"""
+
+from datetime import datetime
+
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.database import Base
+
+SOURCE_TYPE_FILE = "file"
+SOURCE_TYPE_URL = "url"
+
+STATUS_PENDING = "pending"
+STATUS_PROCESSING = "processing"
+STATUS_COMPLETED = "completed"
+STATUS_FAILED = "failed"
+
+
+class KnowledgebaseDocument(Base):
+    """Knowledge source uploaded or linked to a chatbot."""
+
+    __tablename__ = "knowledgebase_documents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    chatbot_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("chatbots.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    source_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    original_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    source_url: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    file_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    file_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    processing_status: Mapped[str] = mapped_column(
+        String(20),
+        default=STATUS_PENDING,
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    chatbot = relationship("Chatbot", backref="knowledgebase_documents")
+
+    def __repr__(self) -> str:
+        return (
+            f"<KnowledgebaseDocument id={self.id} chatbot_id={self.chatbot_id} "
+            f"source_type={self.source_type!r}>"
+        )
