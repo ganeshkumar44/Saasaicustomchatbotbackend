@@ -21,14 +21,14 @@ if (!chatbotKey) {
       if (!response.success || !response.data) {
         return;
       }
-      initWidget(response.data);
+      initWidget(response.data, chatbotKey);
     })
     .catch((error) => {
       console.error("Widget:", error);
     });
 }
 
-function initWidget(config) {
+function initWidget(config, publicKey) {
   const position = config.widget_position || "bottom-right";
   const isRight = position === "bottom-right";
 
@@ -117,8 +117,32 @@ function initWidget(config) {
       gap: 12px;
     }
 
-    .saas-widget-message {
+    .saas-widget-message-wrap {
+      display: flex;
+      flex-direction: column;
       max-width: 85%;
+      gap: 4px;
+    }
+
+    .saas-widget-message-wrap.user {
+      align-self: flex-end;
+      align-items: flex-end;
+    }
+
+    .saas-widget-message-wrap.bot {
+      align-self: flex-start;
+      align-items: flex-start;
+    }
+
+    .saas-widget-message-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #8b8b9e;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .saas-widget-message {
       padding: 12px 14px;
       border-radius: 12px;
       font-size: 14px;
@@ -127,10 +151,20 @@ function initWidget(config) {
     }
 
     .saas-widget-message.bot {
-      align-self: flex-start;
       background: #2d2d3f;
       color: #ffffff;
       border-bottom-left-radius: 4px;
+    }
+
+    .saas-widget-message.user {
+      background: ${config.primary_color};
+      color: ${config.text_color};
+      border-bottom-right-radius: 4px;
+    }
+
+    .saas-widget-message.typing {
+      font-style: italic;
+      color: #b0b0c0;
     }
 
     .saas-widget-footer {
@@ -163,6 +197,11 @@ function initWidget(config) {
       border-color: ${config.primary_color};
     }
 
+    .saas-widget-input:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
     .saas-widget-send {
       padding: 10px 16px;
       border: none;
@@ -177,8 +216,13 @@ function initWidget(config) {
       transition: opacity 0.2s ease;
     }
 
-    .saas-widget-send:hover {
+    .saas-widget-send:hover:not(:disabled) {
       opacity: 0.9;
+    }
+
+    .saas-widget-send:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
     }
   `;
   document.head.appendChild(style);
@@ -210,11 +254,6 @@ function initWidget(config) {
   const messages = document.createElement("div");
   messages.className = "saas-widget-messages";
 
-  const welcomeMessage = document.createElement("div");
-  welcomeMessage.className = "saas-widget-message bot";
-  welcomeMessage.textContent = config.welcome_message;
-  messages.appendChild(welcomeMessage);
-
   const footer = document.createElement("div");
   footer.className = "saas-widget-footer";
 
@@ -237,6 +276,107 @@ function initWidget(config) {
   document.body.appendChild(popup);
 
   let isOpen = false;
+  let isSending = false;
+
+  function scrollToBottom() {
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function createMessageWrap(sender, messageClass) {
+    const wrap = document.createElement("div");
+    wrap.className = `saas-widget-message-wrap ${messageClass}`;
+
+    const label = document.createElement("div");
+    label.className = "saas-widget-message-label";
+    label.textContent = sender;
+
+    const bubble = document.createElement("div");
+    bubble.className = `saas-widget-message ${messageClass}`;
+
+    wrap.appendChild(label);
+    wrap.appendChild(bubble);
+
+    return { wrap, bubble };
+  }
+
+  function addUserMessage(message) {
+    const { wrap, bubble } = createMessageWrap("You", "user");
+    bubble.textContent = message;
+    messages.appendChild(wrap);
+    scrollToBottom();
+  }
+
+  function addBotMessage(message) {
+    const { wrap, bubble } = createMessageWrap("Bot", "bot");
+    bubble.textContent = message;
+    messages.appendChild(wrap);
+    scrollToBottom();
+    return wrap;
+  }
+
+  function showTypingIndicator() {
+    const { wrap, bubble } = createMessageWrap("Bot", "bot");
+    bubble.classList.add("typing");
+    bubble.textContent = "Typing...";
+    messages.appendChild(wrap);
+    scrollToBottom();
+    return wrap;
+  }
+
+  function setSendingState(sending) {
+    isSending = sending;
+    input.disabled = sending;
+    sendButton.disabled = sending;
+  }
+
+  async function sendMessage() {
+    const message = input.value.trim();
+    if (!message || isSending) {
+      return;
+    }
+
+    addUserMessage(message);
+    input.value = "";
+    setSendingState(true);
+
+    const typingIndicator = config.typing_indicator ? showTypingIndicator() : null;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/v1/widget/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          public_key: publicKey,
+          message,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (typingIndicator) {
+        typingIndicator.remove();
+      }
+
+      if (!response.ok || !data.success) {
+        addBotMessage("Sorry, something went wrong.");
+        return;
+      }
+
+      addBotMessage(data.answer);
+    } catch (error) {
+      console.error("Widget:", error);
+      if (typingIndicator) {
+        typingIndicator.remove();
+      }
+      addBotMessage("Sorry, something went wrong.");
+    } finally {
+      setSendingState(false);
+    }
+  }
+
+  addBotMessage(config.welcome_message);
 
   button.addEventListener("click", () => {
     isOpen = !isOpen;
@@ -244,13 +384,12 @@ function initWidget(config) {
     button.setAttribute("aria-label", isOpen ? "Close chat" : "Open chat");
   });
 
-  sendButton.addEventListener("click", () => {
-    // UI only — messaging will be implemented in a later phase.
-  });
+  sendButton.addEventListener("click", sendMessage);
 
   input.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
+      sendMessage();
     }
   });
 }

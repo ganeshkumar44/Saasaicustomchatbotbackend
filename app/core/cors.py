@@ -1,21 +1,24 @@
 """
 Dynamic CORS middleware.
 
-Allows origins from CORS_ORIGINS (.env) and, for widget config requests,
+Allows origins from CORS_ORIGINS (.env) and, for widget routes,
 origins listed in the chatbot's allowed_domains value stored in the database.
 """
 
 import re
 
+from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
 from app.core.config import get_settings
 from app.core.database import SessionLocal
+from app.modules.chatbot.model import ChatbotSettings
 from app.modules.widget.utils import get_chatbot_settings_by_public_key
 
 WIDGET_CONFIG_PATH_RE = re.compile(r"^/v1/widget/config/([^/]+)$")
+WIDGET_CHAT_PATH = "/v1/widget/chat"
 
 
 def normalize_origin(origin: str) -> str:
@@ -44,6 +47,22 @@ def is_origin_allowed_for_widget(public_key: str, origin: str) -> bool:
         db.close()
 
 
+def is_origin_in_any_allowed_domains(origin: str) -> bool:
+    """Return True when origin matches allowed_domains of any published chatbot."""
+    db = SessionLocal()
+    try:
+        normalized_origin = normalize_origin(origin)
+        allowed_domains_list = db.execute(
+            select(ChatbotSettings.allowed_domains)
+        ).scalars().all()
+        return any(
+            normalized_origin in parse_allowed_domains(allowed_domains)
+            for allowed_domains in allowed_domains_list
+        )
+    finally:
+        db.close()
+
+
 class DynamicCORSMiddleware(BaseHTTPMiddleware):
     """Apply CORS for .env origins and per-chatbot DB allowed_domains on widget routes."""
 
@@ -68,6 +87,9 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
         env_origins = {normalize_origin(item) for item in settings.CORS_ORIGINS}
         if normalized_origin in env_origins:
             return True
+
+        if request.url.path == WIDGET_CHAT_PATH:
+            return is_origin_in_any_allowed_domains(origin)
 
         match = WIDGET_CONFIG_PATH_RE.match(request.url.path)
         if match:
