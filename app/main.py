@@ -2,10 +2,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import get_settings
+from app.core.cors import DynamicCORSMiddleware
 from app.core.database import Base, engine
 from app.modules.auth.routes import router as auth_router, signup_router
 from app.modules.auth.utils import apply_verification_migrations
@@ -40,14 +40,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-settings = get_settings()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(DynamicCORSMiddleware)
 
 app.include_router(health_router)
 app.include_router(auth_router)
