@@ -71,6 +71,12 @@ class Settings:
             str(PROJECT_ROOT / "chroma_db"),
         )
 
+        # Sentence Transformers embedding model
+        self.EMBEDDING_MODEL_NAME: str = os.getenv(
+            "EMBEDDING_MODEL_NAME",
+            "sentence-transformers/all-MiniLM-L6-v2",
+        )
+
     @property
     def database_url(self) -> str:
         """Build the SQLAlchemy PostgreSQL connection URL."""

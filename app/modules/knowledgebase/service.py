@@ -24,6 +24,7 @@ from app.modules.knowledgebase.schema import (
     KnowledgebaseUploadData,
     KnowledgebaseUploadSuccessResponse,
 )
+from app.embeddings.embedding_service import generate_embeddings_for_chunks
 from app.modules.knowledgebase.utils import (
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_CHUNK_SIZE,
@@ -230,7 +231,9 @@ def _save_chunks_for_document(
         document.extracted_text,
     )
     if chunk_count > 0:
-        store_chunks_in_chromadb(chatbot_id, document.id, chunks_data)
+        embedded_chunks = generate_embeddings_for_chunks(chunks_data)
+        if embedded_chunks:
+            store_chunks_in_chromadb(chatbot_id, document.id, embedded_chunks)
     return chunk_count
 
 
