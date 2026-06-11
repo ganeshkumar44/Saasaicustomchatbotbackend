@@ -1,6 +1,9 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import get_settings
 from app.core.database import Base, engine
@@ -10,7 +13,7 @@ from app.modules.chatbot.routes import router as chatbot_router
 from app.modules.chatbot.utils import apply_chatbot_migrations
 from app.modules.health.routes import router as health_router
 from app.modules.knowledgebase.routes import router as knowledgebase_router
-from app.modules.widget.routes import router as widget_router
+from app.modules.widget.routes import router as widget_router, static_router as widget_static_router
 
 # Import all ORM models so they register with Base.metadata before create_all().
 import app.modules.auth.model  # noqa: F401
@@ -37,9 +40,22 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+settings = get_settings()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(signup_router)
 app.include_router(chatbot_router)
 app.include_router(knowledgebase_router)
 app.include_router(widget_router)
+app.include_router(widget_static_router)
+
+STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

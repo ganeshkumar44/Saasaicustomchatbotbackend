@@ -50,6 +50,15 @@ class Settings:
             "WIDGET_BASE_URL", "http://127.0.0.1:8000"
         )
 
+        # CORS allowed origins (comma-separated)
+        cors_origins = os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:5173,http://localhost:3000",
+        )
+        self.CORS_ORIGINS: list[str] = [
+            origin.strip() for origin in cors_origins.split(",") if origin.strip()
+        ]
+
     @property
     def database_url(self) -> str:
         """Build the SQLAlchemy PostgreSQL connection URL."""

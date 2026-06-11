@@ -1,15 +1,27 @@
 from fastapi import APIRouter, Depends, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.modules.widget import service
 from app.modules.widget.schema import WidgetConfigSuccessResponse
+from app.modules.widget.utils import get_widget_js_content
 
 router = APIRouter(
     prefix="/v1",
     tags=["Widget"],
 )
+
+static_router = APIRouter(tags=["Widget"])
+
+
+@static_router.get("/static/widget.js", include_in_schema=False)
+def serve_widget_js() -> Response:
+    """Serve widget.js with the API base URL from application settings."""
+    return Response(
+        content=get_widget_js_content(),
+        media_type="application/javascript",
+    )
 
 
 @router.get(
