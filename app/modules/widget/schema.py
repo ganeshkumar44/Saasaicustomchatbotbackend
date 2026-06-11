@@ -11,6 +11,7 @@ class WidgetConfigResponse(BaseModel):
     show_avatar: bool
     typing_indicator: bool
     widget_position: str
+    allowed_domains: str
 
 
 class WidgetConfigSuccessResponse(BaseModel):

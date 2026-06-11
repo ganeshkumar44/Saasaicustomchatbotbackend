@@ -101,6 +101,11 @@ class ChatbotSettings(Base):
     )
     public_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     embed_code: Mapped[str] = mapped_column(Text, nullable=False)
+    allowed_domains: Mapped[str] = mapped_column(
+        Text,
+        default="http://localhost:5173/",
+        nullable=False,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

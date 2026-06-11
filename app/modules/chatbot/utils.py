@@ -140,6 +140,16 @@ def apply_chatbot_migrations(db_engine: Engine) -> None:
                 f"ALTER TABLE chatbots ALTER COLUMN {column_name} DROP NOT NULL"
             )
 
+    if "chatbot_settings" in inspector.get_table_names():
+        settings_columns = {
+            column["name"] for column in inspector.get_columns("chatbot_settings")
+        }
+        if "allowed_domains" not in settings_columns:
+            statements.append(
+                "ALTER TABLE chatbot_settings ADD COLUMN allowed_domains TEXT "
+                "NOT NULL DEFAULT 'http://localhost:5173/'"
+            )
+
     if not statements:
         return
 
@@ -158,6 +168,7 @@ DEFAULT_WELCOME_MESSAGE = (
     "Hi there! 👋 Welcome to our support chat. How can we assist you today?"
 )
 DEFAULT_INPUT_PLACEHOLDER = "Type your message..."
+DEFAULT_ALLOWED_DOMAINS = "http://localhost:5173/"
 
 
 def get_widget_base_url() -> str:

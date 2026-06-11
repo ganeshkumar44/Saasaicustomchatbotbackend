@@ -16,6 +16,7 @@ from app.modules.chatbot.model import (
     ChatbotSettings,
 )
 from app.modules.chatbot.utils import (
+    DEFAULT_ALLOWED_DOMAINS,
     DEFAULT_CHAT_TITLE,
     DEFAULT_INPUT_PLACEHOLDER,
     DEFAULT_PRIMARY_COLOR,
@@ -278,6 +279,7 @@ def _create_default_chatbot_settings(
         input_placeholder=DEFAULT_INPUT_PLACEHOLDER,
         public_key=public_key,
         embed_code=embed_code,
+        allowed_domains=DEFAULT_ALLOWED_DOMAINS,
     )
     db.add(settings)
     return settings

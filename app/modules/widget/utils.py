@@ -42,4 +42,5 @@ def build_widget_config_response(settings: ChatbotSettings) -> WidgetConfigRespo
         show_avatar=settings.show_avatar,
         typing_indicator=settings.typing_indicator,
         widget_position=settings.widget_position,
+        allowed_domains=settings.allowed_domains,
     )
