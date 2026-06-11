@@ -24,12 +24,15 @@ from app.modules.knowledgebase.schema import (
     KnowledgebaseUploadSuccessResponse,
 )
 from app.modules.knowledgebase.utils import (
+    DEFAULT_CHUNK_OVERLAP,
+    DEFAULT_CHUNK_SIZE,
     MAX_UPLOAD_SIZE_BYTES,
     extract_file_text,
     extract_url_text,
     get_file_extension,
     is_allowed_file_type,
     save_uploaded_file,
+    split_text_into_chunks,
 )
 
 
@@ -163,6 +166,19 @@ def _process_url_source(db: Session, chatbot_id: int, url: str) -> Knowledgebase
         db.refresh(document)
 
     return document
+
+
+def generate_chunks_from_text(
+    extracted_text: str,
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
+    overlap: int = DEFAULT_CHUNK_OVERLAP,
+) -> list[dict[str, int | str]]:
+    """Generate structured chunk data from extracted document text."""
+    return split_text_into_chunks(
+        text=extracted_text,
+        chunk_size=chunk_size,
+        overlap=overlap,
+    )
 
 
 def upload_knowledgebase(

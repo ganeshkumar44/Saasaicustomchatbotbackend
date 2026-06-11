@@ -55,6 +55,11 @@ class KnowledgebaseDocument(Base):
     )
 
     chatbot = relationship("Chatbot", backref="knowledgebase_documents")
+    chunks = relationship(
+        "KnowledgeChunk",
+        back_populates="document",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return (

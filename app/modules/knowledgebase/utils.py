@@ -20,9 +20,55 @@ logger = logging.getLogger(__name__)
 
 MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
 ALLOWED_FILE_EXTENSIONS = {".pdf", ".doc", ".docx", ".txt", ".csv", ".md"}
+DEFAULT_CHUNK_SIZE = 1000
+DEFAULT_CHUNK_OVERLAP = 200
 KNOWLEDGEBASE_UPLOAD_DIR = PROJECT_ROOT / "uploads" / "knowledgebase"
 URL_FETCH_TIMEOUT_SECONDS = 30
 MIN_STATIC_TEXT_LENGTH = 200
+
+
+def split_text_into_chunks(
+    text: str,
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
+    overlap: int = DEFAULT_CHUNK_OVERLAP,
+) -> list[dict[str, int | str]]:
+    """
+    Split large extracted text into smaller overlapping chunks.
+
+    Each chunk overlaps the previous chunk by the configured number of characters
+    to preserve context for future embedding generation and vector search.
+    """
+    cleaned_text = text.strip()
+    if not cleaned_text:
+        return []
+
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be greater than 0")
+    if overlap < 0:
+        raise ValueError("overlap must be greater than or equal to 0")
+    if overlap >= chunk_size:
+        raise ValueError("overlap must be less than chunk_size")
+
+    chunks: list[dict[str, int | str]] = []
+    step = chunk_size - overlap
+    start = 0
+    chunk_index = 1
+
+    while start < len(cleaned_text):
+        chunk_text = cleaned_text[start : start + chunk_size]
+        chunks.append(
+            {
+                "chunk_index": chunk_index,
+                "chunk_text": chunk_text,
+                "character_count": len(chunk_text),
+            }
+        )
+        if start + chunk_size >= len(cleaned_text):
+            break
+        chunk_index += 1
+        start += step
+
+    return chunks
 
 
 def normalize_extracted_text(text: str) -> str:
