@@ -8,12 +8,7 @@ console.log(chatbotKey);
 
 const SESSION_STORAGE_KEY = "chat_session_id";
 
-async function ensureChatSession(publicKey) {
-  const existingSession = localStorage.getItem(SESSION_STORAGE_KEY);
-  if (existingSession) {
-    return existingSession;
-  }
-
+async function startChatSession(publicKey) {
   const response = await fetch(`${API_BASE_URL}/v1/widget/session/start`, {
     method: "POST",
     headers: {
@@ -32,6 +27,27 @@ async function ensureChatSession(publicKey) {
 
   localStorage.setItem(SESSION_STORAGE_KEY, data.session_id);
   return data.session_id;
+}
+
+async function isSessionValid(sessionId) {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/widget/chat-history/${sessionId}`
+  );
+  return response.ok;
+}
+
+async function ensureChatSession(publicKey) {
+  const existingSession = localStorage.getItem(SESSION_STORAGE_KEY);
+
+  if (existingSession) {
+    const valid = await isSessionValid(existingSession);
+    if (valid) {
+      return existingSession;
+    }
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+  }
+
+  return startChatSession(publicKey);
 }
 
 async function fetchChatHistory(sessionId) {
@@ -85,6 +101,7 @@ if (!chatbotKey) {
 }
 
 function initWidget(config, publicKey, sessionId, historyMessages = []) {
+  let currentSessionId = sessionId;
   const position = config.widget_position || "bottom-right";
   const isRight = position === "bottom-right";
 
@@ -398,19 +415,33 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
     const typingIndicator = config.typing_indicator ? showTypingIndicator() : null;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/v1/widget/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          public_key: publicKey,
-          session_id: sessionId,
-          message,
-        }),
-      });
+      let activeSessionId = currentSessionId;
 
-      const data = await response.json();
+      const postChat = async (activeId) =>
+        fetch(`${API_BASE_URL}/v1/widget/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            public_key: publicKey,
+            session_id: activeId,
+            message,
+          }),
+        });
+
+      let response = await postChat(activeSessionId);
+      let data = await response.json();
+
+      if (
+        response.status === 404 &&
+        data.message === "Chat session not found"
+      ) {
+        activeSessionId = await startChatSession(publicKey);
+        currentSessionId = activeSessionId;
+        response = await postChat(activeSessionId);
+        data = await response.json();
+      }
 
       if (typingIndicator) {
         typingIndicator.remove();
