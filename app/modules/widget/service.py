@@ -5,9 +5,15 @@ Widget module business logic.
 from sqlalchemy.orm import Session
 
 from app.modules.chatbot.model import CHATBOT_STATUS_PUBLISHED, Chatbot
+from app.modules.chat_messages.schema import CreateChatMessageRequest
+from app.modules.chat_messages.service import create_message
+from app.modules.chat_sessions.service import create_chat_session, update_last_activity
+from app.modules.chat_sessions.utils import get_chat_session_by_session_id
 from app.modules.widget.schema import (
     PublicChatRequest,
     PublicChatResponse,
+    StartSessionRequest,
+    StartSessionResponse,
     WidgetConfigSuccessResponse,
 )
 from app.modules.widget.utils import (
@@ -32,6 +38,14 @@ class ChatbotNotPublishedError(Exception):
 
 class MessageRequiredError(Exception):
     """Raised when the chat message is missing or empty."""
+
+
+class SessionRequiredError(Exception):
+    """Raised when the chat session identifier is missing or empty."""
+
+
+class ChatSessionNotFoundError(Exception):
+    """Raised when the chat session does not exist or does not match the chatbot."""
 
 
 def get_widget_config(db: Session, public_key: str) -> WidgetConfigSuccessResponse:
@@ -64,4 +78,45 @@ def process_public_chat(
     if chatbot is None or chatbot.status != CHATBOT_STATUS_PUBLISHED:
         raise ChatbotNotPublishedError()
 
-    return PublicChatResponse(answer=TEMPORARY_CHAT_ANSWER)
+    if not payload.session_id or not payload.session_id.strip():
+        raise SessionRequiredError()
+
+    session = get_chat_session_by_session_id(db, payload.session_id.strip())
+    if session is None or session.chatbot_id != chatbot.id:
+        raise ChatSessionNotFoundError()
+
+    answer = TEMPORARY_CHAT_ANSWER
+    create_message(
+        db,
+        CreateChatMessageRequest(
+            session_id=session.id,
+            user_message=payload.message.strip(),
+            bot_response=answer,
+        ),
+    )
+    update_last_activity(db, session.session_id)
+
+    return PublicChatResponse(answer=answer)
+
+
+def start_chat_session(
+    db: Session,
+    payload: StartSessionRequest,
+) -> StartSessionResponse:
+    """Create a new chat session for a published chatbot visitor."""
+    if not payload.public_key or not payload.public_key.strip():
+        raise ChatbotNotFoundError()
+
+    settings = get_chatbot_settings_by_public_key(db, payload.public_key.strip())
+    if settings is None:
+        raise ChatbotNotFoundError()
+
+    chatbot = db.get(Chatbot, settings.chatbot_id)
+    if chatbot is None:
+        raise ChatbotNotFoundError()
+
+    if chatbot.status != CHATBOT_STATUS_PUBLISHED:
+        raise ChatbotNotPublishedError()
+
+    session = create_chat_session(db, chatbot.id)
+    return StartSessionResponse(session_id=session.session_id)

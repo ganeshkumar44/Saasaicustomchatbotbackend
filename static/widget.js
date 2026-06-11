@@ -6,29 +6,64 @@ const chatbotKey = document.currentScript.getAttribute("data-chatbot-key");
 
 console.log(chatbotKey);
 
-if (!chatbotKey) {
-  console.error("Widget: missing data-chatbot-key");
-} else {
-  fetch(`${API_BASE_URL}/v1/widget/config/${chatbotKey}`)
-    .then((res) => {
+const SESSION_STORAGE_KEY = "chat_session_id";
+
+async function ensureChatSession(publicKey) {
+  const existingSession = localStorage.getItem(SESSION_STORAGE_KEY);
+  if (existingSession) {
+    return existingSession;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/v1/widget/session/start`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      public_key: publicKey,
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.success || !data.session_id) {
+    throw new Error("Failed to start chat session");
+  }
+
+  localStorage.setItem(SESSION_STORAGE_KEY, data.session_id);
+  return data.session_id;
+}
+
+async function loadWidget(publicKey) {
+  const [sessionId, configResponse] = await Promise.all([
+    ensureChatSession(publicKey),
+    fetch(`${API_BASE_URL}/v1/widget/config/${publicKey}`).then(async (res) => {
       if (!res.ok) {
         throw new Error("Widget configuration not found");
       }
       return res.json();
-    })
-    .then((response) => {
-      console.log(response);
-      if (!response.success || !response.data) {
-        return;
-      }
-      initWidget(response.data, chatbotKey);
-    })
-    .catch((error) => {
-      console.error("Widget:", error);
-    });
+    }),
+  ]);
+
+  console.log("Chat session:", sessionId);
+  console.log(configResponse);
+
+  if (!configResponse.success || !configResponse.data) {
+    return;
+  }
+
+  initWidget(configResponse.data, publicKey, sessionId);
 }
 
-function initWidget(config, publicKey) {
+if (!chatbotKey) {
+  console.error("Widget: missing data-chatbot-key");
+} else {
+  loadWidget(chatbotKey).catch((error) => {
+    console.error("Widget:", error);
+  });
+}
+
+function initWidget(config, publicKey, sessionId) {
   const position = config.widget_position || "bottom-right";
   const isRight = position === "bottom-right";
 
@@ -349,6 +384,7 @@ function initWidget(config, publicKey) {
         },
         body: JSON.stringify({
           public_key: publicKey,
+          session_id: sessionId,
           message,
         }),
       });

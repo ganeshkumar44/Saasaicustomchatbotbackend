@@ -58,6 +58,11 @@ class Chatbot(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    chat_sessions = relationship(
+        "ChatSession",
+        back_populates="chatbot",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<Chatbot id={self.id} user_id={self.user_id} status={self.status!r}>"

@@ -7,6 +7,8 @@ from app.modules.widget import service
 from app.modules.widget.schema import (
     PublicChatRequest,
     PublicChatResponse,
+    StartSessionRequest,
+    StartSessionResponse,
     WidgetConfigSuccessResponse,
 )
 from app.modules.widget.utils import get_widget_js_content
@@ -70,6 +72,52 @@ def public_chat(
                 "message": "Message is required",
             },
         )
+    except service.SessionRequiredError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": "Session is required",
+            },
+        )
+    except service.ChatSessionNotFoundError:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "success": False,
+                "message": "Chat session not found",
+            },
+        )
+    except service.ChatbotNotPublishedError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": "Chatbot is not published",
+            },
+        )
+    except service.ChatbotNotFoundError:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "success": False,
+                "message": "Chatbot not found",
+            },
+        )
+
+
+@router.post(
+    "/widget/session/start",
+    status_code=status.HTTP_200_OK,
+    response_model=StartSessionResponse,
+)
+def start_chat_session(
+    payload: StartSessionRequest,
+    db: Session = Depends(get_db),
+):
+    """Create a new chat session when the widget loads for the first time."""
+    try:
+        return service.start_chat_session(db, payload)
     except service.ChatbotNotPublishedError:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,

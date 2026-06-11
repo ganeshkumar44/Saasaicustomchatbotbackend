@@ -19,6 +19,7 @@ from app.modules.widget.utils import get_chatbot_settings_by_public_key
 
 WIDGET_CONFIG_PATH_RE = re.compile(r"^/v1/widget/config/([^/]+)$")
 WIDGET_CHAT_PATH = "/v1/widget/chat"
+WIDGET_SESSION_START_PATH = "/v1/widget/session/start"
 
 
 def normalize_origin(origin: str) -> str:
@@ -88,7 +89,7 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
         if normalized_origin in env_origins:
             return True
 
-        if request.url.path == WIDGET_CHAT_PATH:
+        if request.url.path in (WIDGET_CHAT_PATH, WIDGET_SESSION_START_PATH):
             return is_origin_in_any_allowed_domains(origin)
 
         match = WIDGET_CONFIG_PATH_RE.match(request.url.path)

@@ -21,9 +21,19 @@ class WidgetConfigSuccessResponse(BaseModel):
 
 class PublicChatRequest(BaseModel):
     public_key: str
+    session_id: str
     message: str
 
 
 class PublicChatResponse(BaseModel):
     success: bool = True
     answer: str
+
+
+class StartSessionRequest(BaseModel):
+    public_key: str
+
+
+class StartSessionResponse(BaseModel):
+    success: bool = True
+    session_id: str
