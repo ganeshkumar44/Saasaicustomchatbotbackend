@@ -62,6 +62,7 @@ def create_chunk(
         document_id=payload.document_id,
         chunk_text=payload.chunk_text,
         chunk_index=payload.chunk_index,
+        character_count=payload.character_count,
     )
 
     db.add(chunk)
@@ -99,6 +100,7 @@ def bulk_create_chunks(
             document_id=payload.document_id,
             chunk_text=payload.chunk_text,
             chunk_index=payload.chunk_index,
+            character_count=payload.character_count,
         )
         for payload in payloads
     ]

@@ -17,6 +17,7 @@ from app.modules.knowledgebase.model import (
     STATUS_FAILED,
     STATUS_PENDING,
     STATUS_PROCESSING,
+    KnowledgeChunk,
     KnowledgebaseDocument,
 )
 from app.modules.knowledgebase.schema import (
@@ -181,6 +182,54 @@ def generate_chunks_from_text(
     )
 
 
+def save_document_chunks(
+    db: Session,
+    chatbot_id: int,
+    document_id: int,
+    extracted_text: str,
+) -> int:
+    """Generate and persist knowledge chunks for an uploaded document."""
+    chunks_data = generate_chunks_from_text(extracted_text)
+    if not chunks_data:
+        return 0
+
+    chunk_records = [
+        KnowledgeChunk(
+            chatbot_id=chatbot_id,
+            document_id=document_id,
+            chunk_index=int(chunk["chunk_index"]),
+            chunk_text=str(chunk["chunk_text"]),
+            character_count=int(chunk["character_count"]),
+        )
+        for chunk in chunks_data
+    ]
+
+    db.add_all(chunk_records)
+    db.commit()
+    return len(chunk_records)
+
+
+def _save_chunks_for_document(
+    db: Session,
+    chatbot_id: int,
+    document: KnowledgebaseDocument,
+) -> int:
+    """Persist chunks when document text extraction completed successfully."""
+    if (
+        document.processing_status != STATUS_COMPLETED
+        or not document.extracted_text
+        or not document.extracted_text.strip()
+    ):
+        return 0
+
+    return save_document_chunks(
+        db,
+        chatbot_id,
+        document.id,
+        document.extracted_text,
+    )
+
+
 def upload_knowledgebase(
     db: Session,
     user: User,
@@ -193,15 +242,20 @@ def upload_knowledgebase(
     _validate_upload_payload(files, urls)
 
     documents: list[KnowledgebaseDocument] = []
+    total_chunks = 0
 
     for file_payload in files:
-        documents.append(_process_file_source(db, chatbot_id, file_payload))
+        document = _process_file_source(db, chatbot_id, file_payload)
+        documents.append(document)
+        total_chunks += _save_chunks_for_document(db, chatbot_id, document)
 
     for url in urls:
         normalized_url = url.strip()
         if not normalized_url:
             continue
-        documents.append(_process_url_source(db, chatbot_id, normalized_url))
+        document = _process_url_source(db, chatbot_id, normalized_url)
+        documents.append(document)
+        total_chunks += _save_chunks_for_document(db, chatbot_id, document)
 
     total_sources = len(documents)
     processed_sources = sum(
@@ -214,5 +268,6 @@ def upload_knowledgebase(
             chatbot_id=chatbot_id,
             total_sources=total_sources,
             processed_sources=processed_sources,
+            total_chunks=total_chunks,
         ),
     )

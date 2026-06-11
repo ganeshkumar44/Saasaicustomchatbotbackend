@@ -10,6 +10,7 @@ class CreateKnowledgeChunkRequest(BaseModel):
     document_id: int
     chunk_text: str
     chunk_index: int
+    character_count: int
 
 
 class KnowledgeChunkResponse(BaseModel):
@@ -20,4 +21,5 @@ class KnowledgeChunkResponse(BaseModel):
     document_id: int
     chunk_text: str
     chunk_index: int
+    character_count: int
     created_at: datetime

@@ -42,5 +42,6 @@ def build_knowledge_chunk_response(chunk: KnowledgeChunk) -> KnowledgeChunkRespo
         document_id=chunk.document_id,
         chunk_text=chunk.chunk_text,
         chunk_index=chunk.chunk_index,
+        character_count=chunk.character_count,
         created_at=chunk.created_at,
     )

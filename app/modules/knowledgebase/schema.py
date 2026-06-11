@@ -5,6 +5,7 @@ class KnowledgebaseUploadData(BaseModel):
     chatbot_id: int
     total_sources: int
     processed_sources: int
+    total_chunks: int = 0
 
 
 class KnowledgebaseUploadSuccessResponse(BaseModel):

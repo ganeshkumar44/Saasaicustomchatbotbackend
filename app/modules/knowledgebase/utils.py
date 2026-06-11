@@ -13,6 +13,8 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from docx import Document
+from sqlalchemy import inspect, text
+from sqlalchemy.engine import Engine
 
 from app.core.config import PROJECT_ROOT
 
@@ -25,6 +27,31 @@ DEFAULT_CHUNK_OVERLAP = 200
 KNOWLEDGEBASE_UPLOAD_DIR = PROJECT_ROOT / "uploads" / "knowledgebase"
 URL_FETCH_TIMEOUT_SECONDS = 30
 MIN_STATIC_TEXT_LENGTH = 200
+
+
+def apply_knowledgebase_migrations(db_engine: Engine) -> None:
+    """Align existing knowledge base tables with the current ORM schema."""
+    inspector = inspect(db_engine)
+    if "knowledge_chunks" not in inspector.get_table_names():
+        return
+
+    columns = {
+        column["name"] for column in inspector.get_columns("knowledge_chunks")
+    }
+    statements: list[str] = []
+
+    if "character_count" not in columns:
+        statements.append(
+            "ALTER TABLE knowledge_chunks ADD COLUMN character_count INTEGER "
+            "NOT NULL DEFAULT 0"
+        )
+
+    if not statements:
+        return
+
+    with db_engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
 
 
 def split_text_into_chunks(
