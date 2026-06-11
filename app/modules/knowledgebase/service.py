@@ -35,6 +35,7 @@ from app.modules.knowledgebase.utils import (
     save_uploaded_file,
     split_text_into_chunks,
 )
+from app.vectorstore.chroma_service import store_chunks_in_chromadb
 
 
 class UnsupportedFileTypeError(Exception):
@@ -187,11 +188,11 @@ def save_document_chunks(
     chatbot_id: int,
     document_id: int,
     extracted_text: str,
-) -> int:
+) -> tuple[int, list[dict[str, int | str]]]:
     """Generate and persist knowledge chunks for an uploaded document."""
     chunks_data = generate_chunks_from_text(extracted_text)
     if not chunks_data:
-        return 0
+        return 0, []
 
     chunk_records = [
         KnowledgeChunk(
@@ -206,7 +207,7 @@ def save_document_chunks(
 
     db.add_all(chunk_records)
     db.commit()
-    return len(chunk_records)
+    return len(chunk_records), chunks_data
 
 
 def _save_chunks_for_document(
@@ -222,12 +223,15 @@ def _save_chunks_for_document(
     ):
         return 0
 
-    return save_document_chunks(
+    chunk_count, chunks_data = save_document_chunks(
         db,
         chatbot_id,
         document.id,
         document.extracted_text,
     )
+    if chunk_count > 0:
+        store_chunks_in_chromadb(chatbot_id, document.id, chunks_data)
+    return chunk_count
 
 
 def upload_knowledgebase(

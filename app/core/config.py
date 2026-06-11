@@ -65,6 +65,12 @@ class Settings:
             cors_origins,
         )
 
+        # ChromaDB persistent storage path
+        self.CHROMA_DB_PATH: str = os.getenv(
+            "CHROMA_DB_PATH",
+            str(PROJECT_ROOT / "chroma_db"),
+        )
+
     @property
     def database_url(self) -> str:
         """Build the SQLAlchemy PostgreSQL connection URL."""

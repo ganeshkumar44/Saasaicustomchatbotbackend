@@ -8,5 +8,6 @@ __pycache__/
 
 logs/
 uploads/
+chroma_db/
 
 .pytest_cache/
