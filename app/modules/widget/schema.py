@@ -17,3 +17,13 @@ class WidgetConfigResponse(BaseModel):
 class WidgetConfigSuccessResponse(BaseModel):
     success: bool = True
     data: WidgetConfigResponse
+
+
+class PublicChatRequest(BaseModel):
+    public_key: str
+    message: str
+
+
+class PublicChatResponse(BaseModel):
+    success: bool = True
+    answer: str
