@@ -145,9 +145,10 @@ def apply_chatbot_migrations(db_engine: Engine) -> None:
             column["name"] for column in inspector.get_columns("chatbot_settings")
         }
         if "allowed_domains" not in settings_columns:
+            default_domains = get_settings().DEFAULT_ALLOWED_DOMAINS.replace("'", "''")
             statements.append(
                 "ALTER TABLE chatbot_settings ADD COLUMN allowed_domains TEXT "
-                "NOT NULL DEFAULT 'http://localhost:5173/'"
+                f"NOT NULL DEFAULT '{default_domains}'"
             )
 
     if not statements:
@@ -168,7 +169,10 @@ DEFAULT_WELCOME_MESSAGE = (
     "Hi there! 👋 Welcome to our support chat. How can we assist you today?"
 )
 DEFAULT_INPUT_PLACEHOLDER = "Type your message..."
-DEFAULT_ALLOWED_DOMAINS = "http://localhost:5173/"
+
+def get_default_allowed_domains() -> str:
+    """Return default allowed domains from application settings (.env / config)."""
+    return get_settings().DEFAULT_ALLOWED_DOMAINS
 
 
 def get_widget_base_url() -> str:

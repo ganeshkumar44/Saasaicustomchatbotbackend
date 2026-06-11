@@ -59,6 +59,12 @@ class Settings:
             origin.strip() for origin in cors_origins.split(",") if origin.strip()
         ]
 
+        # Default allowed domains saved to DB on chatbot publish (comma-separated)
+        self.DEFAULT_ALLOWED_DOMAINS: str = os.getenv(
+            "DEFAULT_ALLOWED_DOMAINS",
+            cors_origins,
+        )
+
     @property
     def database_url(self) -> str:
         """Build the SQLAlchemy PostgreSQL connection URL."""

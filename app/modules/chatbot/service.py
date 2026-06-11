@@ -16,7 +16,6 @@ from app.modules.chatbot.model import (
     ChatbotSettings,
 )
 from app.modules.chatbot.utils import (
-    DEFAULT_ALLOWED_DOMAINS,
     DEFAULT_CHAT_TITLE,
     DEFAULT_INPUT_PLACEHOLDER,
     DEFAULT_PRIMARY_COLOR,
@@ -27,6 +26,7 @@ from app.modules.chatbot.utils import (
     DEFAULT_WIDGET_POSITION,
     generate_embed_code,
     generate_unique_public_key,
+    get_default_allowed_domains,
 )
 from app.modules.chatbot.schema import (
     AIModelEnum,
@@ -279,7 +279,7 @@ def _create_default_chatbot_settings(
         input_placeholder=DEFAULT_INPUT_PLACEHOLDER,
         public_key=public_key,
         embed_code=embed_code,
-        allowed_domains=DEFAULT_ALLOWED_DOMAINS,
+        allowed_domains=get_default_allowed_domains(),
     )
     db.add(settings)
     return settings
