@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.modules.widget import service
 from app.modules.widget.schema import (
+    ChatHistoryResponse,
     PublicChatRequest,
     PublicChatResponse,
     StartSessionRequest,
@@ -102,6 +103,28 @@ def public_chat(
             content={
                 "success": False,
                 "message": "Chatbot not found",
+            },
+        )
+
+
+@router.get(
+    "/widget/chat-history/{session_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=ChatHistoryResponse,
+)
+def get_chat_history(
+    session_id: str,
+    db: Session = Depends(get_db),
+):
+    """Return conversation history for an existing widget chat session."""
+    try:
+        return service.get_chat_history(db, session_id)
+    except service.ChatSessionNotFoundError:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "success": False,
+                "message": "Session not found",
             },
         )
 

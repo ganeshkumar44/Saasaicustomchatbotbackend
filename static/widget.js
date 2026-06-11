@@ -34,25 +34,46 @@ async function ensureChatSession(publicKey) {
   return data.session_id;
 }
 
+async function fetchChatHistory(sessionId) {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/widget/chat-history/${sessionId}`
+  );
+
+  if (!response.ok) {
+    return [];
+  }
+
+  const data = await response.json();
+
+  if (!data.success || !Array.isArray(data.messages)) {
+    return [];
+  }
+
+  return data.messages;
+}
+
 async function loadWidget(publicKey) {
-  const [sessionId, configResponse] = await Promise.all([
-    ensureChatSession(publicKey),
+  const sessionId = await ensureChatSession(publicKey);
+
+  const [configResponse, historyMessages] = await Promise.all([
     fetch(`${API_BASE_URL}/v1/widget/config/${publicKey}`).then(async (res) => {
       if (!res.ok) {
         throw new Error("Widget configuration not found");
       }
       return res.json();
     }),
+    fetchChatHistory(sessionId),
   ]);
 
   console.log("Chat session:", sessionId);
   console.log(configResponse);
+  console.log("Chat history:", historyMessages);
 
   if (!configResponse.success || !configResponse.data) {
     return;
   }
 
-  initWidget(configResponse.data, publicKey, sessionId);
+  initWidget(configResponse.data, publicKey, sessionId, historyMessages);
 }
 
 if (!chatbotKey) {
@@ -63,7 +84,7 @@ if (!chatbotKey) {
   });
 }
 
-function initWidget(config, publicKey, sessionId) {
+function initWidget(config, publicKey, sessionId, historyMessages = []) {
   const position = config.widget_position || "bottom-right";
   const isRight = position === "bottom-right";
 
@@ -413,6 +434,11 @@ function initWidget(config, publicKey, sessionId) {
   }
 
   addBotMessage(config.welcome_message);
+
+  historyMessages.forEach((item) => {
+    addUserMessage(item.user_message);
+    addBotMessage(item.bot_response);
+  });
 
   button.addEventListener("click", () => {
     isOpen = !isOpen;

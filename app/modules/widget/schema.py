@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -37,3 +39,15 @@ class StartSessionRequest(BaseModel):
 class StartSessionResponse(BaseModel):
     success: bool = True
     session_id: str
+
+
+class ChatHistoryMessage(BaseModel):
+    user_message: str
+    bot_response: str
+    created_at: datetime
+
+
+class ChatHistoryResponse(BaseModel):
+    success: bool = True
+    session_id: str
+    messages: list[ChatHistoryMessage]

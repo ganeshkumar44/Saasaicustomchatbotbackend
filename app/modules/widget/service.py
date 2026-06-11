@@ -7,9 +7,12 @@ from sqlalchemy.orm import Session
 from app.modules.chatbot.model import CHATBOT_STATUS_PUBLISHED, Chatbot
 from app.modules.chat_messages.schema import CreateChatMessageRequest
 from app.modules.chat_messages.service import create_message
+from app.modules.chat_messages.utils import get_messages_by_session_id
 from app.modules.chat_sessions.service import create_chat_session, update_last_activity
 from app.modules.chat_sessions.utils import get_chat_session_by_session_id
 from app.modules.widget.schema import (
+    ChatHistoryMessage,
+    ChatHistoryResponse,
     PublicChatRequest,
     PublicChatResponse,
     StartSessionRequest,
@@ -120,3 +123,26 @@ def start_chat_session(
 
     session = create_chat_session(db, chatbot.id)
     return StartSessionResponse(session_id=session.session_id)
+
+
+def get_chat_history(db: Session, session_id: str) -> ChatHistoryResponse:
+    """Return all messages for an existing chat session."""
+    if not session_id or not session_id.strip():
+        raise ChatSessionNotFoundError()
+
+    session = get_chat_session_by_session_id(db, session_id.strip())
+    if session is None:
+        raise ChatSessionNotFoundError()
+
+    messages = get_messages_by_session_id(db, session.id)
+    return ChatHistoryResponse(
+        session_id=session.session_id,
+        messages=[
+            ChatHistoryMessage(
+                user_message=message.user_message,
+                bot_response=message.bot_response,
+                created_at=message.created_at,
+            )
+            for message in messages
+        ],
+    )
