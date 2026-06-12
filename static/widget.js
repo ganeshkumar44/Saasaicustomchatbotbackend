@@ -100,10 +100,27 @@ if (!chatbotKey) {
   });
 }
 
+function hexToRgba(hex, alpha) {
+  const normalized = hex.replace("#", "");
+  const full =
+    normalized.length === 3
+      ? normalized
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : normalized;
+  const int = parseInt(full, 16);
+  const r = (int >> 16) & 255;
+  const g = (int >> 8) & 255;
+  const b = int & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 function initWidget(config, publicKey, sessionId, historyMessages = []) {
   let currentSessionId = sessionId;
   const position = config.widget_position || "bottom-right";
   const isRight = position === "bottom-right";
+  const botMessageBg = hexToRgba(config.primary_color, 0.15);
 
   const style = document.createElement("style");
   style.textContent = `
@@ -208,15 +225,15 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
     }
 
     .saas-widget-message-label {
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 600;
-      color: #8b8b9e;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
+      color: #484848;
+      text-transform: capitalize;
+      letter-spacing: 0.5px;
     }
 
     .saas-widget-message {
-      padding: 12px 14px;
+      padding: 6px 15px;
       border-radius: 12px;
       font-size: 14px;
       line-height: 1.5;
@@ -224,8 +241,8 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
     }
 
     .saas-widget-message.bot {
-      background: ${config.primary_color};
-      color: ${config.text_color};
+      background: ${botMessageBg};
+      color: ${config.primary_color};
       border-bottom-left-radius: 0px;
     }
 
@@ -244,7 +261,7 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 12px 16px;
+      padding: 10px 0px 10px 0px;
       border-top: 1px solid #cccccc;
       background: #ffffff;
       flex-shrink: 0;
@@ -253,7 +270,7 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
     .saas-widget-input {
       flex: 1;
       padding: 10px 14px;
-      border: 1px solid #cccc;
+      border: 0px solid #cccc;
       border-radius: 8px;
       background: #ffffff;
       color: #ffffff;
@@ -380,7 +397,7 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
   }
 
   function addBotMessage(message) {
-    const { wrap, bubble } = createMessageWrap("Bot", "bot");
+    const { wrap, bubble } = createMessageWrap("AI", "bot");
     bubble.textContent = message;
     messages.appendChild(wrap);
     scrollToBottom();
@@ -388,7 +405,7 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
   }
 
   function showTypingIndicator() {
-    const { wrap, bubble } = createMessageWrap("Bot", "bot");
+    const { wrap, bubble } = createMessageWrap("AI", "bot");
     bubble.classList.add("typing");
     bubble.textContent = "Typing...";
     messages.appendChild(wrap);
