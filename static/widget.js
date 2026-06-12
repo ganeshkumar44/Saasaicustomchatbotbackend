@@ -138,9 +138,9 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
       ${isRight ? "right: 20px;" : "left: 20px;"}
       width: 350px;
       height: 400px;
-      background: #1e1e2e;
-      border-radius: 16px;
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+      background: #ffffff;
+      border-radius: 22px;
+      box-shadow: 0 6px 30px rgba(0, 0, 0, 0.4););
       z-index: 999998;
       display: none;
       flex-direction: column;
@@ -224,15 +224,15 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
     }
 
     .saas-widget-message.bot {
-      background: #2d2d3f;
-      color: #ffffff;
-      border-bottom-left-radius: 4px;
+      background: ${config.primary_color};
+      color: ${config.text_color};
+      border-bottom-left-radius: 0px;
     }
 
     .saas-widget-message.user {
       background: ${config.primary_color};
       color: ${config.text_color};
-      border-bottom-right-radius: 4px;
+      border-bottom-right-radius: 0px;
     }
 
     .saas-widget-message.typing {
@@ -245,17 +245,17 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
       align-items: center;
       gap: 8px;
       padding: 12px 16px;
-      border-top: 1px solid #2d2d3f;
-      background: #1e1e2e;
+      border-top: 1px solid #cccccc;
+      background: #ffffff;
       flex-shrink: 0;
     }
 
     .saas-widget-input {
       flex: 1;
       padding: 10px 14px;
-      border: 1px solid #3d3d52;
+      border: 1px solid #cccc;
       border-radius: 8px;
-      background: #2d2d3f;
+      background: #ffffff;
       color: #ffffff;
       font-size: 14px;
       outline: none;
@@ -263,7 +263,7 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
     }
 
     .saas-widget-input::placeholder {
-      color: #8b8b9e;
+      color:rgb(61, 61, 61);
     }
 
     .saas-widget-input:focus {
