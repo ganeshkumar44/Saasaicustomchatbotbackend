@@ -18,6 +18,7 @@ from app.modules.chat_messages.routes import router as chat_messages_router
 from app.modules.knowledge_chunks.routes import router as knowledge_chunks_router
 from app.modules.widget.routes import router as widget_router, static_router as widget_static_router
 from app.rag.routes import router as rag_router
+from app.modules.ai.routes import router as ai_router
 
 # Import all ORM models so they register with Base.metadata before create_all().
 import app.modules.auth.model  # noqa: F401
@@ -60,6 +61,7 @@ app.include_router(widget_static_router)
 app.include_router(chat_messages_router)
 app.include_router(knowledge_chunks_router)
 app.include_router(rag_router)
+app.include_router(ai_router)
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

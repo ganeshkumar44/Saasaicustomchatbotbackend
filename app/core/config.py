@@ -77,6 +77,10 @@ class Settings:
             "sentence-transformers/all-MiniLM-L6-v2",
         )
 
+        # Gemini AI settings
+        self.GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+        self.GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
     @property
     def database_url(self) -> str:
         """Build the SQLAlchemy PostgreSQL connection URL."""
