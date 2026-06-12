@@ -22,12 +22,16 @@ class WidgetConfigSuccessResponse(BaseModel):
 
 
 class PublicChatRequest(BaseModel):
+    """Visitor chat message submitted from the embedded widget."""
+
     public_key: str
     session_id: str
     message: str
 
 
 class PublicChatResponse(BaseModel):
+    """AI-generated answer returned to the embedded widget."""
+
     success: bool = True
     answer: str
 

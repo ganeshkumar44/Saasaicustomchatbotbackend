@@ -2,8 +2,11 @@
 Widget module business logic.
 """
 
+import logging
+
 from sqlalchemy.orm import Session
 
+from app.modules.ai.service import generate_ai_answer
 from app.modules.chatbot.model import CHATBOT_STATUS_PUBLISHED, Chatbot
 from app.modules.chat_messages.schema import CreateChatMessageRequest
 from app.modules.chat_messages.service import create_message
@@ -24,7 +27,7 @@ from app.modules.widget.utils import (
     get_chatbot_settings_by_public_key,
 )
 
-TEMPORARY_CHAT_ANSWER = "Widget API is working successfully"
+logger = logging.getLogger(__name__)
 
 
 class WidgetConfigNotFoundError(Exception):
@@ -51,6 +54,10 @@ class ChatSessionNotFoundError(Exception):
     """Raised when the chat session does not exist or does not match the chatbot."""
 
 
+class ChatMessageSaveError(Exception):
+    """Raised when saving a chat message to the database fails."""
+
+
 def get_widget_config(db: Session, public_key: str) -> WidgetConfigSuccessResponse:
     """Return public widget configuration for the given public key."""
     settings = get_chatbot_settings_by_public_key(db, public_key)
@@ -66,38 +73,86 @@ def process_public_chat(
     db: Session,
     payload: PublicChatRequest,
 ) -> PublicChatResponse:
-    """Accept a visitor message and return a temporary hardcoded response."""
+    """Accept a visitor message, generate an AI answer, and save the conversation."""
     if not payload.public_key or not payload.public_key.strip():
         raise ChatbotNotFoundError()
 
     if not payload.message or not payload.message.strip():
         raise MessageRequiredError()
 
-    settings = get_chatbot_settings_by_public_key(db, payload.public_key.strip())
+    public_key = payload.public_key.strip()
+    user_message = payload.message.strip()
+    session_id = payload.session_id.strip() if payload.session_id else ""
+
+    logger.info("Widget chat request received for public_key=%s", public_key)
+
+    settings = get_chatbot_settings_by_public_key(db, public_key)
     if settings is None:
+        logger.warning("Chatbot settings not found for public_key=%s", public_key)
         raise ChatbotNotFoundError()
 
     chatbot = db.get(Chatbot, settings.chatbot_id)
     if chatbot is None or chatbot.status != CHATBOT_STATUS_PUBLISHED:
+        logger.warning(
+            "Chatbot unavailable or unpublished for public_key=%s chatbot_id=%s",
+            public_key,
+            settings.chatbot_id,
+        )
         raise ChatbotNotPublishedError()
 
-    if not payload.session_id or not payload.session_id.strip():
+    logger.info("Chatbot resolved for public_key=%s chatbot_id=%s", public_key, chatbot.id)
+
+    if not session_id:
         raise SessionRequiredError()
 
-    session = get_chat_session_by_session_id(db, payload.session_id.strip())
+    session = get_chat_session_by_session_id(db, session_id)
     if session is None or session.chatbot_id != chatbot.id:
+        logger.warning(
+            "Chat session not found or mismatched for session_id=%s chatbot_id=%s",
+            session_id,
+            chatbot.id,
+        )
         raise ChatSessionNotFoundError()
 
-    answer = TEMPORARY_CHAT_ANSWER
-    create_message(
-        db,
-        CreateChatMessageRequest(
-            session_id=session.id,
-            user_message=payload.message.strip(),
-            bot_response=answer,
-        ),
+    logger.info(
+        "Session resolved for session_id=%s chatbot_id=%s",
+        session.session_id,
+        chatbot.id,
     )
-    update_last_activity(db, session.session_id)
+
+    ai_response = generate_ai_answer(db, chatbot.id, user_message)
+    answer = ai_response.answer
+
+    logger.info(
+        "AI answer generated for chatbot_id=%s session_id=%s answer_length=%s",
+        chatbot.id,
+        session.session_id,
+        len(answer),
+    )
+
+    try:
+        create_message(
+            db,
+            CreateChatMessageRequest(
+                session_id=session.id,
+                user_message=user_message,
+                bot_response=answer,
+            ),
+        )
+        update_last_activity(db, session.session_id)
+    except Exception as exc:
+        logger.exception(
+            "Failed to save chat message for session_id=%s chatbot_id=%s",
+            session.session_id,
+            chatbot.id,
+        )
+        raise ChatMessageSaveError() from exc
+
+    logger.info(
+        "Chat message saved for session_id=%s chatbot_id=%s",
+        session.session_id,
+        chatbot.id,
+    )
 
     return PublicChatResponse(answer=answer)
 

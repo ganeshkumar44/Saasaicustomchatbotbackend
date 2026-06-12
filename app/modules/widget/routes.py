@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.modules.ai.utils import GeminiAPIError, GeminiAPIKeyMissingError
 from app.modules.widget import service
 from app.modules.widget.schema import (
     ChatHistoryResponse,
@@ -62,7 +63,7 @@ def public_chat(
     payload: PublicChatRequest,
     db: Session = Depends(get_db),
 ):
-    """Receive a visitor message from the widget and return a temporary response."""
+    """Receive a visitor message from the widget and return an AI-generated answer."""
     try:
         return service.process_public_chat(db, payload)
     except service.MessageRequiredError:
@@ -103,6 +104,30 @@ def public_chat(
             content={
                 "success": False,
                 "message": "Chatbot not found",
+            },
+        )
+    except GeminiAPIKeyMissingError:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "success": False,
+                "message": "Gemini API key is not configured",
+            },
+        )
+    except GeminiAPIError:
+        return JSONResponse(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            content={
+                "success": False,
+                "message": "Failed to generate AI answer",
+            },
+        )
+    except service.ChatMessageSaveError:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "success": False,
+                "message": "Failed to save chat message",
             },
         )
 
