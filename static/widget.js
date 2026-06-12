@@ -100,6 +100,16 @@ if (!chatbotKey) {
   });
 }
 
+const CHATBOT_ICON_SVG = `<svg fill="#ffffff" width="800px" height="800px" viewBox="0 0 256 256" id="Flat" xmlns="http://www.w3.org/2000/svg">
+  <path d="M207.05811,88.666q-1.10724-1.103-2.24146-2.16895l24.84009-24.84033a7.99984,7.99984,0,0,0-11.31348-11.31348L192.3728,76.3135a111.42105,111.42105,0,0,0-128.55444.19092L37.65674,50.34328A7.99984,7.99984,0,0,0,26.34326,61.65676L51.40283,86.71633A113.38256,113.38256,0,0,0,16,169.12893V192a16.01833,16.01833,0,0,0,16,16H224a16.01833,16.01833,0,0,0,16-16V168A111.25215,111.25215,0,0,0,207.05811,88.666ZM92,168a12,12,0,1,1,12-12A12,12,0,0,1,92,168Zm72,0a12,12,0,1,1,12-12A12,12,0,0,1,164,168Z"/>
+</svg>`;
+
+const SEND_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+const OPEN_CHAT_ICON_SVG = `<svg fill="#ffffff" width="800px" height="800px" viewBox="0 0 256.00098 256.00098" id="Flat" xmlns="http://www.w3.org/2000/svg">
+  <path d="M232.002,64.00293v128a16.02084,16.02084,0,0,1-16,16l-133.95312.375-31.75,26.69531a15.86968,15.86968,0,0,1-10.25,3.77344,16.11258,16.11258,0,0,1-6.79688-1.51563,15.8614,15.8614,0,0,1-9.25-14.50781V64.00293a16.02085,16.02085,0,0,1,16-16h176A16.02084,16.02084,0,0,1,232.002,64.00293Z"/>
+</svg>`;
+
 function hexToRgba(hex, alpha) {
   const normalized = hex.replace("#", "");
   const full =
@@ -134,7 +144,6 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
       border-radius: 50%;
       background: ${config.primary_color};
       color: ${config.text_color};
-      font-size: 24px;
       cursor: pointer;
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
       z-index: 999999;
@@ -142,6 +151,12 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
       align-items: center;
       justify-content: center;
       transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .saas-widget-button svg {
+      width: 26px;
+      height: 26px;
+      display: block;
     }
 
     .saas-widget-button:hover {
@@ -173,22 +188,27 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 16px;
+      padding: 12px 16px;
       background: ${config.primary_color};
       color: ${config.text_color};
       flex-shrink: 0;
     }
 
     .saas-widget-avatar {
-      width: 32px;
-      height: 32px;
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       background: rgba(255, 255, 255, 0.2);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
       flex-shrink: 0;
+    }
+
+    .saas-widget-avatar svg {
+      width: 26px;
+      height: 26px;
+      display: block;
     }
 
     .saas-widget-title {
@@ -261,7 +281,7 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 10px 0px 10px 0px;
+      padding: 10px 10px 10px 0px;
       border-top: 1px solid #cccccc;
       background: #ffffff;
       flex-shrink: 0;
@@ -293,17 +313,26 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
     }
 
     .saas-widget-send {
-      padding: 10px 16px;
+      width: 36px;
+      height: 36px;
+      padding: 0;
       border: none;
-      border-radius: 8px;
+      border-radius: 50%;
       background: ${config.primary_color};
       color: ${config.text_color};
-      font-size: 14px;
-      font-weight: 600;
       cursor: pointer;
       font-family: inherit;
       flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       transition: opacity 0.2s ease;
+    }
+
+    .saas-widget-send svg {
+      width: 18px;
+      height: 18px;
+      display: block;
     }
 
     .saas-widget-send:hover:not(:disabled) {
@@ -319,7 +348,7 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
 
   const button = document.createElement("button");
   button.className = "saas-widget-button";
-  button.innerHTML = "💬";
+  button.innerHTML = OPEN_CHAT_ICON_SVG;
   button.setAttribute("aria-label", "Open chat");
   document.body.appendChild(button);
 
@@ -332,7 +361,7 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
   if (config.show_avatar) {
     const avatar = document.createElement("div");
     avatar.className = "saas-widget-avatar";
-    avatar.innerHTML = "🤖";
+    avatar.innerHTML = CHATBOT_ICON_SVG;
     header.appendChild(avatar);
   }
 
@@ -355,7 +384,8 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
   const sendButton = document.createElement("button");
   sendButton.className = "saas-widget-send";
   sendButton.type = "button";
-  sendButton.textContent = "Send";
+  sendButton.innerHTML = SEND_ICON_SVG;
+  sendButton.setAttribute("aria-label", "Send message");
 
   footer.appendChild(input);
   footer.appendChild(sendButton);
