@@ -273,7 +273,7 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
       border: 0px solid #cccc;
       border-radius: 8px;
       background: #ffffff;
-      color: #ffffff;
+      color: #000000;
       font-size: 14px;
       outline: none;
       font-family: inherit;
