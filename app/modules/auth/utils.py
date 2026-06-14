@@ -351,6 +351,37 @@ def validate_password_match(password: str, confirm_password: str | None) -> str 
     return None
 
 
+def validate_signin_password(value: str | None) -> str | None:
+    """
+    Validate that a sign-in password is present and not whitespace-only.
+
+    Returns the first validation error message, or None when the value is valid.
+    Does not enforce password complexity rules.
+    """
+    if _is_blank(value):
+        return messages.PASSWORD_REQUIRED
+
+    return None
+
+
+def validate_signin_request(
+    *,
+    email: str | None,
+    password: str | None,
+) -> str | None:
+    """
+    Run all sign-in field validations in order.
+
+    Returns the first validation error message, or None when all fields are valid.
+    Reusable for future authentication APIs.
+    """
+    email_error = validate_email(email)
+    if email_error:
+        return email_error
+
+    return validate_signin_password(password)
+
+
 def validate_verification_code(value: str | None) -> str | None:
     """
     Validate a numeric OTP verification code.

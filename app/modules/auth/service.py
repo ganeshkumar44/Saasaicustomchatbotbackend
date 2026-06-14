@@ -39,6 +39,7 @@ from app.modules.auth.utils import (
     send_forgot_password_email,
     send_verification_email,
     validate_email,
+    validate_signin_request,
     validate_signup_request,
     validate_verification_code,
     verify_password,
@@ -57,6 +58,14 @@ class SignupValidationError(Exception):
 
 class VerificationValidationError(Exception):
     """Raised when verification payload fails field validation."""
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
+
+
+class SigninValidationError(Exception):
+    """Raised when sign-in payload fails field validation."""
 
     def __init__(self, message: str) -> None:
         self.message = message
@@ -126,17 +135,33 @@ class ForgotPasswordNotVerifiedError(Exception):
 class LoginUserNotFoundError(Exception):
     """Raised when login email does not match any user."""
 
+    def __init__(self, message: str | None = None) -> None:
+        self.message = message or messages.INVALID_CREDENTIALS
+        super().__init__(self.message)
+
 
 class LoginInvalidPasswordError(Exception):
     """Raised when the submitted login password is incorrect."""
+
+    def __init__(self, message: str | None = None) -> None:
+        self.message = message or messages.INVALID_CREDENTIALS
+        super().__init__(self.message)
 
 
 class AccountDisabledError(Exception):
     """Raised when the user account is inactive."""
 
+    def __init__(self, message: str | None = None) -> None:
+        self.message = message or messages.ACCOUNT_INACTIVE
+        super().__init__(self.message)
+
 
 class EmailNotVerifiedForLoginError(Exception):
     """Raised when the user attempts login before verifying email."""
+
+    def __init__(self, message: str | None = None) -> None:
+        self.message = message or messages.ACCOUNT_NOT_VERIFIED
+        super().__init__(self.message)
 
 
 def auth_service():
@@ -202,6 +227,18 @@ def _validate_email_field(email: str) -> str:
         raise VerificationValidationError(validation_error)
 
     return normalize_email(email)
+
+
+def _validate_signin_payload(payload: LoginRequest) -> str:
+    """Validate sign-in fields and return the normalized email."""
+    validation_error = validate_signin_request(
+        email=payload.email,
+        password=payload.password,
+    )
+    if validation_error:
+        raise SigninValidationError(validation_error)
+
+    return normalize_email(payload.email)
 
 
 def _assign_verification_details(user: User) -> str:
@@ -446,23 +483,27 @@ def reset_forgot_password(
 
 def login_user(db: Session, payload: LoginRequest) -> LoginSuccessResponse:
     """Authenticate a user and return a JWT access token."""
-    normalized_email = str(payload.email).lower()
+    normalized_email = _validate_signin_payload(payload)
 
     user = db.execute(
         select(User).where(User.email == normalized_email)
     ).scalar_one_or_none()
 
     if not user:
+        logger.info("Login failed for unknown email: %s", normalized_email)
         raise LoginUserNotFoundError()
 
     if not verify_password(payload.password, user.password_hash):
+        logger.info("Login failed due to invalid password for: %s", normalized_email)
         raise LoginInvalidPasswordError()
 
-    if not user.is_active:
-        raise AccountDisabledError()
-
     if not user.is_email_verified:
+        logger.info("Login failed; account not verified: %s", normalized_email)
         raise EmailNotVerifiedForLoginError()
+
+    if not user.is_active:
+        logger.info("Login failed; account inactive: %s", normalized_email)
+        raise AccountDisabledError()
 
     user.last_login = datetime.now(timezone.utc)
     db.commit()
@@ -474,8 +515,10 @@ def login_user(db: Session, payload: LoginRequest) -> LoginSuccessResponse:
         role=user.role,
     )
 
+    logger.info("Login successful for: %s", normalized_email)
+
     return LoginSuccessResponse(
-        message="Login successful",
+        message=messages.LOGIN_SUCCESS,
         data=LoginUserData(
             id=user.id,
             first_name=user.first_name,

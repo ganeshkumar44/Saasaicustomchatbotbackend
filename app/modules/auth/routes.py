@@ -256,36 +256,44 @@ def forgot_password(payload: ForgotPasswordResetRequest, db: Session = Depends(g
 def signin(payload: LoginRequest, db: Session = Depends(get_db)):
     try:
         return service.login_user(db, payload)
-    except service.LoginUserNotFoundError:
+    except service.SigninValidationError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": exc.message,
+            },
+        )
+    except service.LoginUserNotFoundError as exc:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "success": False,
-                "message": "Invalid email or password",
+                "message": exc.message,
             },
         )
-    except service.LoginInvalidPasswordError:
+    except service.LoginInvalidPasswordError as exc:
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
             content={
                 "success": False,
-                "message": "Invalid email or password",
+                "message": exc.message,
             },
         )
-    except service.AccountDisabledError:
+    except service.EmailNotVerifiedForLoginError as exc:
         return JSONResponse(
             status_code=status.HTTP_403_FORBIDDEN,
             content={
                 "success": False,
-                "message": "Account has been disabled",
+                "message": exc.message,
             },
         )
-    except service.EmailNotVerifiedForLoginError:
+    except service.AccountDisabledError as exc:
         return JSONResponse(
             status_code=status.HTTP_403_FORBIDDEN,
             content={
                 "success": False,
-                "message": "Please verify your email before login",
+                "message": exc.message,
             },
         )
 

@@ -78,3 +78,23 @@ VERIFICATION_CODE_NOT_EXPIRED = (
 )
 ACCOUNT_ALREADY_VERIFIED = "Account already verified."
 INTERNAL_SERVER_ERROR = "An unexpected error occurred. Please try again later."
+
+# ---------------------------------------------------------------------------
+# Sign-in — field validation
+# ---------------------------------------------------------------------------
+
+# EMAIL_REQUIRED, INVALID_EMAIL, PASSWORD_REQUIRED reused from signup section.
+
+# ---------------------------------------------------------------------------
+# Sign-in — business rules
+# ---------------------------------------------------------------------------
+
+INVALID_CREDENTIALS = "Invalid email or password."
+ACCOUNT_NOT_VERIFIED = "Please verify your account before signing in."
+ACCOUNT_INACTIVE = "Your account is inactive. Please contact support."
+
+# ---------------------------------------------------------------------------
+# Sign-in — success
+# ---------------------------------------------------------------------------
+
+LOGIN_SUCCESS = "Login successful"
