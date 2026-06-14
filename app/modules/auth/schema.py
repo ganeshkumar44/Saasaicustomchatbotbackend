@@ -1,4 +1,6 @@
-from pydantic import BaseModel, EmailStr, Field
+from typing import Any
+
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 
 class AuthResponse(BaseModel):
@@ -7,12 +9,31 @@ class AuthResponse(BaseModel):
 
 
 class SignupRequest(BaseModel):
-    first_name: str = Field(..., min_length=1, description="User's first name")
-    last_name: str | None = Field(default=None, description="User's last name")
-    email: EmailStr = Field(..., description="Unique email address")
-    mobile: str | None = Field(default=None, description="User's mobile number")
-    password: str = Field(..., min_length=1, description="Account password")
-    confirm_password: str = Field(..., min_length=1, description="Password confirmation")
+    first_name: str = Field(..., description="User's first name")
+    last_name: str = Field(..., description="User's last name")
+    email: str = Field(..., description="Unique email address")
+    mobile: str = Field(..., description="User's mobile number")
+    password: str = Field(..., description="Account password")
+    confirm_password: str = Field(..., description="Password confirmation")
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_signup_input(cls, data: Any) -> Any:
+        """Trim whitespace and lowercase the email before field validation."""
+        if not isinstance(data, dict):
+            return data
+
+        normalized = dict(data)
+        for key in ("first_name", "last_name", "mobile"):
+            value = normalized.get(key)
+            if isinstance(value, str):
+                normalized[key] = value.strip()
+
+        email = normalized.get("email")
+        if isinstance(email, str):
+            normalized["email"] = email.strip().lower()
+
+        return normalized
 
 
 class SignupUserData(BaseModel):

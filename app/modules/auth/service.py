@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core import messages
 from app.modules.auth.model import User
 from app.modules.auth.schema import (
     ForgotPasswordEmailRequest,
@@ -29,10 +30,20 @@ from app.modules.auth.utils import (
     get_verification_code_expiry,
     hash_password,
     is_code_expired,
+    normalize_signup_fields,
     send_forgot_password_email,
     send_verification_email,
+    validate_signup_request,
     verify_password,
 )
+
+
+class SignupValidationError(Exception):
+    """Raised when signup payload fails field validation."""
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
 
 
 class PasswordMismatchError(Exception):
@@ -41,6 +52,10 @@ class PasswordMismatchError(Exception):
 
 class EmailAlreadyRegisteredError(Exception):
     """Raised when the email is already associated with a verified account."""
+
+
+class MobileAlreadyRegisteredError(Exception):
+    """Raised when the mobile number is already associated with another account."""
 
 
 class InvalidVerificationCodeError(Exception):
@@ -88,7 +103,7 @@ def auth_service():
 
 def _build_signup_response(user: User) -> SignupSuccessResponse:
     return SignupSuccessResponse(
-        message="User registered successfully",
+        message=messages.USER_CREATED_SUCCESSFULLY,
         data=SignupUserData(
             id=user.id,
             first_name=user.first_name,
@@ -96,6 +111,34 @@ def _build_signup_response(user: User) -> SignupSuccessResponse:
             email=user.email,
         ),
     )
+
+
+def _validate_signup_payload(payload: SignupRequest) -> None:
+    """Validate signup fields and raise SignupValidationError on failure."""
+    validation_error = validate_signup_request(
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+        email=payload.email,
+        mobile=payload.mobile,
+        password=payload.password,
+        confirm_password=payload.confirm_password,
+    )
+    if validation_error:
+        raise SignupValidationError(validation_error)
+
+
+def _mobile_belongs_to_other_user(
+    db: Session,
+    mobile: str,
+    *,
+    exclude_user_id: int | None = None,
+) -> bool:
+    """Return True when the mobile number belongs to a different user."""
+    query = select(User).where(User.mobile == mobile)
+    if exclude_user_id is not None:
+        query = query.where(User.id != exclude_user_id)
+
+    return db.execute(query).scalar_one_or_none() is not None
 
 
 def _assign_verification_details(user: User) -> str:
@@ -109,14 +152,25 @@ def _assign_verification_details(user: User) -> str:
 
 def register_user(db: Session, payload: SignupRequest) -> SignupSuccessResponse:
     """Register a new user with hashed password and default role/settings."""
-    if payload.password != payload.confirm_password:
-        raise PasswordMismatchError()
+    _validate_signup_payload(payload)
 
-    normalized_email = str(payload.email).lower()
+    normalized = normalize_signup_fields(
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+        email=payload.email,
+        mobile=payload.mobile,
+    )
 
     existing_user = db.execute(
-        select(User).where(User.email == normalized_email)
+        select(User).where(User.email == normalized["email"])
     ).scalar_one_or_none()
+
+    if _mobile_belongs_to_other_user(
+        db,
+        normalized["mobile"],
+        exclude_user_id=existing_user.id if existing_user else None,
+    ):
+        raise MobileAlreadyRegisteredError()
 
     verification_code = generate_verification_code()
 
@@ -125,9 +179,9 @@ def register_user(db: Session, payload: SignupRequest) -> SignupSuccessResponse:
             raise EmailAlreadyRegisteredError()
 
         # Allow re-signup for unverified accounts: refresh details and resend OTP.
-        existing_user.first_name = payload.first_name.strip()
-        existing_user.last_name = (payload.last_name or "").strip()
-        existing_user.mobile = payload.mobile
+        existing_user.first_name = normalized["first_name"]
+        existing_user.last_name = normalized["last_name"]
+        existing_user.mobile = normalized["mobile"]
         existing_user.password_hash = hash_password(payload.password)
         verification_code = _assign_verification_details(existing_user)
 
@@ -146,10 +200,10 @@ def register_user(db: Session, payload: SignupRequest) -> SignupSuccessResponse:
         return _build_signup_response(existing_user)
 
     user = User(
-        first_name=payload.first_name.strip(),
-        last_name=(payload.last_name or "").strip(),
-        email=normalized_email,
-        mobile=payload.mobile,
+        first_name=normalized["first_name"],
+        last_name=normalized["last_name"],
+        email=normalized["email"],
+        mobile=normalized["mobile"],
         password_hash=hash_password(payload.password),
         role="user",
         is_email_verified=False,

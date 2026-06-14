@@ -1,5 +1,6 @@
 import logging
 import random
+import re
 import smtplib
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
@@ -14,12 +15,30 @@ from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
+from app.core import messages
 from app.core.config import get_settings
 from app.core.database import get_db
 
 logger = logging.getLogger(__name__)
 
 OTP_EXPIRY_MINUTES = 10
+
+NAME_MIN_LENGTH = 2
+NAME_MAX_LENGTH = 50
+MOBILE_MIN_LENGTH = 8
+MOBILE_MAX_LENGTH = 15
+PASSWORD_MIN_LENGTH = 8
+PASSWORD_MAX_LENGTH = 100
+
+_NAME_PATTERN = re.compile(r"^[A-Za-z]+$")
+_MOBILE_PATTERN = re.compile(rf"^\d{{{MOBILE_MIN_LENGTH},{MOBILE_MAX_LENGTH}}}$")
+_EMAIL_PATTERN = re.compile(
+    r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
+)
+_PASSWORD_UPPERCASE = re.compile(r"[A-Z]")
+_PASSWORD_LOWERCASE = re.compile(r"[a-z]")
+_PASSWORD_DIGIT = re.compile(r"\d")
+_PASSWORD_SPECIAL = re.compile(r"[!@#$%^&*(),.?\":{}|<>_\-+=\[\]\\;/'`~]")
 
 bearer_scheme = HTTPBearer()
 
@@ -221,6 +240,168 @@ def send_forgot_password_email(to_email: str, verification_code: str) -> None:
         "SaaS AI Custom Chatbot Team"
     )
     _send_email(to_email, subject, body)
+
+
+def _is_blank(value: str | None) -> bool:
+    """Return True when a value is None or contains only whitespace."""
+    return value is None or not value.strip()
+
+
+def validate_name(
+    value: str | None,
+    *,
+    required_message: str,
+    too_short_message: str,
+    too_long_message: str,
+    invalid_message: str,
+) -> str | None:
+    """
+    Validate a person's name.
+
+    Returns the first validation error message, or None when the value is valid.
+    """
+    if _is_blank(value):
+        return required_message
+
+    trimmed = value.strip()
+    if len(trimmed) < NAME_MIN_LENGTH:
+        return too_short_message
+    if len(trimmed) > NAME_MAX_LENGTH:
+        return too_long_message
+    if not _NAME_PATTERN.fullmatch(trimmed):
+        return invalid_message
+
+    return None
+
+
+def validate_email(value: str | None) -> str | None:
+    """
+    Validate an email address format.
+
+    Returns the first validation error message, or None when the value is valid.
+    """
+    if _is_blank(value):
+        return messages.EMAIL_REQUIRED
+
+    trimmed = value.strip().lower()
+    if not _EMAIL_PATTERN.fullmatch(trimmed):
+        return messages.INVALID_EMAIL
+
+    return None
+
+
+def validate_mobile(value: str | None) -> str | None:
+    """
+    Validate a mobile number.
+
+    Returns the first validation error message, or None when the value is valid.
+    """
+    if _is_blank(value):
+        return messages.MOBILE_REQUIRED
+
+    trimmed = value.strip()
+    if not _MOBILE_PATTERN.fullmatch(trimmed):
+        return messages.INVALID_MOBILE
+
+    return None
+
+
+def validate_password(value: str | None) -> str | None:
+    """
+    Validate a password against length and complexity rules.
+
+    Returns the first validation error message, or None when the value is valid.
+    """
+    if _is_blank(value):
+        return messages.PASSWORD_REQUIRED
+
+    if len(value) < PASSWORD_MIN_LENGTH:
+        return messages.PASSWORD_TOO_SHORT
+    if len(value) > PASSWORD_MAX_LENGTH:
+        return messages.PASSWORD_TOO_LONG
+    if (
+        not _PASSWORD_UPPERCASE.search(value)
+        or not _PASSWORD_LOWERCASE.search(value)
+        or not _PASSWORD_DIGIT.search(value)
+        or not _PASSWORD_SPECIAL.search(value)
+    ):
+        return messages.PASSWORD_POLICY_FAILED
+
+    return None
+
+
+def validate_password_match(password: str, confirm_password: str | None) -> str | None:
+    """
+    Validate that password and confirm_password match.
+
+    Returns the first validation error message, or None when the values match.
+    """
+    if _is_blank(confirm_password):
+        return messages.CONFIRM_PASSWORD_REQUIRED
+    if password != confirm_password:
+        return messages.PASSWORD_MISMATCH
+
+    return None
+
+
+def validate_signup_request(
+    *,
+    first_name: str | None,
+    last_name: str | None,
+    email: str | None,
+    mobile: str | None,
+    password: str | None,
+    confirm_password: str | None,
+) -> str | None:
+    """
+    Run all signup field validations in order.
+
+    Returns the first validation error message, or None when all fields are valid.
+    """
+    validators = (
+        validate_name(
+            first_name,
+            required_message=messages.FIRST_NAME_REQUIRED,
+            too_short_message=messages.FIRST_NAME_TOO_SHORT,
+            too_long_message=messages.FIRST_NAME_TOO_LONG,
+            invalid_message=messages.FIRST_NAME_INVALID,
+        ),
+        validate_name(
+            last_name,
+            required_message=messages.LAST_NAME_REQUIRED,
+            too_short_message=messages.LAST_NAME_TOO_SHORT,
+            too_long_message=messages.LAST_NAME_TOO_LONG,
+            invalid_message=messages.LAST_NAME_INVALID,
+        ),
+        validate_email(email),
+        validate_mobile(mobile),
+        validate_password(password),
+    )
+
+    for error in validators:
+        if error:
+            return error
+
+    if password is None:
+        return messages.PASSWORD_REQUIRED
+
+    return validate_password_match(password, confirm_password)
+
+
+def normalize_signup_fields(
+    *,
+    first_name: str,
+    last_name: str,
+    email: str,
+    mobile: str,
+) -> dict[str, str]:
+    """Return trimmed and normalized signup field values ready for persistence."""
+    return {
+        "first_name": first_name.strip(),
+        "last_name": last_name.strip(),
+        "email": email.strip().lower(),
+        "mobile": mobile.strip(),
+    }
 
 
 def apply_verification_migrations(db_engine: Engine) -> None:
