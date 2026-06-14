@@ -83,28 +83,36 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)):
 def signup_verification(payload: VerifyEmailRequest, db: Session = Depends(get_db)):
     try:
         return service.verify_user_email(db, payload)
-    except service.EmailAlreadyVerifiedError:
+    except service.VerificationValidationError as exc:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
                 "success": False,
-                "message": "Email is already verified",
+                "message": exc.message,
             },
         )
-    except service.ExpiredVerificationCodeError:
+    except service.EmailAlreadyVerifiedError as exc:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
                 "success": False,
-                "message": "Verification code has expired",
+                "message": exc.message,
             },
         )
-    except service.InvalidVerificationCodeError:
+    except service.ExpiredVerificationCodeError as exc:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
                 "success": False,
-                "message": "Invalid verification code",
+                "message": exc.message,
+            },
+        )
+    except service.InvalidVerificationCodeError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": exc.message,
             },
         )
 

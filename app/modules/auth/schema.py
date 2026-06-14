@@ -51,13 +51,25 @@ class SignupSuccessResponse(BaseModel):
 
 class VerifyEmailRequest(BaseModel):
     email: EmailStr = Field(..., description="Registered email address")
-    verification_code: str = Field(
-        ...,
-        min_length=6,
-        max_length=6,
-        pattern=r"^\d{6}$",
-        description="6-digit verification code",
-    )
+    verification_code: str = Field(..., description="6-digit verification code")
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_verify_email_input(cls, data: Any) -> Any:
+        """Trim whitespace from email and verification code before validation."""
+        if not isinstance(data, dict):
+            return data
+
+        normalized = dict(data)
+        verification_code = normalized.get("verification_code")
+        if isinstance(verification_code, str):
+            normalized["verification_code"] = verification_code.strip()
+
+        email = normalized.get("email")
+        if isinstance(email, str):
+            normalized["email"] = email.strip().lower()
+
+        return normalized
 
 
 class VerifyEmailSuccessResponse(BaseModel):

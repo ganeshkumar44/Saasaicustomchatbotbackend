@@ -31,15 +31,25 @@ from app.modules.auth.utils import (
     hash_password,
     is_code_expired,
     normalize_signup_fields,
+    normalize_verification_code,
     send_forgot_password_email,
     send_verification_email,
     validate_signup_request,
+    validate_verification_code,
     verify_password,
 )
 
 
 class SignupValidationError(Exception):
     """Raised when signup payload fails field validation."""
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
+
+
+class VerificationValidationError(Exception):
+    """Raised when verification payload fails field validation."""
 
     def __init__(self, message: str) -> None:
         self.message = message
@@ -61,13 +71,25 @@ class MobileAlreadyRegisteredError(Exception):
 class InvalidVerificationCodeError(Exception):
     """Raised when the verification code is missing or does not match."""
 
+    def __init__(self, message: str | None = None) -> None:
+        self.message = message or messages.VERIFICATION_CODE_INVALID
+        super().__init__(self.message)
+
 
 class ExpiredVerificationCodeError(Exception):
     """Raised when the verification code has expired."""
 
+    def __init__(self, message: str | None = None) -> None:
+        self.message = message or messages.VERIFICATION_CODE_EXPIRED
+        super().__init__(self.message)
+
 
 class EmailAlreadyVerifiedError(Exception):
     """Raised when the email address is already verified."""
+
+    def __init__(self, message: str | None = None) -> None:
+        self.message = message or messages.USER_ALREADY_VERIFIED
+        super().__init__(self.message)
 
 
 class EmailNotFoundError(Exception):
@@ -139,6 +161,15 @@ def _mobile_belongs_to_other_user(
         query = query.where(User.id != exclude_user_id)
 
     return db.execute(query).scalar_one_or_none() is not None
+
+
+def _validate_verification_code_field(verification_code: str) -> str:
+    """Validate verification code format and return the normalized value."""
+    validation_error = validate_verification_code(verification_code)
+    if validation_error:
+        raise VerificationValidationError(validation_error)
+
+    return normalize_verification_code(verification_code)
 
 
 def _assign_verification_details(user: User) -> str:
@@ -232,29 +263,21 @@ def verify_user_email(
     payload: VerifyEmailRequest,
 ) -> VerifyEmailSuccessResponse:
     """Validate the submitted OTP and mark the user's email as verified."""
+    submitted_code = _validate_verification_code_field(payload.verification_code)
+    normalized_email = str(payload.email).lower()
+
     user = db.execute(
-        select(User).where(User.email == payload.email.lower())
+        select(User).where(User.verification_code == submitted_code)
     ).scalar_one_or_none()
 
-    if not user:
+    if not user or user.email != normalized_email:
         raise InvalidVerificationCodeError()
+
+    if is_code_expired(user.verification_code_expires_at):
+        raise ExpiredVerificationCodeError()
 
     if user.is_email_verified:
         raise EmailAlreadyVerifiedError()
-
-    submitted_code = payload.verification_code.strip()
-    if not user.verification_code or user.verification_code != submitted_code:
-        raise InvalidVerificationCodeError()
-
-    if not user.verification_code_expires_at:
-        raise InvalidVerificationCodeError()
-
-    expires_at = user.verification_code_expires_at
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-
-    if expires_at < datetime.now(timezone.utc):
-        raise ExpiredVerificationCodeError()
 
     user.is_email_verified = True
     user.verification_code = None
@@ -262,7 +285,7 @@ def verify_user_email(
 
     db.commit()
 
-    return VerifyEmailSuccessResponse(message="Email verified successfully")
+    return VerifyEmailSuccessResponse(message=messages.VERIFICATION_SUCCESS)
 
 
 def request_forgot_password_code(

@@ -49,3 +49,27 @@ MOBILE_ALREADY_EXISTS = "Mobile number already registered."
 USER_CREATED_SUCCESSFULLY = (
     "Registration completed successfully. Verification code sent to your email."
 )
+
+# ---------------------------------------------------------------------------
+# Verification — field validation
+# ---------------------------------------------------------------------------
+
+VERIFICATION_CODE_REQUIRED = "Verification code is required."
+VERIFICATION_CODE_INVALID_FORMAT = "Verification code must be exactly 6 digits."
+
+# ---------------------------------------------------------------------------
+# Verification — business rules
+# ---------------------------------------------------------------------------
+
+VERIFICATION_CODE_INVALID = "Invalid verification code."
+VERIFICATION_CODE_NOT_FOUND = "Invalid verification code."
+VERIFICATION_CODE_EXPIRED = "Verification code has expired."
+USER_ALREADY_VERIFIED = "Account already verified."
+USER_NOT_FOUND = "User not found."
+
+# ---------------------------------------------------------------------------
+# Verification — success / system
+# ---------------------------------------------------------------------------
+
+VERIFICATION_SUCCESS = "Account verified successfully."
+INTERNAL_SERVER_ERROR = "An unexpected error occurred. Please try again later."

@@ -39,6 +39,8 @@ _PASSWORD_UPPERCASE = re.compile(r"[A-Z]")
 _PASSWORD_LOWERCASE = re.compile(r"[a-z]")
 _PASSWORD_DIGIT = re.compile(r"\d")
 _PASSWORD_SPECIAL = re.compile(r"[!@#$%^&*(),.?\":{}|<>_\-+=\[\]\\;/'`~]")
+_VERIFICATION_CODE_LENGTH = 6
+_VERIFICATION_CODE_PATTERN = re.compile(rf"^\d{{{_VERIFICATION_CODE_LENGTH}}}$")
 
 bearer_scheme = HTTPBearer()
 
@@ -342,6 +344,35 @@ def validate_password_match(password: str, confirm_password: str | None) -> str 
         return messages.PASSWORD_MISMATCH
 
     return None
+
+
+def validate_verification_code(value: str | None) -> str | None:
+    """
+    Validate a numeric OTP verification code.
+
+    Rules:
+    - Required, non-empty after trim
+    - Exactly 6 digits
+    - Numbers only (no letters or special characters)
+
+    Returns the first validation error message, or None when the value is valid.
+    Reusable for signup verification, forgot-password verification, and future OTP APIs.
+    """
+    if value is None:
+        return messages.VERIFICATION_CODE_REQUIRED
+
+    trimmed = value.strip()
+    if not trimmed:
+        return messages.VERIFICATION_CODE_REQUIRED
+    if not _VERIFICATION_CODE_PATTERN.fullmatch(trimmed):
+        return messages.VERIFICATION_CODE_INVALID_FORMAT
+
+    return None
+
+
+def normalize_verification_code(value: str) -> str:
+    """Return a trimmed verification code ready for comparison or persistence."""
+    return value.strip()
 
 
 def validate_signup_request(
