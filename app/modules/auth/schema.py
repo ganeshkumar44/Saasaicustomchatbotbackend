@@ -77,6 +77,29 @@ class VerifyEmailSuccessResponse(BaseModel):
     message: str
 
 
+class SignupResendVerificationRequest(BaseModel):
+    email: str = Field(..., description="Registered email address")
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_resend_verification_input(cls, data: Any) -> Any:
+        """Trim whitespace and lowercase the email before validation."""
+        if not isinstance(data, dict):
+            return data
+
+        normalized = dict(data)
+        email = normalized.get("email")
+        if isinstance(email, str):
+            normalized["email"] = email.strip().lower()
+
+        return normalized
+
+
+class SignupResendVerificationResponse(BaseModel):
+    success: bool = True
+    message: str
+
+
 class ForgotPasswordEmailRequest(BaseModel):
     email: EmailStr = Field(..., description="Registered email address")
 

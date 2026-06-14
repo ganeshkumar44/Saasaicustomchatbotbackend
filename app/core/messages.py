@@ -72,4 +72,9 @@ USER_NOT_FOUND = "User not found."
 # ---------------------------------------------------------------------------
 
 VERIFICATION_SUCCESS = "Account verified successfully."
+VERIFICATION_CODE_RESENT = "Verification code has been sent successfully."
+VERIFICATION_CODE_NOT_EXPIRED = (
+    "Verification code is still active. Please use the existing code."
+)
+ACCOUNT_ALREADY_VERIFIED = "Account already verified."
 INTERNAL_SERVER_ERROR = "An unexpected error occurred. Please try again later."

@@ -292,6 +292,11 @@ def validate_email(value: str | None) -> str | None:
     return None
 
 
+def normalize_email(value: str) -> str:
+    """Return a trimmed, lowercased email address ready for lookup or persistence."""
+    return value.strip().lower()
+
+
 def validate_mobile(value: str | None) -> str | None:
     """
     Validate a mobile number.

@@ -16,6 +16,8 @@ from app.modules.auth.schema import (
     LoginSuccessResponse,
     MeSuccessResponse,
     SignupRequest,
+    SignupResendVerificationRequest,
+    SignupResendVerificationResponse,
     SignupSuccessResponse,
     VerifyEmailRequest,
     VerifyEmailSuccessResponse,
@@ -108,6 +110,51 @@ def signup_verification(payload: VerifyEmailRequest, db: Session = Depends(get_d
             },
         )
     except service.InvalidVerificationCodeError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": exc.message,
+            },
+        )
+
+
+@signup_router.post(
+    "/signup-resend-verification",
+    status_code=status.HTTP_200_OK,
+    response_model=SignupResendVerificationResponse,
+)
+def signup_resend_verification(
+    payload: SignupResendVerificationRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        return service.resend_signup_verification(db, payload)
+    except service.VerificationValidationError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": exc.message,
+            },
+        )
+    except service.SignupResendUserNotFoundError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "success": False,
+                "message": exc.message,
+            },
+        )
+    except service.EmailAlreadyVerifiedError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": exc.message,
+            },
+        )
+    except service.VerificationCodeNotExpiredError as exc:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={

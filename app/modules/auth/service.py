@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -19,6 +20,8 @@ from app.modules.auth.schema import (
     MeSuccessResponse,
     MeUserData,
     SignupRequest,
+    SignupResendVerificationRequest,
+    SignupResendVerificationResponse,
     SignupSuccessResponse,
     SignupUserData,
     VerifyEmailRequest,
@@ -30,14 +33,18 @@ from app.modules.auth.utils import (
     get_verification_code_expiry,
     hash_password,
     is_code_expired,
+    normalize_email,
     normalize_signup_fields,
     normalize_verification_code,
     send_forgot_password_email,
     send_verification_email,
+    validate_email,
     validate_signup_request,
     validate_verification_code,
     verify_password,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SignupValidationError(Exception):
@@ -94,6 +101,22 @@ class EmailAlreadyVerifiedError(Exception):
 
 class EmailNotFoundError(Exception):
     """Raised when no user exists for the provided email address."""
+
+
+class SignupResendUserNotFoundError(Exception):
+    """Raised when resend verification is requested for an unknown email."""
+
+    def __init__(self, message: str | None = None) -> None:
+        self.message = message or messages.USER_NOT_FOUND
+        super().__init__(self.message)
+
+
+class VerificationCodeNotExpiredError(Exception):
+    """Raised when an active verification code already exists."""
+
+    def __init__(self, message: str | None = None) -> None:
+        self.message = message or messages.VERIFICATION_CODE_NOT_EXPIRED
+        super().__init__(self.message)
 
 
 class ForgotPasswordNotVerifiedError(Exception):
@@ -170,6 +193,15 @@ def _validate_verification_code_field(verification_code: str) -> str:
         raise VerificationValidationError(validation_error)
 
     return normalize_verification_code(verification_code)
+
+
+def _validate_email_field(email: str) -> str:
+    """Validate email format and return the normalized value."""
+    validation_error = validate_email(email)
+    if validation_error:
+        raise VerificationValidationError(validation_error)
+
+    return normalize_email(email)
 
 
 def _assign_verification_details(user: User) -> str:
@@ -286,6 +318,50 @@ def verify_user_email(
     db.commit()
 
     return VerifyEmailSuccessResponse(message=messages.VERIFICATION_SUCCESS)
+
+
+def resend_signup_verification(
+    db: Session,
+    payload: SignupResendVerificationRequest,
+) -> SignupResendVerificationResponse:
+    """Resend a signup verification code when email verification is still pending."""
+    normalized_email = _validate_email_field(payload.email)
+
+    user = db.execute(
+        select(User).where(User.email == normalized_email)
+    ).scalar_one_or_none()
+
+    if not user:
+        logger.info(
+            "Signup verification resend requested for unknown email: %s",
+            normalized_email,
+        )
+        raise SignupResendUserNotFoundError()
+
+    if user.is_email_verified or user.is_mobile_verified:
+        logger.info(
+            "Signup verification resend skipped; account already verified: %s",
+            normalized_email,
+        )
+        raise EmailAlreadyVerifiedError(messages.ACCOUNT_ALREADY_VERIFIED)
+
+    if user.verification_code and not is_code_expired(user.verification_code_expires_at):
+        logger.info(
+            "Signup verification resend skipped; active code exists for: %s",
+            normalized_email,
+        )
+        raise VerificationCodeNotExpiredError()
+
+    verification_code = _assign_verification_details(user)
+    db.commit()
+    db.refresh(user)
+
+    send_verification_email(user.first_name, user.email, verification_code)
+    logger.info("Signup verification code resent to: %s", normalized_email)
+
+    return SignupResendVerificationResponse(
+        message=messages.VERIFICATION_CODE_RESENT,
+    )
 
 
 def request_forgot_password_code(
