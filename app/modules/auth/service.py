@@ -23,13 +23,16 @@ from app.modules.auth.schema import (
     SignupResendVerificationRequest,
     SignupResendVerificationResponse,
     SignupSuccessResponse,
+    SignOutSuccessResponse,
     SignupUserData,
     VerifyEmailRequest,
     VerifyEmailSuccessResponse,
 )
 from app.modules.auth.utils import (
+    blacklist_token,
     create_access_token,
     generate_verification_code,
+    get_token_identifier,
     get_verification_code_expiry,
     hash_password,
     is_code_expired,
@@ -162,6 +165,10 @@ class EmailNotVerifiedForLoginError(Exception):
     def __init__(self, message: str | None = None) -> None:
         self.message = message or messages.ACCOUNT_NOT_VERIFIED
         super().__init__(self.message)
+
+
+class SignoutError(Exception):
+    """Raised when sign-out fails due to an unexpected error."""
 
 
 def auth_service():
@@ -542,3 +549,34 @@ def get_current_user_profile(user: User) -> MeSuccessResponse:
             role=user.role,
         ),
     )
+
+
+def signout_user(
+    db: Session,
+    user: User,
+    token: str,
+    payload: dict,
+) -> SignOutSuccessResponse:
+    """Invalidate the current access token by adding its identifier to the blacklist."""
+    logger.info("Sign-out requested for user_id=%s", user.id)
+
+    jti = get_token_identifier(payload, token)
+    exp = payload.get("exp")
+    if exp is None:
+        logger.error("Sign-out failed; token missing exp claim for user_id=%s", user.id)
+        raise SignoutError()
+
+    expires_at = datetime.fromtimestamp(int(exp), tz=timezone.utc)
+
+    try:
+        blacklist_token(db, user.id, jti, expires_at)
+    except Exception:
+        logger.exception(
+            "Failed to blacklist token for user_id=%s jti=%s",
+            user.id,
+            jti,
+        )
+        raise SignoutError() from None
+
+    logger.info("Sign-out successful for user_id=%s jti=%s", user.id, jti)
+    return SignOutSuccessResponse(message=messages.SIGNOUT_SUCCESS)

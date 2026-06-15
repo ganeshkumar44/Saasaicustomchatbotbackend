@@ -183,3 +183,8 @@ class MeUserData(BaseModel):
 class MeSuccessResponse(BaseModel):
     success: bool = True
     data: MeUserData
+
+
+class SignOutSuccessResponse(BaseModel):
+    success: bool = True
+    message: str

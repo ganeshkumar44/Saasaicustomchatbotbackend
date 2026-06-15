@@ -5,19 +5,24 @@ import smtplib
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Any
 
 import bcrypt
-import jwt
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session
 
 from app.core import messages
 from app.core.config import get_settings
-from app.core.database import get_db
+from app.core.dependencies import get_auth_context, get_current_user
+from app.core.security import (
+    InvalidTokenError,
+    TokenBlacklistedError,
+    TokenExpiredError,
+    blacklist_token,
+    create_access_token,
+    decode_access_token,
+    get_token_identifier,
+    is_token_blacklisted,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,100 +47,38 @@ _PASSWORD_SPECIAL = re.compile(r"[!@#$%^&*(),.?\":{}|<>_\-+=\[\]\\;/'`~]")
 _VERIFICATION_CODE_LENGTH = 6
 _VERIFICATION_CODE_PATTERN = re.compile(rf"^\d{{{_VERIFICATION_CODE_LENGTH}}}$")
 
-bearer_scheme = HTTPBearer()
-
-
-class InvalidTokenError(Exception):
-    """Raised when a JWT is missing, expired, or invalid."""
-
-
-def _get_jwt_settings() -> dict[str, str | int]:
-    """Read JWT configuration from application settings."""
-    settings = get_settings()
-    return {
-        "secret_key": settings.JWT_SECRET_KEY,
-        "algorithm": settings.JWT_ALGORITHM,
-        "expire_minutes": settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES,
-    }
-
-
-def create_access_token(user_id: int, email: str, role: str) -> str:
-    """Generate a signed JWT access token for the authenticated user."""
-    jwt_settings = _get_jwt_settings()
-    secret_key = str(jwt_settings["secret_key"])
-    if not secret_key:
-        raise ValueError("JWT_SECRET_KEY is not configured.")
-
-    expire_minutes = int(jwt_settings["expire_minutes"])
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=expire_minutes)
-    payload = {
-        "user_id": user_id,
-        "email": email,
-        "role": role,
-        "exp": expires_at,
-        "iat": datetime.now(timezone.utc),
-    }
-
-    return jwt.encode(
-        payload,
-        secret_key,
-        algorithm=str(jwt_settings["algorithm"]),
-    )
-
-
-def decode_access_token(token: str) -> dict[str, Any]:
-    """Decode and validate a JWT access token."""
-    jwt_settings = _get_jwt_settings()
-    secret_key = str(jwt_settings["secret_key"])
-    if not secret_key:
-        raise InvalidTokenError()
-
-    try:
-        payload = jwt.decode(
-            token,
-            secret_key,
-            algorithms=[str(jwt_settings["algorithm"])],
-        )
-    except jwt.PyJWTError as exc:
-        raise InvalidTokenError() from exc
-
-    if "user_id" not in payload:
-        raise InvalidTokenError()
-
-    return payload
-
-
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
-):
-    """FastAPI dependency that returns the user for a valid Bearer token."""
-    from app.modules.auth.model import User
-
-    try:
-        payload = decode_access_token(credentials.credentials)
-        user = db.get(User, payload["user_id"])
-    except (InvalidTokenError, KeyError, TypeError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "success": False,
-                "message": "Invalid or expired token",
-            },
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from None
-
-    if not user or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "success": False,
-                "message": "Invalid or expired token",
-            },
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    return user
+__all__ = [
+    "InvalidTokenError",
+    "TokenBlacklistedError",
+    "TokenExpiredError",
+    "apply_verification_migrations",
+    "blacklist_token",
+    "create_access_token",
+    "decode_access_token",
+    "generate_verification_code",
+    "get_auth_context",
+    "get_current_user",
+    "get_token_identifier",
+    "get_verification_code_expiry",
+    "hash_password",
+    "is_code_expired",
+    "is_token_blacklisted",
+    "normalize_email",
+    "normalize_signup_fields",
+    "normalize_verification_code",
+    "send_forgot_password_email",
+    "send_verification_email",
+    "validate_email",
+    "validate_name",
+    "validate_mobile",
+    "validate_password",
+    "validate_password_match",
+    "validate_signin_password",
+    "validate_signin_request",
+    "validate_signup_request",
+    "validate_verification_code",
+    "verify_password",
+]
 
 
 def _get_smtp_settings() -> dict[str, str | int]:

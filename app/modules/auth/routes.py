@@ -15,6 +15,7 @@ from app.modules.auth.schema import (
     LoginRequest,
     LoginSuccessResponse,
     MeSuccessResponse,
+    SignOutSuccessResponse,
     SignupRequest,
     SignupResendVerificationRequest,
     SignupResendVerificationResponse,
@@ -22,7 +23,7 @@ from app.modules.auth.schema import (
     VerifyEmailRequest,
     VerifyEmailSuccessResponse,
 )
-from app.modules.auth.utils import get_current_user
+from app.core.dependencies import AuthContext, get_auth_context, get_current_user
 
 router = APIRouter(
     prefix="/auth",
@@ -305,3 +306,25 @@ def signin(payload: LoginRequest, db: Session = Depends(get_db)):
 )
 def get_me(current_user=Depends(get_current_user)):
     return service.get_current_user_profile(current_user)
+
+
+@signup_router.post(
+    "/signout",
+    status_code=status.HTTP_200_OK,
+    response_model=SignOutSuccessResponse,
+)
+def signout(
+    auth: AuthContext = Depends(get_auth_context),
+    db: Session = Depends(get_db),
+):
+    """Invalidate the current JWT access token and end the user session."""
+    try:
+        return service.signout_user(db, auth.user, auth.token, auth.payload)
+    except service.SignoutError:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "success": False,
+                "message": messages.INTERNAL_SERVER_ERROR,
+            },
+        )

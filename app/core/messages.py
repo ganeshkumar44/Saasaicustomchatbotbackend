@@ -98,3 +98,14 @@ ACCOUNT_INACTIVE = "Your account is inactive. Please contact support."
 # ---------------------------------------------------------------------------
 
 LOGIN_SUCCESS = "Login successful"
+
+# ---------------------------------------------------------------------------
+# Authentication — JWT / session
+# ---------------------------------------------------------------------------
+
+TOKEN_REQUIRED = "Authentication token is required."
+INVALID_TOKEN = "Invalid authentication token."
+TOKEN_EXPIRED = "Authentication token has expired."
+TOKEN_BLACKLISTED = "Session has expired. Please sign in again."
+SIGNOUT_SUCCESS = "Signed out successfully."
+UNAUTHORIZED = "Unauthorized access."
