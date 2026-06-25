@@ -10,6 +10,7 @@ from app.core.database import Base, engine
 from app.modules.auth.routes import router as auth_router, signup_router
 from app.modules.auth.utils import apply_verification_migrations
 from app.modules.chatbot.routes import router as chatbot_router
+from app.modules.chatbot_settings.routes import router as chatbot_settings_router
 from app.modules.chatbot.utils import apply_chatbot_migrations
 from app.modules.knowledgebase.utils import apply_knowledgebase_migrations
 from app.modules.health.routes import router as health_router
@@ -55,6 +56,7 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(signup_router)
 app.include_router(chatbot_router)
+app.include_router(chatbot_settings_router)
 app.include_router(knowledgebase_router)
 app.include_router(widget_router)
 app.include_router(widget_static_router)

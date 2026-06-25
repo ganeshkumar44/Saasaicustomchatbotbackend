@@ -109,3 +109,13 @@ TOKEN_EXPIRED = "Authentication token has expired."
 TOKEN_BLACKLISTED = "Session has expired. Please sign in again."
 SIGNOUT_SUCCESS = "Signed out successfully."
 UNAUTHORIZED = "Unauthorized access."
+
+# ---------------------------------------------------------------------------
+# Chatbot Settings
+# ---------------------------------------------------------------------------
+
+CHATBOT_ID_REQUIRED = "Chatbot ID is required."
+CHATBOT_NOT_FOUND = "Chatbot not found."
+CHATBOT_SETTINGS_NOT_FOUND = "Chatbot settings not found."
+UNAUTHORIZED_CHATBOT_ACCESS = "You are not authorized to access this chatbot."
+CHATBOT_DETAILS_FETCH_SUCCESS = "Chatbot details retrieved successfully."
