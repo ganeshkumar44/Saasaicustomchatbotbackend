@@ -12,6 +12,7 @@ from app.modules.chatbot_settings.schema import ChatbotDetailsSuccessResponse
 from app.modules.chatbot_settings.utils import (
     build_chatbot_details_data,
     get_chatbot_settings_record,
+    get_knowledgebase_documents,
     get_owned_chatbot,
 )
 
@@ -45,6 +46,13 @@ def get_chatbot_details(
         )
         raise ChatbotSettingsNotFoundError()
 
+    documents = get_knowledgebase_documents(db, chatbot_id)
+    logger.info(
+        "Fetched %s knowledge base documents for chatbot_id=%s",
+        len(documents),
+        chatbot_id,
+    )
+
     logger.info(
         "Chatbot details fetched successfully for chatbot_id=%s user_id=%s",
         chatbot_id,
@@ -53,5 +61,5 @@ def get_chatbot_details(
 
     return ChatbotDetailsSuccessResponse(
         message=messages.CHATBOT_DETAILS_FETCH_SUCCESS,
-        data=build_chatbot_details_data(chatbot, settings),
+        data=build_chatbot_details_data(chatbot, settings, documents),
     )

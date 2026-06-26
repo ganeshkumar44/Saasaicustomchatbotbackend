@@ -3,6 +3,24 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+class KnowledgebaseDocumentItem(BaseModel):
+    """Knowledge base source uploaded or linked to a chatbot."""
+
+    id: int
+    chatbot_id: int
+    source_type: str
+    original_file_name: str | None = None
+    stored_file_name: str | None = None
+    file_extension: str | None = None
+    file_size: int | None = None
+    url: str | None = None
+    processing_status: str
+    extracted_text_preview: str | None = None
+    extracted_text_length: int | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
 class ChatbotDetailsData(BaseModel):
     """Complete chatbot configuration merged from chatbots and chatbot_settings."""
 
@@ -34,6 +52,9 @@ class ChatbotDetailsData(BaseModel):
     input_placeholder: str
     settings_created_at: datetime
     settings_updated_at: datetime
+
+    # knowledgebase_documents table
+    knowledgebase_documents: list[KnowledgebaseDocumentItem] = []
 
 
 class ChatbotDetailsSuccessResponse(BaseModel):
