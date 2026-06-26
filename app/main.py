@@ -20,6 +20,8 @@ from app.modules.knowledge_chunks.routes import router as knowledge_chunks_route
 from app.modules.widget.routes import router as widget_router, static_router as widget_static_router
 from app.rag.routes import router as rag_router
 from app.modules.ai.routes import router as ai_router
+from app.modules.user_details.routes import router as user_details_router
+from app.modules.user_details.utils import apply_user_account_migrations, sync_existing_user_details
 
 # Import all ORM models so they register with Base.metadata before create_all().
 import app.modules.auth.model  # noqa: F401
@@ -28,6 +30,7 @@ import app.modules.knowledgebase.model  # noqa: F401
 import app.modules.chat_sessions.model  # noqa: F401
 import app.modules.chat_messages.model  # noqa: F401
 import app.modules.knowledge_chunks.model  # noqa: F401
+import app.modules.user_details.model  # noqa: F401
 
 
 @asynccontextmanager
@@ -35,9 +38,11 @@ async def lifespan(app: FastAPI):
     """Create database tables on startup if they do not already exist."""
     get_settings().validate()
     apply_verification_migrations(engine)
+    apply_user_account_migrations(engine)
     apply_chatbot_migrations(engine)
     Base.metadata.create_all(bind=engine)
     apply_knowledgebase_migrations(engine)
+    sync_existing_user_details(engine)
     yield
 
 
@@ -64,6 +69,7 @@ app.include_router(chat_messages_router)
 app.include_router(knowledge_chunks_router)
 app.include_router(rag_router)
 app.include_router(ai_router)
+app.include_router(user_details_router)
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

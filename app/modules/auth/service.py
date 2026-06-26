@@ -47,6 +47,7 @@ from app.modules.auth.utils import (
     validate_verification_code,
     verify_password,
 )
+from app.modules.user_details.utils import ensure_user_details_exists
 
 logger = logging.getLogger(__name__)
 
@@ -299,6 +300,7 @@ def register_user(db: Session, payload: SignupRequest) -> SignupSuccessResponse:
             raise EmailAlreadyRegisteredError() from exc
 
         db.refresh(existing_user)
+        ensure_user_details_exists(db, existing_user.id)
         send_verification_email(
             existing_user.first_name,
             existing_user.email,
@@ -329,6 +331,7 @@ def register_user(db: Session, payload: SignupRequest) -> SignupSuccessResponse:
         raise EmailAlreadyRegisteredError() from exc
 
     db.refresh(user)
+    ensure_user_details_exists(db, user.id)
     send_verification_email(user.first_name, user.email, verification_code)
 
     return _build_signup_response(user)
@@ -508,9 +511,13 @@ def login_user(db: Session, payload: LoginRequest) -> LoginSuccessResponse:
         logger.info("Login failed; account not verified: %s", normalized_email)
         raise EmailNotVerifiedForLoginError()
 
+    if user.is_deleted:
+        logger.info("Login failed; account deleted: %s", normalized_email)
+        raise LoginUserNotFoundError()
+
     if not user.is_active:
-        logger.info("Login failed; account inactive: %s", normalized_email)
-        raise AccountDisabledError()
+        logger.info("Login failed; account deactivated: %s", normalized_email)
+        raise AccountDisabledError(messages.ACCOUNT_DEACTIVATED)
 
     user.last_login = datetime.now(timezone.utc)
     db.commit()

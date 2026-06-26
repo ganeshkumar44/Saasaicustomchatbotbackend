@@ -40,6 +40,11 @@ class User(Base):
     )
     is_mobile_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     profile_image: Mapped[str | None] = mapped_column(String(500), nullable=True)
     last_login: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),

@@ -92,6 +92,9 @@ INTERNAL_SERVER_ERROR = "An unexpected error occurred. Please try again later."
 INVALID_CREDENTIALS = "Invalid email or password."
 ACCOUNT_NOT_VERIFIED = "Please verify your account before signing in."
 ACCOUNT_INACTIVE = "Your account is inactive. Please contact support."
+ACCOUNT_DEACTIVATED = (
+    "Your account has been deactivated. Please contact the administrator."
+)
 
 # ---------------------------------------------------------------------------
 # Sign-in — success
@@ -119,3 +122,37 @@ CHATBOT_NOT_FOUND = "Chatbot not found."
 CHATBOT_SETTINGS_NOT_FOUND = "Chatbot settings not found."
 UNAUTHORIZED_CHATBOT_ACCESS = "You are not authorized to access this chatbot."
 CHATBOT_DETAILS_FETCH_SUCCESS = "Chatbot details retrieved successfully."
+
+# ---------------------------------------------------------------------------
+# User Details
+# ---------------------------------------------------------------------------
+
+USER_DETAILS_FETCH_SUCCESS = "User details retrieved successfully."
+USER_DETAILS_CREATED = "User details created successfully."
+USER_DETAILS_UPDATED = "User details updated successfully."
+
+CURRENT_PASSWORD_REQUIRED = "Current password is required."
+CURRENT_PASSWORD_INVALID = "Current password is incorrect."
+NEW_PASSWORD_REQUIRED = "New password is required."
+NEW_PASSWORD_SAME_AS_CURRENT = "New password cannot be the same as the current password."
+CONFIRM_NEW_PASSWORD_REQUIRED = "Confirm new password is required."
+PASSWORD_UPDATED_SUCCESS = "Password updated successfully."
+
+ACCOUNT_UPDATED_SUCCESS = "Account updated successfully."
+ACCOUNT_ACTIVATED = "Account activated successfully."
+ACCOUNT_ALREADY_ACTIVATED = "Account is already active."
+ACCOUNT_ALREADY_DEACTIVATED = "Account is already deactivated."
+ACCOUNT_DELETED = "Account deleted successfully."
+ACCOUNT_ALREADY_DELETED = "Account has already been deleted."
+DELETE_SUCCESS = "Account deleted successfully."
+DEACTIVATE_SUCCESS = "Account deactivated successfully."
+ACTIVATE_SUCCESS = "Account activated successfully."
+ADMIN_ACCESS_REQUIRED = "Administrator access is required to perform this action."
+
+INVALID_ACTION = "Invalid account action."
+INVALID_WEBSITE = "Please enter a valid website URL."
+INVALID_LANGUAGE = "Invalid language. Only English is supported at this time."
+UNAUTHORIZED_ACTION = "You are not authorized to perform this action."
+
+COMPANY_TOO_LONG = "Company name must not exceed 150 characters."
+BIO_TOO_LONG = "Bio must not exceed 1000 characters."
