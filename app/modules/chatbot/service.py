@@ -1,8 +1,11 @@
 from datetime import datetime, timezone
 
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core import messages
 from app.modules.auth.model import User
 from app.modules.knowledgebase.model import (
     SOURCE_TYPE_FILE,
@@ -24,6 +27,7 @@ from app.modules.chatbot.utils import (
     DEFAULT_TYPING_INDICATOR,
     DEFAULT_WELCOME_MESSAGE,
     DEFAULT_WIDGET_POSITION,
+    find_unfinished_draft_for_user,
     generate_embed_code,
     generate_unique_public_key,
     get_default_allowed_domains,
@@ -46,6 +50,8 @@ from app.modules.chatbot.schema import (
     PublishChatbotData,
     PublishChatbotSuccessResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ChatbotNotFoundError(Exception):
@@ -81,7 +87,26 @@ class ChatbotIncompleteConfigError(Exception):
 
 
 def create_chatbot_draft(db: Session, user: User) -> CreateChatbotDraftSuccessResponse:
-    """Create a blank chatbot draft owned by the authenticated user."""
+    """
+    Return an existing unfinished draft or create a new blank chatbot draft.
+
+    At most one unfinished draft (no basic info) exists per user at any time.
+    """
+    existing_draft = find_unfinished_draft_for_user(db, user.id)
+    if existing_draft is not None:
+        logger.info(
+            "Returning existing unfinished draft chatbot_id=%s user_id=%s",
+            existing_draft.id,
+            user.id,
+        )
+        return CreateChatbotDraftSuccessResponse(
+            message=messages.DRAFT_CHATBOT_EXISTS,
+            data=CreateChatbotDraftData(
+                chatbot_id=existing_draft.id,
+                status=existing_draft.status,
+            ),
+        )
+
     chatbot = Chatbot(
         user_id=user.id,
         chatbot_name=None,
@@ -96,8 +121,10 @@ def create_chatbot_draft(db: Session, user: User) -> CreateChatbotDraftSuccessRe
     db.commit()
     db.refresh(chatbot)
 
+    logger.info("Created new draft chatbot_id=%s user_id=%s", chatbot.id, user.id)
+
     return CreateChatbotDraftSuccessResponse(
-        message="Chatbot draft created successfully",
+        message=messages.DRAFT_CHATBOT_CREATED,
         data=CreateChatbotDraftData(
             chatbot_id=chatbot.id,
             status=chatbot.status,

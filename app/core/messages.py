@@ -124,6 +124,13 @@ UNAUTHORIZED_CHATBOT_ACCESS = "You are not authorized to access this chatbot."
 CHATBOT_DETAILS_FETCH_SUCCESS = "Chatbot details retrieved successfully."
 
 # ---------------------------------------------------------------------------
+# Chatbot Builder
+# ---------------------------------------------------------------------------
+
+DRAFT_CHATBOT_EXISTS = "Existing draft chatbot found."
+DRAFT_CHATBOT_CREATED = "Draft chatbot created successfully."
+
+# ---------------------------------------------------------------------------
 # User Details
 # ---------------------------------------------------------------------------
 
