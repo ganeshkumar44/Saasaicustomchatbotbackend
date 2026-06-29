@@ -61,3 +61,35 @@ class ChatbotDetailsSuccessResponse(BaseModel):
     success: bool = True
     message: str
     data: ChatbotDetailsData
+
+
+class UpdateGeneralSettingsRequest(BaseModel):
+    chatbot_id: int
+    chatbot_name: str
+    description: str
+    typing_indicator: bool
+
+
+class UpdateAppearanceSettingsRequest(BaseModel):
+    chatbot_id: int
+    primary_color: str
+    widget_position: str
+    show_avatar: bool
+
+
+class UpdateMessagesSettingsRequest(BaseModel):
+    chatbot_id: int
+    chat_title: str
+    welcome_message: str
+    input_placeholder: str
+
+
+class UpdateSecuritySettingsRequest(BaseModel):
+    chatbot_id: int
+    ai_model: str
+    allowed_domains: list[str]
+
+
+class SettingsUpdateSuccessResponse(BaseModel):
+    success: bool = True
+    message: str

@@ -123,12 +123,44 @@ CHATBOT_SETTINGS_NOT_FOUND = "Chatbot settings not found."
 UNAUTHORIZED_CHATBOT_ACCESS = "You are not authorized to access this chatbot."
 CHATBOT_DETAILS_FETCH_SUCCESS = "Chatbot details retrieved successfully."
 
+GENERAL_SETTINGS_UPDATED = "General settings updated successfully."
+APPEARANCE_UPDATED = "Appearance settings updated successfully."
+MESSAGES_UPDATED = "Chat messages updated successfully."
+KNOWLEDGE_BASE_UPDATED = "Knowledge base updated successfully."
+SECURITY_SETTINGS_UPDATED = "Security settings updated successfully."
+KNOWLEDGE_BASE_REQUIRED = "Please upload at least one knowledge base file or URL."
+KNOWLEDGE_DOCUMENT_NOT_FOUND = "One or more knowledge base documents were not found."
+
+INVALID_WIDGET_POSITION = "Invalid widget position. Allowed values are bottom-right and bottom-left."
+INVALID_COLOR = "Invalid color. Please provide a valid HEX color code."
+INVALID_DOMAIN = "Invalid domain URL provided."
+INVALID_AI_MODEL = "Invalid AI model."
+
+CHATBOT_NAME_REQUIRED = "Chatbot name is required."
+CHATBOT_NAME_TOO_LONG = "Chatbot name must not exceed 100 characters."
+DESCRIPTION_REQUIRED = "Description is required."
+DESCRIPTION_TOO_LONG = "Description must not exceed 1000 characters."
+CHAT_TITLE_REQUIRED = "Chat title is required."
+CHAT_TITLE_TOO_LONG = "Chat title must not exceed 100 characters."
+WELCOME_MESSAGE_REQUIRED = "Welcome message is required."
+WELCOME_MESSAGE_TOO_LONG = "Welcome message must not exceed 1000 characters."
+INPUT_PLACEHOLDER_REQUIRED = "Input placeholder is required."
+INPUT_PLACEHOLDER_TOO_LONG = "Input placeholder must not exceed 150 characters."
+ALLOWED_DOMAINS_REQUIRED = "At least one allowed domain is required."
+
 # ---------------------------------------------------------------------------
 # Chatbot Builder
 # ---------------------------------------------------------------------------
 
 DRAFT_CHATBOT_EXISTS = "Existing draft chatbot found."
 DRAFT_CHATBOT_CREATED = "Draft chatbot created successfully."
+
+# ---------------------------------------------------------------------------
+# Dashboard
+# ---------------------------------------------------------------------------
+
+CHATBOT_LIST_SUCCESS = "Chatbot list retrieved successfully."
+NO_CHATBOTS_FOUND = "No chatbots found."
 
 # ---------------------------------------------------------------------------
 # User Details

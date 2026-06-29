@@ -1,19 +1,53 @@
-from fastapi import APIRouter, Depends, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.core import messages
 from app.core.database import get_db
 from app.modules.auth.model import User
-from app.modules.chatbot.service import ChatbotNotFoundError, ChatbotPermissionError
+from app.modules.chatbot.service import ChatbotNotFoundError, ChatbotPermissionError, InvalidAIModelError
 from app.modules.chatbot.utils import get_authenticated_user
 from app.modules.chatbot_settings import service
-from app.modules.chatbot_settings.schema import ChatbotDetailsSuccessResponse
+from app.modules.chatbot_settings.schema import (
+    ChatbotDetailsSuccessResponse,
+    SettingsUpdateSuccessResponse,
+    UpdateAppearanceSettingsRequest,
+    UpdateGeneralSettingsRequest,
+    UpdateMessagesSettingsRequest,
+    UpdateSecuritySettingsRequest,
+)
+from app.modules.chatbot_settings.utils import ChatbotSettingsNotFoundError
+from app.modules.knowledgebase.service import (
+    FileSizeExceededError,
+    UnsupportedFileTypeError,
+    UploadedFilePayload,
+)
 
 router = APIRouter(
     prefix="/v1",
     tags=["Chatbot Settings"],
 )
+
+
+def _chatbot_access_error_response(exc: Exception) -> JSONResponse | None:
+    if isinstance(exc, ChatbotNotFoundError):
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"success": False, "message": messages.CHATBOT_NOT_FOUND},
+        )
+    if isinstance(exc, ChatbotPermissionError):
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"success": False, "message": messages.UNAUTHORIZED_CHATBOT_ACCESS},
+        )
+    if isinstance(exc, ChatbotSettingsNotFoundError):
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"success": False, "message": messages.CHATBOT_SETTINGS_NOT_FOUND},
+        )
+    return None
 
 
 @router.get(
@@ -29,27 +63,183 @@ def get_chatbot_details(
     """Return complete chatbot configuration for the settings page."""
     try:
         return service.get_chatbot_details(db, current_user, chatbot_id)
-    except ChatbotNotFoundError:
+    except (ChatbotNotFoundError, ChatbotPermissionError, ChatbotSettingsNotFoundError) as exc:
+        response = _chatbot_access_error_response(exc)
+        if response is not None:
+            return response
+        raise
+
+
+@router.put(
+    "/chatbots/general-setting",
+    status_code=status.HTTP_200_OK,
+    response_model=SettingsUpdateSuccessResponse,
+)
+def update_general_settings(
+    payload: UpdateGeneralSettingsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_authenticated_user),
+):
+    """Update general chatbot information."""
+    try:
+        return service.update_general_settings(db, current_user, payload)
+    except service.ChatbotSettingsValidationError as exc:
         return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={
-                "success": False,
-                "message": messages.CHATBOT_NOT_FOUND,
-            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": exc.message},
         )
-    except ChatbotPermissionError:
+    except (ChatbotNotFoundError, ChatbotPermissionError, ChatbotSettingsNotFoundError) as exc:
+        response = _chatbot_access_error_response(exc)
+        if response is not None:
+            return response
+        raise
+
+
+@router.put(
+    "/chatbots/appearance",
+    status_code=status.HTTP_200_OK,
+    response_model=SettingsUpdateSuccessResponse,
+)
+def update_appearance_settings(
+    payload: UpdateAppearanceSettingsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_authenticated_user),
+):
+    """Update widget appearance settings."""
+    try:
+        return service.update_appearance_settings(db, current_user, payload)
+    except service.ChatbotSettingsValidationError as exc:
         return JSONResponse(
-            status_code=status.HTTP_403_FORBIDDEN,
-            content={
-                "success": False,
-                "message": messages.UNAUTHORIZED_CHATBOT_ACCESS,
-            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": exc.message},
         )
-    except service.ChatbotSettingsNotFoundError:
+    except (ChatbotNotFoundError, ChatbotPermissionError, ChatbotSettingsNotFoundError) as exc:
+        response = _chatbot_access_error_response(exc)
+        if response is not None:
+            return response
+        raise
+
+
+@router.put(
+    "/chatbots/messages",
+    status_code=status.HTTP_200_OK,
+    response_model=SettingsUpdateSuccessResponse,
+)
+def update_messages_settings(
+    payload: UpdateMessagesSettingsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_authenticated_user),
+):
+    """Update chatbot message settings."""
+    try:
+        return service.update_messages_settings(db, current_user, payload)
+    except service.ChatbotSettingsValidationError as exc:
         return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={
-                "success": False,
-                "message": messages.CHATBOT_SETTINGS_NOT_FOUND,
-            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": exc.message},
         )
+    except (ChatbotNotFoundError, ChatbotPermissionError, ChatbotSettingsNotFoundError) as exc:
+        response = _chatbot_access_error_response(exc)
+        if response is not None:
+            return response
+        raise
+
+
+@router.put(
+    "/chatbots/security",
+    status_code=status.HTTP_200_OK,
+    response_model=SettingsUpdateSuccessResponse,
+)
+def update_security_settings(
+    payload: UpdateSecuritySettingsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_authenticated_user),
+):
+    """Update chatbot security settings."""
+    try:
+        return service.update_security_settings(db, current_user, payload)
+    except InvalidAIModelError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": messages.INVALID_AI_MODEL},
+        )
+    except service.ChatbotSettingsValidationError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": exc.message},
+        )
+    except (ChatbotNotFoundError, ChatbotPermissionError, ChatbotSettingsNotFoundError) as exc:
+        response = _chatbot_access_error_response(exc)
+        if response is not None:
+            return response
+        raise
+
+
+@router.put(
+    "/chatbots/knowledge-base",
+    status_code=status.HTTP_200_OK,
+    response_model=SettingsUpdateSuccessResponse,
+)
+async def update_knowledge_base(
+    chatbot_id: Annotated[int, Form(description="Chatbot ID")],
+    delete_document_ids: Annotated[
+        list[int],
+        Form(description="Knowledge base document IDs to delete"),
+    ] = [],
+    files: Annotated[
+        list[UploadFile] | None,
+        File(description="New knowledge base files (PDF, DOC, DOCX, TXT, CSV, MD)"),
+    ] = None,
+    urls: Annotated[list[str], Form(description="New website URLs to scrape")] = [],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_authenticated_user),
+):
+    """Update chatbot knowledge base by deleting old sources and uploading new ones."""
+    file_payloads: list[UploadedFilePayload] = []
+    for upload_file in files or []:
+        if not upload_file.filename:
+            continue
+        content = await upload_file.read()
+        if not content:
+            continue
+        file_payloads.append(
+            UploadedFilePayload(
+                filename=upload_file.filename,
+                content=content,
+            )
+        )
+
+    try:
+        return service.update_knowledge_base(
+            db,
+            current_user,
+            chatbot_id,
+            delete_document_ids,
+            file_payloads,
+            urls,
+        )
+    except service.KnowledgeBaseRequiredError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": messages.KNOWLEDGE_BASE_REQUIRED},
+        )
+    except service.ChatbotSettingsValidationError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": exc.message},
+        )
+    except UnsupportedFileTypeError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": "Unsupported file type"},
+        )
+    except FileSizeExceededError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": "Maximum upload size is 50 MB"},
+        )
+    except (ChatbotNotFoundError, ChatbotPermissionError, ChatbotSettingsNotFoundError) as exc:
+        response = _chatbot_access_error_response(exc)
+        if response is not None:
+            return response
+        raise

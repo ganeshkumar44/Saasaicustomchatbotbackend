@@ -3,13 +3,18 @@ Chatbot Settings module helper utilities.
 """
 
 import logging
+import re
+from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core import messages
 from app.modules.auth.model import User
 from app.modules.chatbot.model import Chatbot, ChatbotSettings
+from app.modules.chatbot.schema import AIModelEnum
 from app.modules.chatbot.service import ChatbotNotFoundError, ChatbotPermissionError
 from app.modules.chatbot_settings.schema import ChatbotDetailsData, KnowledgebaseDocumentItem
 from app.modules.knowledgebase.model import (
@@ -17,10 +22,24 @@ from app.modules.knowledgebase.model import (
     SOURCE_TYPE_URL,
     KnowledgebaseDocument,
 )
+from app.vectorstore.chroma_client import get_knowledge_base_collection
 
 logger = logging.getLogger(__name__)
 
 EXTRACTED_TEXT_PREVIEW_LENGTH = 250
+CHATBOT_NAME_MAX_LENGTH = 100
+DESCRIPTION_MAX_LENGTH = 1000
+CHAT_TITLE_MAX_LENGTH = 100
+WELCOME_MESSAGE_MAX_LENGTH = 1000
+INPUT_PLACEHOLDER_MAX_LENGTH = 150
+ALLOWED_WIDGET_POSITIONS = {"bottom-right", "bottom-left"}
+_HEX_COLOR_PATTERN = re.compile(r"^#[0-9A-Fa-f]{6}$")
+_DOMAIN_URL_PATTERN = re.compile(
+    r"^https?://"
+    r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+"
+    r"[A-Za-z]{2,}(?:/.*)?$",
+    re.IGNORECASE,
+)
 
 
 def get_owned_chatbot(db: Session, user: User, chatbot_id: int) -> Chatbot:
@@ -45,6 +64,170 @@ def get_owned_chatbot(db: Session, user: User, chatbot_id: int) -> Chatbot:
 def get_chatbot_settings_record(chatbot: Chatbot) -> ChatbotSettings | None:
     """Return the chatbot_settings row for a chatbot, if one exists."""
     return chatbot.settings
+
+
+def get_owned_chatbot_with_settings(
+    db: Session,
+    user: User,
+    chatbot_id: int,
+) -> tuple[Chatbot, ChatbotSettings]:
+    """Return an owned chatbot and its settings or raise a domain error."""
+    chatbot = get_owned_chatbot(db, user, chatbot_id)
+    settings = get_chatbot_settings_record(chatbot)
+    if settings is None:
+        raise ChatbotSettingsNotFoundError()
+    return chatbot, settings
+
+
+class ChatbotSettingsNotFoundError(Exception):
+    """Raised when no chatbot_settings record exists for the chatbot."""
+
+
+def _is_blank(value: str | None) -> bool:
+    """Return True when a value is None or contains only whitespace."""
+    return value is None or not value.strip()
+
+
+def validate_general_settings(
+    *,
+    chatbot_name: str | None,
+    description: str | None,
+) -> str | None:
+    """Validate general settings fields."""
+    if _is_blank(chatbot_name):
+        return messages.CHATBOT_NAME_REQUIRED
+    if len(chatbot_name.strip()) > CHATBOT_NAME_MAX_LENGTH:
+        return messages.CHATBOT_NAME_TOO_LONG
+    if _is_blank(description):
+        return messages.DESCRIPTION_REQUIRED
+    if len(description.strip()) > DESCRIPTION_MAX_LENGTH:
+        return messages.DESCRIPTION_TOO_LONG
+    return None
+
+
+def validate_appearance_settings(
+    *,
+    primary_color: str | None,
+    widget_position: str | None,
+) -> str | None:
+    """Validate appearance settings fields."""
+    if _is_blank(primary_color) or not _HEX_COLOR_PATTERN.fullmatch(primary_color.strip()):
+        return messages.INVALID_COLOR
+    if _is_blank(widget_position) or widget_position.strip() not in ALLOWED_WIDGET_POSITIONS:
+        return messages.INVALID_WIDGET_POSITION
+    return None
+
+
+def validate_messages_settings(
+    *,
+    chat_title: str | None,
+    welcome_message: str | None,
+    input_placeholder: str | None,
+) -> str | None:
+    """Validate chat message settings fields."""
+    if _is_blank(chat_title):
+        return messages.CHAT_TITLE_REQUIRED
+    if len(chat_title.strip()) > CHAT_TITLE_MAX_LENGTH:
+        return messages.CHAT_TITLE_TOO_LONG
+    if _is_blank(welcome_message):
+        return messages.WELCOME_MESSAGE_REQUIRED
+    if len(welcome_message.strip()) > WELCOME_MESSAGE_MAX_LENGTH:
+        return messages.WELCOME_MESSAGE_TOO_LONG
+    if _is_blank(input_placeholder):
+        return messages.INPUT_PLACEHOLDER_REQUIRED
+    if len(input_placeholder.strip()) > INPUT_PLACEHOLDER_MAX_LENGTH:
+        return messages.INPUT_PLACEHOLDER_TOO_LONG
+    return None
+
+
+def validate_ai_model(ai_model: str | None) -> str | None:
+    """Validate the chatbot AI model against allowed values."""
+    allowed_models = {item.value for item in AIModelEnum}
+    if _is_blank(ai_model) or ai_model.strip() not in allowed_models:
+        return messages.INVALID_AI_MODEL
+    return None
+
+
+def normalize_domain(domain: str) -> str:
+    """Normalize a domain URL for storage and comparison."""
+    return domain.strip().rstrip("/")
+
+
+def _is_valid_domain_url(value: str) -> bool:
+    """Return True when the value is a valid http(s) domain URL."""
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return False
+
+    hostname = parsed.netloc.split(":")[0].lower()
+    if hostname in {"localhost", "127.0.0.1"}:
+        return True
+
+    return bool(_DOMAIN_URL_PATTERN.fullmatch(value))
+
+
+def validate_and_normalize_allowed_domains(domains: list[str]) -> tuple[str | None, str]:
+    """
+    Validate allowed domains and return a comma-separated normalized string.
+
+    Returns (error_message, normalized_domains_string).
+    """
+    if not domains:
+        return messages.ALLOWED_DOMAINS_REQUIRED, ""
+
+    normalized_domains: list[str] = []
+    seen: set[str] = set()
+
+    for domain in domains:
+        trimmed = domain.strip()
+        if not trimmed:
+            continue
+
+        if not _is_valid_domain_url(trimmed):
+            return messages.INVALID_DOMAIN, ""
+
+        normalized = normalize_domain(trimmed).lower()
+        if normalized in seen:
+            continue
+
+        seen.add(normalized)
+        normalized_domains.append(normalize_domain(trimmed))
+
+    if not normalized_domains:
+        return messages.ALLOWED_DOMAINS_REQUIRED, ""
+
+    return None, ",".join(normalized_domains)
+
+
+def delete_chromadb_vectors_for_document(document_id: int) -> None:
+    """Remove all ChromaDB vectors associated with a knowledge document."""
+    try:
+        collection = get_knowledge_base_collection()
+        collection.delete(where={"document_id": document_id})
+        logger.info("Deleted ChromaDB vectors for document_id=%s", document_id)
+    except Exception:
+        logger.exception(
+            "Failed to delete ChromaDB vectors for document_id=%s",
+            document_id,
+        )
+
+
+def delete_knowledgebase_document(
+    db: Session,
+    document: KnowledgebaseDocument,
+) -> None:
+    """Delete a knowledge document, its stored file, and associated vectors."""
+    delete_chromadb_vectors_for_document(document.id)
+
+    if document.file_path:
+        file_path = Path(document.file_path)
+        if file_path.exists():
+            try:
+                file_path.unlink()
+            except OSError:
+                logger.exception("Failed to delete knowledge base file %s", file_path)
+
+    db.delete(document)
 
 
 def get_knowledgebase_documents(

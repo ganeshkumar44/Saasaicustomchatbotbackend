@@ -21,6 +21,7 @@ from app.modules.widget.routes import router as widget_router, static_router as 
 from app.rag.routes import router as rag_router
 from app.modules.ai.routes import router as ai_router
 from app.modules.user_details.routes import router as user_details_router
+from app.modules.dashboard.routes import router as dashboard_router
 from app.modules.user_details.utils import apply_user_account_migrations, sync_existing_user_details
 
 # Import all ORM models so they register with Base.metadata before create_all().
@@ -70,6 +71,7 @@ app.include_router(knowledge_chunks_router)
 app.include_router(rag_router)
 app.include_router(ai_router)
 app.include_router(user_details_router)
+app.include_router(dashboard_router)
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
