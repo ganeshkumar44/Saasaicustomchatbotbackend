@@ -19,7 +19,7 @@ def get_messages_by_session_id(db: Session, session_id: int) -> list[ChatMessage
     return list(
         db.execute(
             select(ChatMessage)
-            .where(ChatMessage.session_id == session_id)
+            .where(ChatMessage.chat_session_id == session_id)
             .order_by(ChatMessage.created_at.asc())
         ).scalars().all()
     )
@@ -29,7 +29,7 @@ def build_chat_message_response(message: ChatMessage) -> ChatMessageResponse:
     """Map a chat message ORM record to a Pydantic response."""
     return ChatMessageResponse(
         id=message.id,
-        session_id=message.session_id,
+        session_id=message.chat_session_id,
         user_message=message.user_message,
         bot_response=message.bot_response,
         created_at=message.created_at,

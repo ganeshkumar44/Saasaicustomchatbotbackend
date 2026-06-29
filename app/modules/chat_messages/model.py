@@ -5,7 +5,7 @@ Chat messages ORM models.
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Text, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from app.core.database import Base
 
@@ -16,10 +16,16 @@ class ChatMessage(Base):
     __tablename__ = "chat_messages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    session_id: Mapped[int] = mapped_column(
+    chatbot_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("chatbots.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    chat_session_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("chat_sessions.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
     user_message: Mapped[str] = mapped_column(Text, nullable=False)
@@ -30,9 +36,14 @@ class ChatMessage(Base):
         nullable=False,
     )
 
+    # Backward-compatible alias for existing dashboard aggregation queries.
+    session_id = synonym("chat_session_id")
+
+    chatbot = relationship("Chatbot", backref="chat_messages")
     session = relationship("ChatSession", back_populates="messages")
 
     def __repr__(self) -> str:
         return (
-            f"<ChatMessage id={self.id} session_id={self.session_id}>"
+            f"<ChatMessage id={self.id} chatbot_id={self.chatbot_id} "
+            f"chat_session_id={self.chat_session_id}>"
         )
