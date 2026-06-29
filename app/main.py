@@ -13,6 +13,7 @@ from app.modules.chatbot.routes import router as chatbot_router
 from app.modules.chatbot_settings.routes import router as chatbot_settings_router
 from app.modules.chatbot.utils import apply_chatbot_migrations
 from app.modules.knowledgebase.utils import apply_knowledgebase_migrations
+from app.modules.chat_sessions.utils import apply_chat_session_migrations
 from app.modules.health.routes import router as health_router
 from app.modules.knowledgebase.routes import router as knowledgebase_router
 from app.modules.chat_messages.routes import router as chat_messages_router
@@ -42,6 +43,7 @@ async def lifespan(app: FastAPI):
     apply_user_account_migrations(engine)
     apply_chatbot_migrations(engine)
     Base.metadata.create_all(bind=engine)
+    apply_chat_session_migrations(engine)
     apply_knowledgebase_migrations(engine)
     sync_existing_user_details(engine)
     yield

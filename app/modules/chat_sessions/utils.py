@@ -2,13 +2,17 @@
 Chat sessions helper utilities.
 """
 
+import logging
 import secrets
 
-from sqlalchemy import select
+from sqlalchemy import inspect, select, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.modules.chat_sessions.model import ChatSession
 from app.modules.chat_sessions.schema import ChatSessionResponse
+
+logger = logging.getLogger(__name__)
 
 
 def generate_session_id() -> str:
@@ -47,3 +51,37 @@ def build_chat_session_response(session: ChatSession) -> ChatSessionResponse:
         started_at=session.started_at,
         last_activity=session.last_activity,
     )
+
+
+def apply_chat_session_migrations(db_engine: Engine) -> None:
+    """
+    Align an existing chat_sessions table with the current ORM schema.
+
+    create_all() only creates new tables; it does not alter existing ones.
+    """
+    inspector = inspect(db_engine)
+    if "chat_sessions" not in inspector.get_table_names():
+        return
+
+    existing_columns = {
+        column["name"] for column in inspector.get_columns("chat_sessions")
+    }
+    statements: list[str] = []
+
+    if "visitor_email" not in existing_columns:
+        statements.append(
+            "ALTER TABLE chat_sessions ADD COLUMN visitor_email VARCHAR(255)"
+        )
+    if "visitor_phone" not in existing_columns:
+        statements.append(
+            "ALTER TABLE chat_sessions ADD COLUMN visitor_phone VARCHAR(20)"
+        )
+
+    if not statements:
+        return
+
+    with db_engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+    logger.info("Applied chat_sessions schema migrations: %s", statements)
