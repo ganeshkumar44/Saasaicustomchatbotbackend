@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -13,6 +13,7 @@ from app.modules.chatbot_settings import service
 from app.modules.chatbot_settings.schema import (
     ChatbotDetailsSuccessResponse,
     SettingsUpdateSuccessResponse,
+    SwaggerUploadFile,
     UpdateAppearanceSettingsRequest,
     UpdateGeneralSettingsRequest,
     UpdateMessagesSettingsRequest,
@@ -184,13 +185,20 @@ async def update_knowledge_base(
     chatbot_id: Annotated[int, Form(description="Chatbot ID")],
     delete_document_ids: Annotated[
         list[int],
-        Form(description="Knowledge base document IDs to delete"),
+        Form(description="Delete Document IDs (optional)"),
     ] = [],
     files: Annotated[
-        list[UploadFile] | None,
-        File(description="New knowledge base files (PDF, DOC, DOCX, TXT, CSV, MD)"),
+        list[SwaggerUploadFile] | None,
+        File(
+            description=(
+                "Choose Files — PDF, DOC, DOCX, TXT, CSV, MD (multiple allowed)"
+            ),
+        ),
     ] = None,
-    urls: Annotated[list[str], Form(description="New website URLs to scrape")] = [],
+    urls: Annotated[
+        list[str],
+        Form(description="New URLs (optional)"),
+    ] = [],
     db: Session = Depends(get_db),
     current_user: User = Depends(get_authenticated_user),
 ):
