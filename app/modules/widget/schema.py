@@ -55,3 +55,27 @@ class ChatHistoryResponse(BaseModel):
     success: bool = True
     session_id: str
     messages: list[ChatHistoryMessage]
+    visitor_step: str = "completed"
+    question: str | None = None
+    can_skip: bool = False
+    onboarding_complete: bool = True
+
+
+class VisitorInfoRequest(BaseModel):
+    """Visitor onboarding input submitted from the embedded widget."""
+
+    session_id: str
+    step: str
+    value: str | None = None
+    skip: bool = False
+
+
+class VisitorInfoResponse(BaseModel):
+    """Onboarding progress returned to the embedded widget."""
+
+    success: bool = True
+    next_step: str
+    question: str | None = None
+    can_skip: bool = False
+    onboarding_complete: bool = False
+    message: str | None = None

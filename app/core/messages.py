@@ -195,3 +195,22 @@ UNAUTHORIZED_ACTION = "You are not authorized to perform this action."
 
 COMPANY_TOO_LONG = "Company name must not exceed 150 characters."
 BIO_TOO_LONG = "Bio must not exceed 1000 characters."
+
+# ---------------------------------------------------------------------------
+# Widget visitor onboarding
+# ---------------------------------------------------------------------------
+
+VISITOR_NAME_QUESTION = "What's your good name?"
+VISITOR_EMAIL_QUESTION = "What's your email address?"
+VISITOR_PHONE_QUESTION = "What's your phone number?"
+VISITOR_NAME_REQUIRED = "Please enter your name."
+VISITOR_NAME_TOO_SHORT = "Name must be at least 2 characters long."
+VISITOR_NAME_TOO_LONG = "Name must not exceed 100 characters."
+INVALID_VISITOR_NAME = "Name must contain only alphabets and spaces."
+PLEASE_ENTER_NAME = "Please enter your name."
+PLEASE_ENTER_EMAIL = "Please enter your email address."
+PLEASE_ENTER_PHONE = "Please enter your phone number."
+VISITOR_DETAILS_SAVED = "Visitor details saved successfully."
+THANK_YOU_START_CHAT = "Thank you! You can now ask your question."
+ONBOARDING_INCOMPLETE = "Please complete visitor details before chatting."
+INVALID_VISITOR_STEP = "Invalid onboarding step."

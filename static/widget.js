@@ -56,22 +56,40 @@ async function fetchChatHistory(sessionId) {
   );
 
   if (!response.ok) {
-    return [];
+    return {
+      messages: [],
+      visitor_step: "completed",
+      question: null,
+      can_skip: false,
+      onboarding_complete: true,
+    };
   }
 
   const data = await response.json();
 
-  if (!data.success || !Array.isArray(data.messages)) {
-    return [];
+  if (!data.success) {
+    return {
+      messages: [],
+      visitor_step: "completed",
+      question: null,
+      can_skip: false,
+      onboarding_complete: true,
+    };
   }
 
-  return data.messages;
+  return {
+    messages: Array.isArray(data.messages) ? data.messages : [],
+    visitor_step: data.visitor_step || "completed",
+    question: data.question || null,
+    can_skip: Boolean(data.can_skip),
+    onboarding_complete: data.onboarding_complete !== false,
+  };
 }
 
 async function loadWidget(publicKey) {
   const sessionId = await ensureChatSession(publicKey);
 
-  const [configResponse, historyMessages] = await Promise.all([
+  const [configResponse, historyData] = await Promise.all([
     fetch(`${API_BASE_URL}/v1/widget/config/${publicKey}`).then(async (res) => {
       if (!res.ok) {
         throw new Error("Widget configuration not found");
@@ -83,13 +101,13 @@ async function loadWidget(publicKey) {
 
   console.log("Chat session:", sessionId);
   console.log(configResponse);
-  console.log("Chat history:", historyMessages);
+  console.log("Chat history:", historyData);
 
   if (!configResponse.success || !configResponse.data) {
     return;
   }
 
-  initWidget(configResponse.data, publicKey, sessionId, historyMessages);
+  initWidget(configResponse.data, publicKey, sessionId, historyData);
 }
 
 if (!chatbotKey) {
@@ -126,8 +144,12 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function initWidget(config, publicKey, sessionId, historyMessages = []) {
+function initWidget(config, publicKey, sessionId, historyData = {}) {
   let currentSessionId = sessionId;
+  const historyMessages = historyData.messages || [];
+  let visitorStep = historyData.visitor_step || "completed";
+  let onboardingComplete = historyData.onboarding_complete !== false;
+  let canSkip = Boolean(historyData.can_skip);
   const position = config.widget_position || "bottom-right";
   const isRight = position === "bottom-right";
   const botMessageBg = hexToRgba(config.primary_color, 0.15);
@@ -343,6 +365,32 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
       opacity: 0.6;
       cursor: not-allowed;
     }
+
+    .saas-widget-skip {
+      padding: 8px 12px;
+      border: 1px solid #cccccc;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #484848;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+      flex-shrink: 0;
+      transition: background 0.2s ease;
+    }
+
+    .saas-widget-skip:hover:not(:disabled) {
+      background: #f5f5f5;
+    }
+
+    .saas-widget-skip:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .saas-widget-skip.hidden {
+      display: none;
+    }
   `;
   document.head.appendChild(style);
 
@@ -381,6 +429,12 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
   input.type = "text";
   input.placeholder = "Type your message...";
 
+  const skipButton = document.createElement("button");
+  skipButton.className = "saas-widget-skip hidden";
+  skipButton.type = "button";
+  skipButton.textContent = "Skip";
+  skipButton.setAttribute("aria-label", "Skip this step");
+
   const sendButton = document.createElement("button");
   sendButton.className = "saas-widget-send";
   sendButton.type = "button";
@@ -388,6 +442,7 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
   sendButton.setAttribute("aria-label", "Send message");
 
   footer.appendChild(input);
+  footer.appendChild(skipButton);
   footer.appendChild(sendButton);
 
   popup.appendChild(header);
@@ -447,11 +502,108 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
     isSending = sending;
     input.disabled = sending;
     sendButton.disabled = sending;
+    skipButton.disabled = sending;
+  }
+
+  function updateSkipVisibility() {
+    if (!onboardingComplete && canSkip) {
+      skipButton.classList.remove("hidden");
+    } else {
+      skipButton.classList.add("hidden");
+    }
+  }
+
+  function applyOnboardingState(step, question, skipAllowed, complete) {
+    visitorStep = step;
+    canSkip = skipAllowed;
+    onboardingComplete = complete;
+    updateSkipVisibility();
+
+    if (!complete && question) {
+      input.placeholder =
+        step === "name"
+          ? "Enter your name"
+          : step === "email"
+            ? "Enter your email"
+            : step === "phone"
+              ? "Enter your phone number"
+              : config.input_placeholder || "Type your message...";
+    } else {
+      input.placeholder = config.input_placeholder || "Type your message...";
+    }
+  }
+
+  async function submitVisitorInfo(value, skip = false) {
+    const response = await fetch(`${API_BASE_URL}/v1/widget/visitor-info`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        session_id: currentSessionId,
+        step: visitorStep,
+        value: value || null,
+        skip,
+      }),
+    });
+
+    const data = await response.json();
+    return { response, data };
+  }
+
+  async function handleOnboardingInput(message, skip = false) {
+    if (!skip && !message) {
+      return;
+    }
+
+    if (!skip) {
+      addUserMessage(message);
+    }
+
+    input.value = "";
+    setSendingState(true);
+
+    try {
+      const { response, data } = await submitVisitorInfo(message, skip);
+
+      if (!response.ok || !data.success) {
+        addBotMessage(data.message || "Please check your input and try again.");
+        return;
+      }
+
+      applyOnboardingState(
+        data.next_step,
+        data.question,
+        data.can_skip,
+        data.onboarding_complete
+      );
+
+      if (data.onboarding_complete) {
+        if (data.message) {
+          addBotMessage(data.message);
+        }
+        return;
+      }
+
+      if (data.question) {
+        addBotMessage(data.question);
+      }
+    } catch (error) {
+      console.error("Widget:", error);
+      addBotMessage("Sorry, something went wrong.");
+    } finally {
+      setSendingState(false);
+    }
   }
 
   async function sendMessage() {
     const message = input.value.trim();
     if (!message || isSending) {
+      return;
+    }
+
+    if (!onboardingComplete) {
+      await handleOnboardingInput(message, false);
       return;
     }
 
@@ -484,10 +636,23 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
         response.status === 404 &&
         data.message === "Chat session not found"
       ) {
+        if (typingIndicator) {
+          typingIndicator.remove();
+        }
         activeSessionId = await startChatSession(publicKey);
         currentSessionId = activeSessionId;
-        response = await postChat(activeSessionId);
-        data = await response.json();
+        const freshHistory = await fetchChatHistory(activeSessionId);
+        applyOnboardingState(
+          freshHistory.visitor_step,
+          freshHistory.question,
+          freshHistory.can_skip,
+          freshHistory.onboarding_complete
+        );
+        if (!freshHistory.onboarding_complete && freshHistory.question) {
+          addBotMessage(freshHistory.question);
+        }
+        setSendingState(false);
+        return;
       }
 
       if (typingIndicator) {
@@ -511,12 +676,24 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
     }
   }
 
-  addBotMessage(config.welcome_message);
+  if (onboardingComplete) {
+    addBotMessage(config.welcome_message);
 
-  historyMessages.forEach((item) => {
-    addUserMessage(item.user_message);
-    addBotMessage(item.bot_response);
-  });
+    historyMessages.forEach((item) => {
+      addUserMessage(item.user_message);
+      addBotMessage(item.bot_response);
+    });
+  } else {
+    applyOnboardingState(
+      visitorStep,
+      historyData.question,
+      canSkip,
+      onboardingComplete
+    );
+    if (historyData.question) {
+      addBotMessage(historyData.question);
+    }
+  }
 
   button.addEventListener("click", () => {
     isOpen = !isOpen;
@@ -525,6 +702,12 @@ function initWidget(config, publicKey, sessionId, historyMessages = []) {
   });
 
   sendButton.addEventListener("click", sendMessage);
+
+  skipButton.addEventListener("click", () => {
+    if (!onboardingComplete && canSkip && !isSending) {
+      handleOnboardingInput("", true);
+    }
+  });
 
   input.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {

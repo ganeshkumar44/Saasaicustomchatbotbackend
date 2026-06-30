@@ -10,5 +10,6 @@ class ChatSessionResponse(BaseModel):
     chatbot_id: int
     session_id: str
     visitor_id: str | None
+    visitor_step: str
     started_at: datetime
     last_activity: datetime

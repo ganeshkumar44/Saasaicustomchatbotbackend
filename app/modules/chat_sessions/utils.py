@@ -48,6 +48,7 @@ def build_chat_session_response(session: ChatSession) -> ChatSessionResponse:
         chatbot_id=session.chatbot_id,
         session_id=session.session_id,
         visitor_id=session.visitor_id,
+        visitor_step=session.visitor_step,
         started_at=session.started_at,
         last_activity=session.last_activity,
     )
@@ -76,12 +77,30 @@ def apply_chat_session_migrations(db_engine: Engine) -> None:
         statements.append(
             "ALTER TABLE chat_sessions ADD COLUMN visitor_phone VARCHAR(20)"
         )
+    if "visitor_step" not in existing_columns:
+        statements.append(
+            "ALTER TABLE chat_sessions ADD COLUMN visitor_step VARCHAR(20) "
+            "NOT NULL DEFAULT 'completed'"
+        )
 
-    if not statements:
-        return
+    if statements:
+        with db_engine.begin() as connection:
+            for statement in statements:
+                connection.execute(text(statement))
+        logger.info("Applied chat_sessions schema migrations: %s", statements)
 
-    with db_engine.begin() as connection:
-        for statement in statements:
-            connection.execute(text(statement))
-
-    logger.info("Applied chat_sessions schema migrations: %s", statements)
+    visitor_id_col = next(
+        (c for c in inspector.get_columns("chat_sessions") if c["name"] == "visitor_id"),
+        None,
+    )
+    if visitor_id_col is not None:
+        col_type = str(visitor_id_col["type"])
+        if "64" in col_type and "100" not in col_type:
+            with db_engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "ALTER TABLE chat_sessions "
+                        "ALTER COLUMN visitor_id TYPE VARCHAR(100)"
+                    )
+                )
+            logger.info("Widened chat_sessions.visitor_id to VARCHAR(100)")

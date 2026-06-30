@@ -9,6 +9,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
+VISITOR_STEP_NAME = "name"
+VISITOR_STEP_EMAIL = "email"
+VISITOR_STEP_PHONE = "phone"
+VISITOR_STEP_COMPLETED = "completed"
+
 
 class ChatSession(Base):
     """Track website visitors and chatbot conversations."""
@@ -28,9 +33,14 @@ class ChatSession(Base):
         nullable=False,
         index=True,
     )
-    visitor_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    visitor_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     visitor_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     visitor_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    visitor_step: Mapped[str] = mapped_column(
+        String(20),
+        default=VISITOR_STEP_NAME,
+        nullable=False,
+    )
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

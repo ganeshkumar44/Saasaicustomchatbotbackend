@@ -6,12 +6,23 @@ import logging
 
 from sqlalchemy.orm import Session
 
+from app.core import messages
 from app.modules.ai.service import generate_ai_answer
 from app.modules.chatbot.model import CHATBOT_STATUS_PUBLISHED, Chatbot
 from app.modules.chat_messages.schema import CreateChatMessageRequest
 from app.modules.chat_messages.service import create_message
 from app.modules.chat_messages.utils import get_messages_by_session_id
-from app.modules.chat_sessions.service import create_chat_session, update_last_activity
+from app.modules.chat_sessions.model import (
+    VISITOR_STEP_COMPLETED,
+    VISITOR_STEP_EMAIL,
+    VISITOR_STEP_NAME,
+    VISITOR_STEP_PHONE,
+)
+from app.modules.chat_sessions.service import (
+    create_chat_session,
+    update_last_activity,
+    update_visitor_onboarding,
+)
 from app.modules.chat_sessions.utils import get_chat_session_by_session_id
 from app.modules.widget.schema import (
     ChatHistoryMessage,
@@ -20,11 +31,19 @@ from app.modules.widget.schema import (
     PublicChatResponse,
     StartSessionRequest,
     StartSessionResponse,
+    VisitorInfoRequest,
+    VisitorInfoResponse,
     WidgetConfigSuccessResponse,
 )
+from app.modules.auth.utils import normalize_email
 from app.modules.widget.utils import (
+    build_onboarding_state,
     build_widget_config_response,
     get_chatbot_settings_by_public_key,
+    is_onboarding_complete,
+    validate_visitor_email,
+    validate_visitor_name,
+    validate_visitor_phone,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,6 +77,22 @@ class ChatMessageSaveError(Exception):
     """Raised when saving a chat message to the database fails."""
 
 
+class OnboardingIncompleteError(Exception):
+    """Raised when chat is attempted before visitor onboarding is complete."""
+
+
+class VisitorOnboardingValidationError(Exception):
+    """Raised when visitor onboarding input fails validation."""
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
+
+
+class InvalidVisitorStepError(Exception):
+    """Raised when the submitted onboarding step does not match the session."""
+
+
 def get_widget_config(db: Session, public_key: str) -> WidgetConfigSuccessResponse:
     """Return public widget configuration for the given public key."""
     settings = get_chatbot_settings_by_public_key(db, public_key)
@@ -67,6 +102,101 @@ def get_widget_config(db: Session, public_key: str) -> WidgetConfigSuccessRespon
     return WidgetConfigSuccessResponse(
         data=build_widget_config_response(settings),
     )
+
+
+def _build_visitor_info_response(session_step: str) -> VisitorInfoResponse:
+    """Build a visitor onboarding response for the given session step."""
+    onboarding = build_onboarding_state(session_step)
+    complete = bool(onboarding["onboarding_complete"])
+    return VisitorInfoResponse(
+        next_step=str(onboarding["visitor_step"]),
+        question=onboarding["question"],  # type: ignore[arg-type]
+        can_skip=bool(onboarding["can_skip"]),
+        onboarding_complete=complete,
+        message=messages.THANK_YOU_START_CHAT if complete else None,
+    )
+
+
+def process_visitor_info(
+    db: Session,
+    payload: VisitorInfoRequest,
+) -> VisitorInfoResponse:
+    """Save visitor onboarding details and advance the session step."""
+    if not payload.session_id or not payload.session_id.strip():
+        raise ChatSessionNotFoundError()
+
+    session = get_chat_session_by_session_id(db, payload.session_id.strip())
+    if session is None:
+        raise ChatSessionNotFoundError()
+
+    if is_onboarding_complete(session.visitor_step):
+        return _build_visitor_info_response(VISITOR_STEP_COMPLETED)
+
+    submitted_step = payload.step.strip().lower() if payload.step else ""
+    if submitted_step != session.visitor_step:
+        raise InvalidVisitorStepError()
+
+    if session.visitor_step == VISITOR_STEP_NAME:
+        if payload.skip:
+            raise VisitorOnboardingValidationError(messages.VISITOR_NAME_REQUIRED)
+
+        error = validate_visitor_name(payload.value)
+        if error:
+            raise VisitorOnboardingValidationError(error)
+
+        update_visitor_onboarding(
+            db,
+            session,
+            visitor_id=payload.value.strip(),  # type: ignore[union-attr]
+            visitor_step=VISITOR_STEP_EMAIL,
+        )
+        return _build_visitor_info_response(VISITOR_STEP_EMAIL)
+
+    if session.visitor_step == VISITOR_STEP_EMAIL:
+        if payload.skip:
+            update_visitor_onboarding(
+                db,
+                session,
+                visitor_email=None,
+                visitor_step=VISITOR_STEP_PHONE,
+            )
+            return _build_visitor_info_response(VISITOR_STEP_PHONE)
+
+        error = validate_visitor_email(payload.value)
+        if error:
+            raise VisitorOnboardingValidationError(error)
+
+        update_visitor_onboarding(
+            db,
+            session,
+            visitor_email=normalize_email(payload.value),  # type: ignore[arg-type]
+            visitor_step=VISITOR_STEP_PHONE,
+        )
+        return _build_visitor_info_response(VISITOR_STEP_PHONE)
+
+    if session.visitor_step == VISITOR_STEP_PHONE:
+        if payload.skip:
+            update_visitor_onboarding(
+                db,
+                session,
+                visitor_phone=None,
+                visitor_step=VISITOR_STEP_COMPLETED,
+            )
+            return _build_visitor_info_response(VISITOR_STEP_COMPLETED)
+
+        error = validate_visitor_phone(payload.value)
+        if error:
+            raise VisitorOnboardingValidationError(error)
+
+        update_visitor_onboarding(
+            db,
+            session,
+            visitor_phone=payload.value.strip(),  # type: ignore[union-attr]
+            visitor_step=VISITOR_STEP_COMPLETED,
+        )
+        return _build_visitor_info_response(VISITOR_STEP_COMPLETED)
+
+    raise InvalidVisitorStepError()
 
 
 def process_public_chat(
@@ -113,6 +243,14 @@ def process_public_chat(
             chatbot.id,
         )
         raise ChatSessionNotFoundError()
+
+    if not is_onboarding_complete(session.visitor_step):
+        logger.warning(
+            "Chat blocked until onboarding completes session_id=%s step=%s",
+            session.session_id,
+            session.visitor_step,
+        )
+        raise OnboardingIncompleteError()
 
     logger.info(
         "Session resolved for session_id=%s chatbot_id=%s",
@@ -181,7 +319,7 @@ def start_chat_session(
 
 
 def get_chat_history(db: Session, session_id: str) -> ChatHistoryResponse:
-    """Return all messages for an existing chat session."""
+    """Return chat history and visitor onboarding state for a session."""
     if not session_id or not session_id.strip():
         raise ChatSessionNotFoundError()
 
@@ -189,7 +327,9 @@ def get_chat_history(db: Session, session_id: str) -> ChatHistoryResponse:
     if session is None:
         raise ChatSessionNotFoundError()
 
-    messages = get_messages_by_session_id(db, session.id)
+    messages_list = get_messages_by_session_id(db, session.id)
+    onboarding = build_onboarding_state(session.visitor_step)
+
     return ChatHistoryResponse(
         session_id=session.session_id,
         messages=[
@@ -198,6 +338,10 @@ def get_chat_history(db: Session, session_id: str) -> ChatHistoryResponse:
                 bot_response=message.bot_response,
                 created_at=message.created_at,
             )
-            for message in messages
+            for message in messages_list
         ],
+        visitor_step=str(onboarding["visitor_step"]),
+        question=onboarding["question"],  # type: ignore[arg-type]
+        can_skip=bool(onboarding["can_skip"]),
+        onboarding_complete=bool(onboarding["onboarding_complete"]),
     )

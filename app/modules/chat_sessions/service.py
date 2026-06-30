@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.modules.chatbot.model import Chatbot
-from app.modules.chat_sessions.model import ChatSession
+from app.modules.chat_sessions.model import VISITOR_STEP_NAME, ChatSession
 from app.modules.chat_sessions.schema import ChatSessionResponse
 from app.modules.chat_sessions.utils import (
     build_chat_session_response,
@@ -22,6 +22,9 @@ class ChatbotNotFoundError(Exception):
 
 class ChatSessionNotFoundError(Exception):
     """Raised when the requested chat session does not exist."""
+
+
+_UNSET = object()
 
 
 def create_chat_session(
@@ -39,6 +42,7 @@ def create_chat_session(
         chatbot_id=chatbot_id,
         session_id=generate_unique_session_id(db),
         visitor_id=visitor_id,
+        visitor_step=VISITOR_STEP_NAME,
         started_at=now,
         last_activity=now,
     )
@@ -73,3 +77,31 @@ def update_last_activity(db: Session, session_id: str) -> ChatSessionResponse:
     db.refresh(session)
 
     return build_chat_session_response(session)
+
+
+def update_visitor_onboarding(
+    db: Session,
+    session: ChatSession,
+    *,
+    visitor_step: str,
+    visitor_id: str | None | object = _UNSET,
+    visitor_email: str | None | object = _UNSET,
+    visitor_phone: str | None | object = _UNSET,
+) -> ChatSession:
+    """Persist visitor onboarding fields and advance the session step."""
+    now = datetime.now(timezone.utc)
+
+    if visitor_id is not _UNSET:
+        session.visitor_id = visitor_id  # type: ignore[assignment]
+    if visitor_email is not _UNSET:
+        session.visitor_email = visitor_email  # type: ignore[assignment]
+    if visitor_phone is not _UNSET:
+        session.visitor_phone = visitor_phone  # type: ignore[assignment]
+
+    session.visitor_step = visitor_step
+    session.last_activity = now
+    session.updated_at = now
+
+    db.commit()
+    db.refresh(session)
+    return session
