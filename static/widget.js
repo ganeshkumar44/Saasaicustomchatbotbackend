@@ -177,6 +177,10 @@ const OPEN_CHAT_ICON_SVG = `<svg fill="#ffffff" width="800px" height="800px" vie
 
 const MINIMIZE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M6 12h12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>`;
 
+const MAXIMIZE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+const RESTORE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
 function hexToRgba(hex, alpha) {
   const normalized = hex.replace("#", "");
   const full =
@@ -203,6 +207,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
   let hasAiResponse =
     onboardingComplete && Array.isArray(historyMessages) && historyMessages.length > 0;
   let feedbackModalOpen = false;
+  let isMaximized = false;
   const position = config.widget_position || "bottom-right";
   const isRight = position === "bottom-right";
   const botMessageBg = hexToRgba(config.primary_color, 0.15);
@@ -413,6 +418,15 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
       display: flex;
     }
 
+    .saas-widget-popup.maximized {
+      bottom: 50%;
+      right: 50%;
+      left: auto;
+      width: 80%;
+      height: 500px;
+      transform: translate(50%, 50%);
+    }
+
     .saas-widget-header {
       display: flex;
       align-items: center;
@@ -439,13 +453,31 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
       transition: background 0.2s ease;
     }
 
-    .saas-widget-minimize svg {
+    .saas-widget-maximize {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: ${config.text_color};
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.2s ease;
+    }
+
+    .saas-widget-minimize svg,
+    .saas-widget-maximize svg {
       width: 18px;
       height: 18px;
       display: block;
     }
 
-    .saas-widget-minimize:hover {
+    .saas-widget-minimize:hover,
+    .saas-widget-maximize:hover {
       background: rgba(255, 255, 255, 0.15);
     }
 
@@ -661,6 +693,13 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
   endChatButton.setAttribute("aria-label", "End chat");
   headerActions.appendChild(endChatButton);
 
+  const maximizeButton = document.createElement("button");
+  maximizeButton.className = "saas-widget-maximize";
+  maximizeButton.type = "button";
+  maximizeButton.innerHTML = MAXIMIZE_ICON_SVG;
+  maximizeButton.setAttribute("aria-label", "Maximize chat");
+  headerActions.appendChild(maximizeButton);
+
   const minimizeButton = document.createElement("button");
   minimizeButton.className = "saas-widget-minimize";
   minimizeButton.type = "button";
@@ -741,6 +780,16 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
 
   let isOpen = false;
   let isSending = false;
+
+  function setMaximized(maximized) {
+    isMaximized = maximized;
+    popup.classList.toggle("maximized", isMaximized);
+    maximizeButton.innerHTML = isMaximized ? RESTORE_ICON_SVG : MAXIMIZE_ICON_SVG;
+    maximizeButton.setAttribute(
+      "aria-label",
+      isMaximized ? "Restore chat" : "Maximize chat"
+    );
+  }
 
   function scrollToBottom() {
     messages.scrollTop = messages.scrollHeight;
@@ -1160,6 +1209,9 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
 
   button.addEventListener("click", () => {
     isOpen = !isOpen;
+    if (!isOpen) {
+      setMaximized(false);
+    }
     popup.classList.toggle("open", isOpen);
     button.setAttribute("aria-label", isOpen ? "Close chat" : "Open chat");
     if (isOpen && !chatClosed && isFeedbackPending(currentSessionId)) {
@@ -1169,8 +1221,16 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
 
   minimizeButton.addEventListener("click", () => {
     isOpen = false;
+    setMaximized(false);
     popup.classList.remove("open");
     button.setAttribute("aria-label", "Open chat");
+  });
+
+  maximizeButton.addEventListener("click", () => {
+    if (!isOpen) {
+      return;
+    }
+    setMaximized(!isMaximized);
   });
 
   endChatButton.addEventListener("click", () => {
