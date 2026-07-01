@@ -33,6 +33,7 @@ import app.modules.chat_sessions.model  # noqa: F401
 import app.modules.chat_messages.model  # noqa: F401
 import app.modules.knowledge_chunks.model  # noqa: F401
 import app.modules.user_details.model  # noqa: F401
+import app.modules.widget.model  # noqa: F401
 
 
 @asynccontextmanager

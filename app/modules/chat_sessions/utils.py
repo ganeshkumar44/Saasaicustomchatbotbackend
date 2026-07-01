@@ -53,6 +53,7 @@ def build_chat_session_response(session: ChatSession) -> ChatSessionResponse:
         chatbot_id=session.chatbot_id,
         session_id=session.session_id,
         visitor_id=session.visitor_id,
+        visitor_name=session.visitor_name,
         visitor_step=session.visitor_step,
         is_active=session.is_active,
         is_resolved=session.is_resolved,
@@ -98,6 +99,10 @@ def apply_chat_session_migrations(db_engine: Engine) -> None:
         statements.append(
             "ALTER TABLE chat_sessions ADD COLUMN visitor_email VARCHAR(255)"
         )
+    if "visitor_name" not in existing_columns:
+        statements.append(
+            "ALTER TABLE chat_sessions ADD COLUMN visitor_name VARCHAR(100)"
+        )
     if "visitor_phone" not in existing_columns:
         statements.append(
             "ALTER TABLE chat_sessions ADD COLUMN visitor_phone VARCHAR(20)"
@@ -123,6 +128,15 @@ def apply_chat_session_migrations(db_engine: Engine) -> None:
             for statement in statements:
                 connection.execute(text(statement))
         logger.info("Applied chat_sessions schema migrations: %s", statements)
+
+    with db_engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE chat_sessions SET visitor_name = visitor_id "
+                "WHERE visitor_name IS NULL AND visitor_id IS NOT NULL "
+                "AND visitor_step = 'completed' AND visitor_id NOT LIKE 'vis_%'"
+            )
+        )
 
     visitor_id_col = next(
         (c for c in inspector.get_columns("chat_sessions") if c["name"] == "visitor_id"),

@@ -80,14 +80,14 @@ def validate_visitor_name(value: str | None) -> str | None:
 
 
 def validate_visitor_email(value: str | None) -> str | None:
-    """Validate an optional visitor email when the visitor chooses to provide one."""
+    """Validate a required visitor email."""
     if value is None or not value.strip():
         return messages.PLEASE_ENTER_EMAIL
     return validate_email(value)
 
 
 def validate_visitor_phone(value: str | None) -> str | None:
-    """Validate an optional visitor phone when the visitor chooses to provide one."""
+    """Validate a required visitor phone number."""
     if value is None or not value.strip():
         return messages.PLEASE_ENTER_PHONE
     return validate_mobile(value)
@@ -106,7 +106,7 @@ def get_visitor_step_question(step: str) -> str | None:
 
 def can_skip_visitor_step(step: str) -> bool:
     """Return True when the visitor may skip the current onboarding step."""
-    return step in (VISITOR_STEP_EMAIL, VISITOR_STEP_PHONE)
+    return False
 
 
 def is_onboarding_complete(step: str) -> bool:

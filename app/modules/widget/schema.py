@@ -38,6 +38,7 @@ class PublicChatResponse(BaseModel):
 
 class StartSessionRequest(BaseModel):
     public_key: str
+    visitor_key: str | None = None
 
 
 class StartSessionResponse(BaseModel):
@@ -100,3 +101,4 @@ class VisitorInfoResponse(BaseModel):
     can_skip: bool = False
     onboarding_complete: bool = False
     message: str | None = None
+    visitor_key: str | None = None

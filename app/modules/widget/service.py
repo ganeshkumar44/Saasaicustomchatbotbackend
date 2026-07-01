@@ -56,6 +56,11 @@ from app.modules.widget.utils import (
     validate_visitor_name,
     validate_visitor_phone,
 )
+from app.modules.widget.visitor_utils import (
+    generate_unique_visitor_key,
+    get_widget_visitor_by_key,
+    save_widget_visitor,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +136,11 @@ def get_widget_config(db: Session, public_key: str) -> WidgetConfigSuccessRespon
     )
 
 
-def _build_visitor_info_response(session_step: str) -> VisitorInfoResponse:
+def _build_visitor_info_response(
+    session_step: str,
+    *,
+    visitor_key: str | None = None,
+) -> VisitorInfoResponse:
     """Build a visitor onboarding response for the given session step."""
     onboarding = build_onboarding_state(session_step)
     complete = bool(onboarding["onboarding_complete"])
@@ -141,6 +150,7 @@ def _build_visitor_info_response(session_step: str) -> VisitorInfoResponse:
         can_skip=bool(onboarding["can_skip"]),
         onboarding_complete=complete,
         message=messages.THANK_YOU_START_CHAT if complete else None,
+        visitor_key=visitor_key,
     )
 
 
@@ -157,16 +167,19 @@ def process_visitor_info(
         raise ChatSessionNotFoundError()
 
     if is_onboarding_complete(session.visitor_step):
-        return _build_visitor_info_response(VISITOR_STEP_COMPLETED)
+        return _build_visitor_info_response(
+            VISITOR_STEP_COMPLETED,
+            visitor_key=session.visitor_id,
+        )
 
     submitted_step = payload.step.strip().lower() if payload.step else ""
     if submitted_step != session.visitor_step:
         raise InvalidVisitorStepError()
 
-    if session.visitor_step == VISITOR_STEP_NAME:
-        if payload.skip:
-            raise VisitorOnboardingValidationError(messages.VISITOR_NAME_REQUIRED)
+    if payload.skip:
+        raise VisitorOnboardingValidationError(messages.VISITOR_SKIP_NOT_ALLOWED)
 
+    if session.visitor_step == VISITOR_STEP_NAME:
         error = validate_visitor_name(payload.value)
         if error:
             raise VisitorOnboardingValidationError(error)
@@ -174,21 +187,12 @@ def process_visitor_info(
         update_visitor_onboarding(
             db,
             session,
-            visitor_id=payload.value.strip(),  # type: ignore[union-attr]
+            visitor_name=payload.value.strip(),  # type: ignore[union-attr]
             visitor_step=VISITOR_STEP_EMAIL,
         )
         return _build_visitor_info_response(VISITOR_STEP_EMAIL)
 
     if session.visitor_step == VISITOR_STEP_EMAIL:
-        if payload.skip:
-            update_visitor_onboarding(
-                db,
-                session,
-                visitor_email=None,
-                visitor_step=VISITOR_STEP_PHONE,
-            )
-            return _build_visitor_info_response(VISITOR_STEP_PHONE)
-
         error = validate_visitor_email(payload.value)
         if error:
             raise VisitorOnboardingValidationError(error)
@@ -202,26 +206,40 @@ def process_visitor_info(
         return _build_visitor_info_response(VISITOR_STEP_PHONE)
 
     if session.visitor_step == VISITOR_STEP_PHONE:
-        if payload.skip:
-            update_visitor_onboarding(
-                db,
-                session,
-                visitor_phone=None,
-                visitor_step=VISITOR_STEP_COMPLETED,
-            )
-            return _build_visitor_info_response(VISITOR_STEP_COMPLETED)
-
         error = validate_visitor_phone(payload.value)
         if error:
             raise VisitorOnboardingValidationError(error)
 
+        visitor_key = generate_unique_visitor_key(db)
+        visitor_name = session.visitor_name or ""
+        visitor_email = session.visitor_email or ""
+        visitor_phone = payload.value.strip()  # type: ignore[union-attr]
+
+        save_widget_visitor(
+            db,
+            chatbot_id=session.chatbot_id,
+            visitor_key=visitor_key,
+            visitor_name=visitor_name,
+            visitor_email=visitor_email,
+            visitor_phone=visitor_phone,
+        )
         update_visitor_onboarding(
             db,
             session,
-            visitor_phone=payload.value.strip(),  # type: ignore[union-attr]
+            visitor_id=visitor_key,
+            visitor_email=visitor_email,
+            visitor_phone=visitor_phone,
             visitor_step=VISITOR_STEP_COMPLETED,
         )
-        return _build_visitor_info_response(VISITOR_STEP_COMPLETED)
+        logger.info(
+            "Visitor onboarding completed session_id=%s visitor_key=%s",
+            session.session_id,
+            visitor_key,
+        )
+        return _build_visitor_info_response(
+            VISITOR_STEP_COMPLETED,
+            visitor_key=visitor_key,
+        )
 
     raise InvalidVisitorStepError()
 
@@ -340,6 +358,26 @@ def start_chat_session(
 
     if chatbot.status != CHATBOT_STATUS_PUBLISHED:
         raise ChatbotNotPublishedError()
+
+    visitor_key = payload.visitor_key.strip() if payload.visitor_key else None
+    if visitor_key:
+        visitor = get_widget_visitor_by_key(db, chatbot.id, visitor_key)
+        if visitor is not None:
+            session = create_chat_session(
+                db,
+                chatbot.id,
+                visitor_key=visitor.visitor_key,
+                visitor_name=visitor.visitor_name,
+                visitor_email=visitor.visitor_email,
+                visitor_phone=visitor.visitor_phone,
+                visitor_step=VISITOR_STEP_COMPLETED,
+            )
+            logger.info(
+                "Created chat session with returning visitor session_id=%s visitor_key=%s",
+                session.session_id,
+                visitor.visitor_key,
+            )
+            return StartSessionResponse(session_id=session.session_id)
 
     session = create_chat_session(db, chatbot.id)
     return StartSessionResponse(session_id=session.session_id)

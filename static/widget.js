@@ -8,6 +8,20 @@ console.log(chatbotKey);
 
 const SESSION_STORAGE_KEY = "chat_session_id";
 
+function getVisitorStorageKey(publicKey) {
+  return `chat_visitor_key_${publicKey}`;
+}
+
+function getStoredVisitorKey(publicKey) {
+  return localStorage.getItem(getVisitorStorageKey(publicKey));
+}
+
+function storeVisitorKey(publicKey, visitorKey) {
+  if (visitorKey) {
+    localStorage.setItem(getVisitorStorageKey(publicKey), visitorKey);
+  }
+}
+
 const CHAT_END_CONFIRMATION = "Are you sure you want to end this chat?";
 const CHAT_END_CONFIRMATION_SUBTITLE =
   "Your feedback will help us improve your chat experience.";
@@ -31,15 +45,22 @@ function isFeedbackPending(sessionId) {
   return localStorage.getItem(getFeedbackPendingKey(sessionId)) === "true";
 }
 
-async function startChatSession(publicKey) {
+async function startChatSession(publicKey, visitorKey = null) {
+  const storedVisitorKey = visitorKey || getStoredVisitorKey(publicKey);
+  const requestBody = {
+    public_key: publicKey,
+  };
+
+  if (storedVisitorKey) {
+    requestBody.visitor_key = storedVisitorKey;
+  }
+
   const response = await fetch(`${API_BASE_URL}/v1/widget/session/start`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      public_key: publicKey,
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   const data = await response.json();
@@ -70,7 +91,7 @@ async function ensureChatSession(publicKey) {
     localStorage.removeItem(SESSION_STORAGE_KEY);
   }
 
-  return startChatSession(publicKey);
+  return startChatSession(publicKey, getStoredVisitorKey(publicKey));
 }
 
 async function fetchChatHistory(sessionId) {
@@ -960,7 +981,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
     setSendingState(true);
 
     try {
-      const newSessionId = await startChatSession(publicKey);
+      const newSessionId = await startChatSession(publicKey, getStoredVisitorKey(publicKey));
       currentSessionId = newSessionId;
       setFeedbackPending(newSessionId, false);
 
@@ -1075,6 +1096,9 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
       );
 
       if (data.onboarding_complete) {
+        if (data.visitor_key) {
+          storeVisitorKey(publicKey, data.visitor_key);
+        }
         if (data.message) {
           addBotMessage(data.message);
         }
@@ -1135,7 +1159,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
         if (typingIndicator) {
           typingIndicator.remove();
         }
-        activeSessionId = await startChatSession(publicKey);
+        activeSessionId = await startChatSession(publicKey, getStoredVisitorKey(publicKey));
         currentSessionId = activeSessionId;
         const freshHistory = await fetchChatHistory(activeSessionId);
         applyOnboardingState(

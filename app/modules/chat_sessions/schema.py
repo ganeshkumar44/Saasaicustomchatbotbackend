@@ -10,6 +10,7 @@ class ChatSessionResponse(BaseModel):
     chatbot_id: int
     session_id: str
     visitor_id: str | None
+    visitor_name: str | None = None
     visitor_step: str
     is_active: str
     is_resolved: str

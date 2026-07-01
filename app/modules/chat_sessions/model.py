@@ -48,6 +48,7 @@ class ChatSession(Base):
         index=True,
     )
     visitor_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    visitor_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     visitor_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     visitor_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     visitor_step: Mapped[str] = mapped_column(

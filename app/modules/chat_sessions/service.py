@@ -64,7 +64,12 @@ _UNSET = object()
 def create_chat_session(
     db: Session,
     chatbot_id: int,
-    visitor_id: str | None = None,
+    *,
+    visitor_key: str | None = None,
+    visitor_name: str | None = None,
+    visitor_email: str | None = None,
+    visitor_phone: str | None = None,
+    visitor_step: str | None = None,
 ) -> ChatSessionResponse:
     """Create a new chat session for a published chatbot visitor."""
     chatbot = db.get(Chatbot, chatbot_id)
@@ -72,11 +77,15 @@ def create_chat_session(
         raise ChatbotNotFoundError()
 
     now = datetime.now(timezone.utc)
+    step = visitor_step or VISITOR_STEP_NAME
     session = ChatSession(
         chatbot_id=chatbot_id,
         session_id=generate_unique_session_id(db),
-        visitor_id=visitor_id,
-        visitor_step=VISITOR_STEP_NAME,
+        visitor_id=visitor_key,
+        visitor_name=visitor_name,
+        visitor_email=visitor_email,
+        visitor_phone=visitor_phone,
+        visitor_step=step,
         is_active=SESSION_STATUS_ACTIVE,
         is_resolved=SESSION_RESOLVED_PENDING,
         started_at=now,
@@ -88,11 +97,11 @@ def create_chat_session(
     db.refresh(session)
 
     logger.info(
-        "Created chat session session_id=%s chatbot_id=%s is_active=%s is_resolved=%s",
+        "Created chat session session_id=%s chatbot_id=%s visitor_key=%s visitor_step=%s",
         session.session_id,
         chatbot_id,
-        session.is_active,
-        session.is_resolved,
+        visitor_key,
+        step,
     )
 
     return build_chat_session_response(session)
@@ -129,6 +138,7 @@ def update_visitor_onboarding(
     *,
     visitor_step: str,
     visitor_id: str | None | object = _UNSET,
+    visitor_name: str | None | object = _UNSET,
     visitor_email: str | None | object = _UNSET,
     visitor_phone: str | None | object = _UNSET,
 ) -> ChatSession:
@@ -137,6 +147,8 @@ def update_visitor_onboarding(
 
     if visitor_id is not _UNSET:
         session.visitor_id = visitor_id  # type: ignore[assignment]
+    if visitor_name is not _UNSET:
+        session.visitor_name = visitor_name  # type: ignore[assignment]
     if visitor_email is not _UNSET:
         session.visitor_email = visitor_email  # type: ignore[assignment]
     if visitor_phone is not _UNSET:
