@@ -20,6 +20,7 @@ class ChatSessionResponse(BaseModel):
 class UpdateChatSessionStatusRequest(BaseModel):
     """Request payload for updating chat session lifecycle status."""
 
+    public_key: str
     session_id: str
     is_active: str | None = None
     is_resolved: str | None = None

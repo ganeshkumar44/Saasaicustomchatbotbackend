@@ -14,7 +14,6 @@ from app.modules.chatbot_settings.routes import router as chatbot_settings_route
 from app.modules.chatbot.utils import apply_chatbot_migrations
 from app.modules.knowledgebase.utils import apply_knowledgebase_migrations
 from app.modules.chat_sessions.utils import apply_chat_session_migrations
-from app.modules.chat_sessions.routes import router as chat_sessions_router
 from app.modules.health.routes import router as health_router
 from app.modules.knowledgebase.routes import router as knowledgebase_router
 from app.modules.chat_messages.routes import router as chat_messages_router
@@ -69,7 +68,6 @@ app.include_router(chatbot_settings_router)
 app.include_router(knowledgebase_router)
 app.include_router(widget_router)
 app.include_router(widget_static_router)
-app.include_router(chat_sessions_router)
 app.include_router(chat_messages_router)
 app.include_router(knowledge_chunks_router)
 app.include_router(rag_router)

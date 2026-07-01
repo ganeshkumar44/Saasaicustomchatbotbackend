@@ -210,8 +210,18 @@ INVALID_RESOLUTION_STATUS = (
     "Invalid resolution status. Allowed values are pending, resolved, and unresolved."
 )
 SESSION_NOT_FOUND = "Chat session not found."
+INVALID_SESSION = "Invalid session for this chatbot."
 CHAT_SESSION_NOT_CLOSED = "Chat session must be closed before submitting feedback."
 SESSION_STATUS_REQUIRED = "At least one status field is required."
+SESSION_NOT_ACTIVE = "Chat session is not active."
+CHAT_FEEDBACK_REQUIRED = "Please provide your feedback before closing the chat."
+CHAT_END_CONFIRMATION = "Are you sure you want to end this chat?"
+CHAT_END_CONFIRMATION_SUBTITLE = (
+    "Your feedback will help us improve your chat experience."
+)
+CHAT_FEEDBACK_QUESTION = "Are you satisfied with our AI responses?"
+THANK_YOU_FEEDBACK = "Your chat has ended. Thank you for your feedback."
+START_NEW_CHAT = "Start New Chat"
 
 # ---------------------------------------------------------------------------
 # Widget visitor onboarding

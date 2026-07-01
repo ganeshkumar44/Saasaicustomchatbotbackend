@@ -8,6 +8,29 @@ console.log(chatbotKey);
 
 const SESSION_STORAGE_KEY = "chat_session_id";
 
+const CHAT_END_CONFIRMATION = "Are you sure you want to end this chat?";
+const CHAT_END_CONFIRMATION_SUBTITLE =
+  "Your feedback will help us improve your chat experience.";
+const CHAT_FEEDBACK_QUESTION = "Are you satisfied with our AI responses?";
+const THANK_YOU_FEEDBACK = "Your chat has ended. Thank you for your feedback.";
+const START_NEW_CHAT_LABEL = "Start New Chat";
+
+function getFeedbackPendingKey(sessionId) {
+  return `chat_feedback_pending_${sessionId}`;
+}
+
+function setFeedbackPending(sessionId, pending) {
+  if (pending) {
+    localStorage.setItem(getFeedbackPendingKey(sessionId), "true");
+  } else {
+    localStorage.removeItem(getFeedbackPendingKey(sessionId));
+  }
+}
+
+function isFeedbackPending(sessionId) {
+  return localStorage.getItem(getFeedbackPendingKey(sessionId)) === "true";
+}
+
 async function startChatSession(publicKey) {
   const response = await fetch(`${API_BASE_URL}/v1/widget/session/start`, {
     method: "POST",
@@ -62,6 +85,8 @@ async function fetchChatHistory(sessionId) {
       question: null,
       can_skip: false,
       onboarding_complete: true,
+      is_active: "active",
+      is_resolved: "pending",
     };
   }
 
@@ -74,6 +99,8 @@ async function fetchChatHistory(sessionId) {
       question: null,
       can_skip: false,
       onboarding_complete: true,
+      is_active: "active",
+      is_resolved: "pending",
     };
   }
 
@@ -83,7 +110,27 @@ async function fetchChatHistory(sessionId) {
     question: data.question || null,
     can_skip: Boolean(data.can_skip),
     onboarding_complete: data.onboarding_complete !== false,
+    is_active: data.is_active || "active",
+    is_resolved: data.is_resolved || "pending",
   };
+}
+
+async function updateChatSessionStatus(publicKey, sessionId, isActive, isResolved) {
+  const response = await fetch(`${API_BASE_URL}/v1/widget/chat-session/status`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      public_key: publicKey,
+      session_id: sessionId,
+      is_active: isActive,
+      is_resolved: isResolved,
+    }),
+  });
+
+  const data = await response.json();
+  return { response, data };
 }
 
 async function loadWidget(publicKey) {
@@ -152,6 +199,10 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
   let visitorStep = historyData.visitor_step || "completed";
   let onboardingComplete = historyData.onboarding_complete !== false;
   let canSkip = Boolean(historyData.can_skip);
+  let chatClosed = historyData.is_active === "closed";
+  let hasAiResponse =
+    onboardingComplete && Array.isArray(historyMessages) && historyMessages.length > 0;
+  let feedbackModalOpen = false;
   const position = config.widget_position || "bottom-right";
   const isRight = position === "bottom-right";
   const botMessageBg = hexToRgba(config.primary_color, 0.15);
@@ -204,6 +255,160 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 
+    .saas-widget-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    .saas-widget-end-chat {
+      padding: 4px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      border-radius: 6px;
+      background: transparent;
+      color: ${config.text_color};
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: background 0.2s ease;
+    }
+
+    .saas-widget-end-chat:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .saas-widget-end-chat.hidden {
+      display: none;
+    }
+
+    .saas-widget-modal-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      padding: 16px;
+    }
+
+    .saas-widget-modal-overlay.open {
+      display: flex;
+    }
+
+    .saas-widget-modal {
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 20px;
+      width: 100%;
+      max-width: 300px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+      text-align: center;
+    }
+
+    .saas-widget-modal-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin: 0 0 8px;
+      line-height: 1.4;
+    }
+
+    .saas-widget-modal-subtitle {
+      font-size: 13px;
+      color: #666666;
+      margin: 0 0 16px;
+      line-height: 1.5;
+    }
+
+    .saas-widget-modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .saas-widget-modal-btn {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: opacity 0.2s ease;
+    }
+
+    .saas-widget-modal-btn.primary {
+      background: ${config.primary_color};
+      color: ${config.text_color};
+    }
+
+    .saas-widget-modal-btn.secondary {
+      background: #f0f0f0;
+      color: #333333;
+    }
+
+    .saas-widget-modal-btn:hover:not(:disabled) {
+      opacity: 0.9;
+    }
+
+    .saas-widget-modal-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .saas-widget-ended-state {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 16px;
+      padding: 24px 16px;
+      flex: 1;
+    }
+
+    .saas-widget-ended-state.visible {
+      display: flex;
+    }
+
+    .saas-widget-ended-text {
+      font-size: 14px;
+      color: #484848;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .saas-widget-new-chat-btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      background: ${config.primary_color};
+      color: ${config.text_color};
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: opacity 0.2s ease;
+    }
+
+    .saas-widget-new-chat-btn:hover {
+      opacity: 0.9;
+    }
+
+    .saas-widget-footer.hidden {
+      display: none;
+    }
+
+    .saas-widget-messages.hidden {
+      display: none;
+    }
+
     .saas-widget-popup.open {
       display: flex;
     }
@@ -231,7 +436,6 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
-      margin-left: auto;
       transition: background 0.2s ease;
     }
 
@@ -447,15 +651,62 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
   title.textContent = config.chat_title;
   header.appendChild(title);
 
+  const headerActions = document.createElement("div");
+  headerActions.className = "saas-widget-header-actions";
+
+  const endChatButton = document.createElement("button");
+  endChatButton.className = "saas-widget-end-chat hidden";
+  endChatButton.type = "button";
+  endChatButton.textContent = "End Chat";
+  endChatButton.setAttribute("aria-label", "End chat");
+  headerActions.appendChild(endChatButton);
+
   const minimizeButton = document.createElement("button");
   minimizeButton.className = "saas-widget-minimize";
   minimizeButton.type = "button";
   minimizeButton.innerHTML = MINIMIZE_ICON_SVG;
   minimizeButton.setAttribute("aria-label", "Minimize chat");
-  header.appendChild(minimizeButton);
+  headerActions.appendChild(minimizeButton);
+
+  header.appendChild(headerActions);
 
   const messages = document.createElement("div");
   messages.className = "saas-widget-messages";
+
+  const endedState = document.createElement("div");
+  endedState.className = "saas-widget-ended-state";
+
+  const endedText = document.createElement("p");
+  endedText.className = "saas-widget-ended-text";
+  endedText.textContent = THANK_YOU_FEEDBACK;
+
+  const startNewChatButton = document.createElement("button");
+  startNewChatButton.className = "saas-widget-new-chat-btn";
+  startNewChatButton.type = "button";
+  startNewChatButton.textContent = START_NEW_CHAT_LABEL;
+
+  endedState.appendChild(endedText);
+  endedState.appendChild(startNewChatButton);
+
+  const modalOverlay = document.createElement("div");
+  modalOverlay.className = "saas-widget-modal-overlay";
+
+  const modal = document.createElement("div");
+  modal.className = "saas-widget-modal";
+
+  const modalTitle = document.createElement("p");
+  modalTitle.className = "saas-widget-modal-title";
+
+  const modalSubtitle = document.createElement("p");
+  modalSubtitle.className = "saas-widget-modal-subtitle";
+
+  const modalActions = document.createElement("div");
+  modalActions.className = "saas-widget-modal-actions";
+
+  modal.appendChild(modalTitle);
+  modal.appendChild(modalSubtitle);
+  modal.appendChild(modalActions);
+  modalOverlay.appendChild(modal);
 
   const footer = document.createElement("div");
   footer.className = "saas-widget-footer";
@@ -483,7 +734,9 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
 
   popup.appendChild(header);
   popup.appendChild(messages);
+  popup.appendChild(endedState);
   popup.appendChild(footer);
+  popup.appendChild(modalOverlay);
   document.body.appendChild(popup);
 
   let isOpen = false;
@@ -536,9 +789,167 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
 
   function setSendingState(sending) {
     isSending = sending;
-    input.disabled = sending;
-    sendButton.disabled = sending;
-    skipButton.disabled = sending;
+    input.disabled = sending || chatClosed || feedbackModalOpen;
+    sendButton.disabled = sending || chatClosed || feedbackModalOpen;
+    skipButton.disabled = sending || chatClosed || feedbackModalOpen;
+  }
+
+  function updateEndChatVisibility() {
+    if (hasAiResponse && !chatClosed && onboardingComplete) {
+      endChatButton.classList.remove("hidden");
+    } else {
+      endChatButton.classList.add("hidden");
+    }
+  }
+
+  function disableChatInput() {
+    input.disabled = true;
+    sendButton.disabled = true;
+    skipButton.disabled = true;
+    footer.classList.add("hidden");
+  }
+
+  function showChatEndedState() {
+    chatClosed = true;
+    feedbackModalOpen = false;
+    setFeedbackPending(currentSessionId, false);
+    modalOverlay.classList.remove("open");
+    messages.classList.add("hidden");
+    endedState.classList.add("visible");
+    disableChatInput();
+    endChatButton.classList.add("hidden");
+  }
+
+  function clearModalActions() {
+    modalActions.innerHTML = "";
+  }
+
+  function createModalButton(label, className, onClick) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `saas-widget-modal-btn ${className}`;
+    button.textContent = label;
+    button.addEventListener("click", onClick);
+    modalActions.appendChild(button);
+    return button;
+  }
+
+  function showConfirmEndModal() {
+    feedbackModalOpen = true;
+    setSendingState(isSending);
+    modalTitle.textContent = CHAT_END_CONFIRMATION;
+    modalSubtitle.textContent = CHAT_END_CONFIRMATION_SUBTITLE;
+    modalSubtitle.style.display = "block";
+    clearModalActions();
+
+    createModalButton("No", "secondary", () => {
+      feedbackModalOpen = false;
+      modalOverlay.classList.remove("open");
+      setSendingState(isSending);
+    });
+
+    createModalButton("Yes", "primary", () => {
+      setFeedbackPending(currentSessionId, true);
+      showFeedbackModal();
+    });
+
+    modalOverlay.classList.add("open");
+  }
+
+  function showFeedbackModal() {
+    feedbackModalOpen = true;
+    disableChatInput();
+    modalTitle.textContent = CHAT_FEEDBACK_QUESTION;
+    modalSubtitle.style.display = "none";
+    clearModalActions();
+
+    createModalButton("No", "secondary", () => {
+      submitFeedback("unresolved");
+    });
+
+    createModalButton("Yes", "primary", () => {
+      submitFeedback("resolved");
+    });
+
+    modalOverlay.classList.add("open");
+  }
+
+  async function submitFeedback(resolution) {
+    const buttons = modalActions.querySelectorAll("button");
+    buttons.forEach((btn) => {
+      btn.disabled = true;
+    });
+
+    try {
+      const { response, data } = await updateChatSessionStatus(
+        publicKey,
+        currentSessionId,
+        "closed",
+        resolution
+      );
+
+      if (!response.ok || !data.success) {
+        buttons.forEach((btn) => {
+          btn.disabled = false;
+        });
+        addBotMessage(data.message || "Sorry, something went wrong.");
+        return;
+      }
+
+      setFeedbackPending(currentSessionId, false);
+      showChatEndedState();
+    } catch (error) {
+      console.error("Widget:", error);
+      buttons.forEach((btn) => {
+        btn.disabled = false;
+      });
+      addBotMessage("Sorry, something went wrong.");
+    }
+  }
+
+  async function startNewChat() {
+    setSendingState(true);
+
+    try {
+      const newSessionId = await startChatSession(publicKey);
+      currentSessionId = newSessionId;
+      setFeedbackPending(newSessionId, false);
+
+      const freshHistory = await fetchChatHistory(newSessionId);
+
+      chatClosed = false;
+      hasAiResponse = false;
+      feedbackModalOpen = false;
+      visitorStep = freshHistory.visitor_step || "name";
+      onboardingComplete = freshHistory.onboarding_complete !== false;
+      canSkip = Boolean(freshHistory.can_skip);
+
+      messages.innerHTML = "";
+      messages.classList.remove("hidden");
+      endedState.classList.remove("visible");
+      footer.classList.remove("hidden");
+      modalOverlay.classList.remove("open");
+      input.value = "";
+      endChatButton.classList.add("hidden");
+
+      applyOnboardingState(
+        visitorStep,
+        freshHistory.question,
+        canSkip,
+        onboardingComplete
+      );
+
+      addBotMessage(config.welcome_message);
+      if (!onboardingComplete && freshHistory.question) {
+        addBotMessage(freshHistory.question);
+      }
+
+      setSendingState(false);
+      updateEndChatVisibility();
+    } catch (error) {
+      console.error("Widget:", error);
+      setSendingState(false);
+    }
   }
 
   function updateSkipVisibility() {
@@ -634,7 +1045,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
 
   async function sendMessage() {
     const message = input.value.trim();
-    if (!message || isSending) {
+    if (!message || isSending || chatClosed || feedbackModalOpen) {
       return;
     }
 
@@ -702,6 +1113,8 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
       }
 
       addBotMessage(data.answer);
+      hasAiResponse = true;
+      updateEndChatVisibility();
     } catch (error) {
       console.error("Widget:", error);
       if (typingIndicator) {
@@ -733,16 +1146,41 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
     }
   }
 
+  updateEndChatVisibility();
+
+  if (chatClosed) {
+    showChatEndedState();
+  } else if (
+    !chatClosed &&
+    historyData.is_active === "active" &&
+    isFeedbackPending(currentSessionId)
+  ) {
+    showFeedbackModal();
+  }
+
   button.addEventListener("click", () => {
     isOpen = !isOpen;
     popup.classList.toggle("open", isOpen);
     button.setAttribute("aria-label", isOpen ? "Close chat" : "Open chat");
+    if (isOpen && !chatClosed && isFeedbackPending(currentSessionId)) {
+      showFeedbackModal();
+    }
   });
 
   minimizeButton.addEventListener("click", () => {
     isOpen = false;
     popup.classList.remove("open");
     button.setAttribute("aria-label", "Open chat");
+  });
+
+  endChatButton.addEventListener("click", () => {
+    if (!chatClosed && !feedbackModalOpen && hasAiResponse) {
+      showConfirmEndModal();
+    }
+  });
+
+  startNewChatButton.addEventListener("click", () => {
+    startNewChat();
   });
 
   sendButton.addEventListener("click", sendMessage);

@@ -54,8 +54,8 @@ class ChatAlreadyClosedError(Exception):
     """Raised when attempting to close an already closed chat session."""
 
 
-class ChatSessionNotClosedError(Exception):
-    """Raised when feedback is submitted before the chat session is closed."""
+class ChatSessionNotActiveError(Exception):
+    """Raised when the chat session is not in an active state."""
 
 
 _UNSET = object()
@@ -151,7 +151,12 @@ def update_visitor_onboarding(
     return session
 
 
-def _get_session_or_raise(db: Session, session_id: str) -> ChatSession:
+def _get_session_or_raise(
+    db: Session,
+    session_id: str,
+    *,
+    chatbot_id: int | None = None,
+) -> ChatSession:
     """Return a chat session by public session_id or raise."""
     if not session_id or not session_id.strip():
         raise ChatSessionNotFoundError()
@@ -159,6 +164,15 @@ def _get_session_or_raise(db: Session, session_id: str) -> ChatSession:
     session = get_chat_session_by_session_id(db, session_id.strip())
     if session is None:
         logger.warning("Chat session not found session_id=%s", session_id)
+        raise ChatSessionNotFoundError()
+
+    if chatbot_id is not None and session.chatbot_id != chatbot_id:
+        logger.warning(
+            "Chat session chatbot mismatch session_id=%s expected_chatbot_id=%s actual_chatbot_id=%s",
+            session.session_id,
+            chatbot_id,
+            session.chatbot_id,
+        )
         raise ChatSessionNotFoundError()
 
     chatbot = db.get(Chatbot, session.chatbot_id)
@@ -176,8 +190,10 @@ def _get_session_or_raise(db: Session, session_id: str) -> ChatSession:
 def update_chat_session_status(
     db: Session,
     payload: UpdateChatSessionStatusRequest,
+    *,
+    chatbot_id: int,
 ) -> UpdateChatSessionStatusResponse:
-    """Update chat session lifecycle fields for close and feedback flows."""
+    """Update chat session lifecycle fields for close and visitor feedback."""
     if payload.is_active is None and payload.is_resolved is None:
         raise ChatSessionValidationError(messages.SESSION_STATUS_REQUIRED)
 
@@ -189,30 +205,29 @@ def update_chat_session_status(
     if resolution_error:
         raise ChatSessionValidationError(resolution_error)
 
-    session = _get_session_or_raise(db, payload.session_id)
+    session = _get_session_or_raise(
+        db,
+        payload.session_id,
+        chatbot_id=chatbot_id,
+    )
     response_message = messages.CHAT_SESSION_UPDATED
 
     if payload.is_active == SESSION_STATUS_CLOSED:
-        if session.is_active == SESSION_STATUS_CLOSED and payload.is_resolved is None:
+        if session.is_active != SESSION_STATUS_ACTIVE:
             raise ChatAlreadyClosedError()
-        session.is_active = SESSION_STATUS_CLOSED
-        response_message = messages.CHAT_SESSION_CLOSED
-
-    if payload.is_resolved is not None:
-        if payload.is_resolved in (
+        if payload.is_resolved not in (
             SESSION_RESOLVED_RESOLVED,
             SESSION_RESOLVED_UNRESOLVED,
         ):
-            if session.is_active != SESSION_STATUS_CLOSED:
-                raise ChatSessionNotClosedError()
-            session.is_resolved = payload.is_resolved
-            response_message = (
-                messages.CHAT_MARKED_RESOLVED
-                if payload.is_resolved == SESSION_RESOLVED_RESOLVED
-                else messages.CHAT_MARKED_UNRESOLVED
-            )
-        elif payload.is_resolved == SESSION_RESOLVED_PENDING:
-            session.is_resolved = SESSION_RESOLVED_PENDING
+            raise ChatSessionValidationError(messages.CHAT_FEEDBACK_REQUIRED)
+        session.is_active = SESSION_STATUS_CLOSED
+        session.is_resolved = payload.is_resolved
+        response_message = messages.CHAT_SESSION_CLOSED
+    elif payload.is_active == SESSION_STATUS_ACTIVE:
+        if session.is_active != SESSION_STATUS_ACTIVE:
+            raise ChatSessionNotActiveError()
+    elif payload.is_resolved is not None:
+        raise ChatSessionValidationError(messages.CHAT_FEEDBACK_REQUIRED)
 
     now = datetime.now(timezone.utc)
     session.last_activity = now

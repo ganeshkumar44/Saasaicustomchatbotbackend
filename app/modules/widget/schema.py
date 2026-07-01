@@ -59,6 +59,27 @@ class ChatHistoryResponse(BaseModel):
     question: str | None = None
     can_skip: bool = False
     onboarding_complete: bool = True
+    is_active: str = "active"
+    is_resolved: str = "pending"
+
+
+class UpdateChatSessionStatusRequest(BaseModel):
+    """Request payload for closing a widget chat session with feedback."""
+
+    public_key: str
+    session_id: str
+    is_active: str | None = None
+    is_resolved: str | None = None
+
+
+class UpdateChatSessionStatusResponse(BaseModel):
+    """Response after updating widget chat session lifecycle status."""
+
+    success: bool = True
+    message: str
+    session_id: str
+    is_active: str
+    is_resolved: str
 
 
 class VisitorInfoRequest(BaseModel):

@@ -12,11 +12,18 @@ from app.modules.widget.schema import (
     PublicChatResponse,
     StartSessionRequest,
     StartSessionResponse,
+    UpdateChatSessionStatusRequest,
+    UpdateChatSessionStatusResponse,
     VisitorInfoRequest,
     VisitorInfoResponse,
     WidgetConfigSuccessResponse,
 )
 from app.modules.widget.utils import get_widget_js_content
+from app.modules.chat_sessions.service import (
+    ChatAlreadyClosedError,
+    ChatSessionNotActiveError,
+    ChatSessionValidationError,
+)
 
 router = APIRouter(
     prefix="/v1",
@@ -200,6 +207,50 @@ def get_chat_history(
                 "success": False,
                 "message": "Session not found",
             },
+        )
+
+
+@router.put(
+    "/widget/chat-session/status",
+    status_code=status.HTTP_200_OK,
+    response_model=UpdateChatSessionStatusResponse,
+)
+def update_chat_session_status(
+    payload: UpdateChatSessionStatusRequest,
+    db: Session = Depends(get_db),
+):
+    """Close a widget chat session and record mandatory visitor feedback."""
+    try:
+        return service.update_chat_session_status(db, payload)
+    except ChatSessionValidationError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": exc.message},
+        )
+    except ChatAlreadyClosedError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": messages.CHAT_ALREADY_CLOSED},
+        )
+    except ChatSessionNotActiveError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": messages.SESSION_NOT_ACTIVE},
+        )
+    except service.ChatSessionNotFoundError:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"success": False, "message": messages.SESSION_NOT_FOUND},
+        )
+    except service.ChatbotNotPublishedError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": "Chatbot is not published"},
+        )
+    except service.ChatbotNotFoundError:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"success": False, "message": "Chatbot not found"},
         )
 
 

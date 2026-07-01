@@ -18,8 +18,17 @@ from app.modules.chat_sessions.model import (
     VISITOR_STEP_NAME,
     VISITOR_STEP_PHONE,
 )
+from app.modules.chat_sessions.schema import (
+    UpdateChatSessionStatusRequest as ChatSessionStatusRequest,
+    UpdateChatSessionStatusResponse,
+)
 from app.modules.chat_sessions.service import (
+    ChatAlreadyClosedError,
+    ChatSessionNotActiveError,
+    ChatSessionNotFoundError as ChatSessionServiceNotFoundError,
+    ChatSessionValidationError,
     create_chat_session,
+    update_chat_session_status as update_chat_session_status_record,
     update_last_activity,
     update_visitor_onboarding,
 )
@@ -31,6 +40,8 @@ from app.modules.widget.schema import (
     PublicChatResponse,
     StartSessionRequest,
     StartSessionResponse,
+    UpdateChatSessionStatusRequest,
+    UpdateChatSessionStatusResponse,
     VisitorInfoRequest,
     VisitorInfoResponse,
     WidgetConfigSuccessResponse,
@@ -91,6 +102,22 @@ class VisitorOnboardingValidationError(Exception):
 
 class InvalidVisitorStepError(Exception):
     """Raised when the submitted onboarding step does not match the session."""
+
+
+def _resolve_published_chatbot(db: Session, public_key: str) -> Chatbot:
+    """Return a published chatbot for the given widget public key."""
+    settings = get_chatbot_settings_by_public_key(db, public_key)
+    if settings is None:
+        raise ChatbotNotFoundError()
+
+    chatbot = db.get(Chatbot, settings.chatbot_id)
+    if chatbot is None:
+        raise ChatbotNotFoundError()
+
+    if chatbot.status != CHATBOT_STATUS_PUBLISHED:
+        raise ChatbotNotPublishedError()
+
+    return chatbot
 
 
 def get_widget_config(db: Session, public_key: str) -> WidgetConfigSuccessResponse:
@@ -344,4 +371,47 @@ def get_chat_history(db: Session, session_id: str) -> ChatHistoryResponse:
         question=onboarding["question"],  # type: ignore[arg-type]
         can_skip=bool(onboarding["can_skip"]),
         onboarding_complete=bool(onboarding["onboarding_complete"]),
+        is_active=session.is_active,
+        is_resolved=session.is_resolved,
     )
+
+
+def update_chat_session_status(
+    db: Session,
+    payload: UpdateChatSessionStatusRequest,
+) -> UpdateChatSessionStatusResponse:
+    """Close a widget chat session and record mandatory visitor feedback."""
+    if not payload.public_key or not payload.public_key.strip():
+        raise ChatbotNotFoundError()
+
+    if not payload.session_id or not payload.session_id.strip():
+        raise ChatSessionNotFoundError()
+
+    public_key = payload.public_key.strip()
+    chatbot = _resolve_published_chatbot(db, public_key)
+
+    logger.info(
+        "Widget chat session status update public_key=%s session_id=%s",
+        public_key,
+        payload.session_id,
+    )
+
+    try:
+        return update_chat_session_status_record(
+            db,
+            ChatSessionStatusRequest(
+                public_key=public_key,
+                session_id=payload.session_id.strip(),
+                is_active=payload.is_active,
+                is_resolved=payload.is_resolved,
+            ),
+            chatbot_id=chatbot.id,
+        )
+    except ChatSessionServiceNotFoundError:
+        raise ChatSessionNotFoundError() from None
+    except ChatSessionValidationError:
+        raise
+    except ChatAlreadyClosedError:
+        raise
+    except ChatSessionNotActiveError:
+        raise
