@@ -685,9 +685,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
           freshHistory.onboarding_complete
         );
         if (!freshHistory.onboarding_complete && freshHistory.question) {
-          if (freshHistory.visitor_step === "name") {
-            addBotMessage(config.welcome_message);
-          }
+          addBotMessage(config.welcome_message);
           addBotMessage(freshHistory.question);
         }
         setSendingState(false);
@@ -729,9 +727,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
       canSkip,
       onboardingComplete
     );
-    if (visitorStep === "name") {
-      addBotMessage(config.welcome_message);
-    }
+    addBotMessage(config.welcome_message);
     if (historyData.question) {
       addBotMessage(historyData.question);
     }
