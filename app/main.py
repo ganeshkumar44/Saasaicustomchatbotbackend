@@ -24,6 +24,7 @@ from app.modules.ai.routes import router as ai_router
 from app.modules.user_details.routes import router as user_details_router
 from app.modules.dashboard.routes import router as dashboard_router
 from app.modules.user_details.utils import apply_user_account_migrations, sync_existing_user_details
+from app.modules.chat_analysis.utils import sync_existing_chat_analysis
 
 # Import all ORM models so they register with Base.metadata before create_all().
 import app.modules.auth.model  # noqa: F401
@@ -34,6 +35,7 @@ import app.modules.chat_messages.model  # noqa: F401
 import app.modules.knowledge_chunks.model  # noqa: F401
 import app.modules.user_details.model  # noqa: F401
 import app.modules.widget.model  # noqa: F401
+import app.modules.chat_analysis.model  # noqa: F401
 
 
 @asynccontextmanager
@@ -47,6 +49,7 @@ async def lifespan(app: FastAPI):
     apply_chat_session_migrations(engine)
     apply_knowledgebase_migrations(engine)
     sync_existing_user_details(engine)
+    sync_existing_chat_analysis(engine)
     yield
 
 

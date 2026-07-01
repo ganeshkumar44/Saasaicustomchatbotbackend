@@ -32,6 +32,7 @@ from app.modules.chatbot.utils import (
     generate_unique_public_key,
     get_default_allowed_domains,
 )
+from app.modules.chat_analysis.service import ensure_chat_analysis_for_chatbot
 from app.modules.chatbot.schema import (
     AIModelEnum,
     CreateChatbotDraftData,
@@ -325,6 +326,8 @@ def publish_chatbot(
         raise ChatbotIncompleteConfigError(missing_steps)
 
     if chatbot.status == CHATBOT_STATUS_PUBLISHED and chatbot.settings is not None:
+        ensure_chat_analysis_for_chatbot(db, chatbot.id)
+        db.commit()
         return PublishChatbotSuccessResponse(
             message="Chatbot published successfully",
             data=PublishChatbotData(
@@ -343,6 +346,8 @@ def publish_chatbot(
     settings = chatbot.settings
     if settings is None:
         settings = _create_default_chatbot_settings(db, chatbot.id)
+
+    ensure_chat_analysis_for_chatbot(db, chatbot.id)
 
     db.commit()
     db.refresh(chatbot)
