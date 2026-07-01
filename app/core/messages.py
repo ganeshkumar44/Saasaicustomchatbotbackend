@@ -197,6 +197,23 @@ COMPANY_TOO_LONG = "Company name must not exceed 150 characters."
 BIO_TOO_LONG = "Bio must not exceed 1000 characters."
 
 # ---------------------------------------------------------------------------
+# Chat session lifecycle
+# ---------------------------------------------------------------------------
+
+CHAT_SESSION_CLOSED = "Chat session closed successfully."
+CHAT_SESSION_UPDATED = "Chat session updated successfully."
+CHAT_ALREADY_CLOSED = "Chat session is already closed."
+CHAT_MARKED_RESOLVED = "Chat session marked as resolved."
+CHAT_MARKED_UNRESOLVED = "Chat session marked as unresolved."
+INVALID_SESSION_STATUS = "Invalid session status. Allowed values are active and closed."
+INVALID_RESOLUTION_STATUS = (
+    "Invalid resolution status. Allowed values are pending, resolved, and unresolved."
+)
+SESSION_NOT_FOUND = "Chat session not found."
+CHAT_SESSION_NOT_CLOSED = "Chat session must be closed before submitting feedback."
+SESSION_STATUS_REQUIRED = "At least one status field is required."
+
+# ---------------------------------------------------------------------------
 # Widget visitor onboarding
 # ---------------------------------------------------------------------------
 

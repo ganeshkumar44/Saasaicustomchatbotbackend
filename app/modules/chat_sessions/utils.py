@@ -9,7 +9,12 @@ from sqlalchemy import inspect, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.modules.chat_sessions.model import ChatSession
+from app.core import messages
+from app.modules.chat_sessions.model import (
+    ALLOWED_RESOLUTION_STATUSES,
+    ALLOWED_SESSION_STATUSES,
+    ChatSession,
+)
 from app.modules.chat_sessions.schema import ChatSessionResponse
 
 logger = logging.getLogger(__name__)
@@ -49,9 +54,29 @@ def build_chat_session_response(session: ChatSession) -> ChatSessionResponse:
         session_id=session.session_id,
         visitor_id=session.visitor_id,
         visitor_step=session.visitor_step,
+        is_active=session.is_active,
+        is_resolved=session.is_resolved,
         started_at=session.started_at,
         last_activity=session.last_activity,
     )
+
+
+def validate_session_status(value: str | None) -> str | None:
+    """Return an error message when session status is invalid."""
+    if value is None:
+        return None
+    if value not in ALLOWED_SESSION_STATUSES:
+        return messages.INVALID_SESSION_STATUS
+    return None
+
+
+def validate_resolution_status(value: str | None) -> str | None:
+    """Return an error message when resolution status is invalid."""
+    if value is None:
+        return None
+    if value not in ALLOWED_RESOLUTION_STATUSES:
+        return messages.INVALID_RESOLUTION_STATUS
+    return None
 
 
 def apply_chat_session_migrations(db_engine: Engine) -> None:
@@ -81,6 +106,16 @@ def apply_chat_session_migrations(db_engine: Engine) -> None:
         statements.append(
             "ALTER TABLE chat_sessions ADD COLUMN visitor_step VARCHAR(20) "
             "NOT NULL DEFAULT 'completed'"
+        )
+    if "is_active" not in existing_columns:
+        statements.append(
+            "ALTER TABLE chat_sessions ADD COLUMN is_active VARCHAR(20) "
+            "NOT NULL DEFAULT 'active'"
+        )
+    if "is_resolved" not in existing_columns:
+        statements.append(
+            "ALTER TABLE chat_sessions ADD COLUMN is_resolved VARCHAR(20) "
+            "NOT NULL DEFAULT 'pending'"
         )
 
     if statements:

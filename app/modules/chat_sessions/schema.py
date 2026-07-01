@@ -11,5 +11,25 @@ class ChatSessionResponse(BaseModel):
     session_id: str
     visitor_id: str | None
     visitor_step: str
+    is_active: str
+    is_resolved: str
     started_at: datetime
     last_activity: datetime
+
+
+class UpdateChatSessionStatusRequest(BaseModel):
+    """Request payload for updating chat session lifecycle status."""
+
+    session_id: str
+    is_active: str | None = None
+    is_resolved: str | None = None
+
+
+class UpdateChatSessionStatusResponse(BaseModel):
+    """Response after updating chat session lifecycle status."""
+
+    success: bool = True
+    message: str
+    session_id: str
+    is_active: str
+    is_resolved: str

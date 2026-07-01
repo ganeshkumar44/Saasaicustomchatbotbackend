@@ -21,6 +21,7 @@ WIDGET_CONFIG_PATH_RE = re.compile(r"^/v1/widget/config/([^/]+)$")
 WIDGET_CHAT_PATH = "/v1/widget/chat"
 WIDGET_SESSION_START_PATH = "/v1/widget/session/start"
 WIDGET_VISITOR_INFO_PATH = "/v1/widget/visitor-info"
+WIDGET_CHAT_SESSION_STATUS_PATH = "/v1/widget/chat-session/status"
 WIDGET_CHAT_HISTORY_PATH_RE = re.compile(r"^/v1/widget/chat-history/[^/]+$")
 
 
@@ -95,6 +96,7 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
             WIDGET_CHAT_PATH,
             WIDGET_SESSION_START_PATH,
             WIDGET_VISITOR_INFO_PATH,
+            WIDGET_CHAT_SESSION_STATUS_PATH,
         ):
             return is_origin_in_any_allowed_domains(origin)
 

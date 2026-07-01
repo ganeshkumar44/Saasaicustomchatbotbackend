@@ -14,6 +14,20 @@ VISITOR_STEP_EMAIL = "email"
 VISITOR_STEP_PHONE = "phone"
 VISITOR_STEP_COMPLETED = "completed"
 
+SESSION_STATUS_ACTIVE = "active"
+SESSION_STATUS_CLOSED = "closed"
+
+SESSION_RESOLVED_PENDING = "pending"
+SESSION_RESOLVED_RESOLVED = "resolved"
+SESSION_RESOLVED_UNRESOLVED = "unresolved"
+
+ALLOWED_SESSION_STATUSES = {SESSION_STATUS_ACTIVE, SESSION_STATUS_CLOSED}
+ALLOWED_RESOLUTION_STATUSES = {
+    SESSION_RESOLVED_PENDING,
+    SESSION_RESOLVED_RESOLVED,
+    SESSION_RESOLVED_UNRESOLVED,
+}
+
 
 class ChatSession(Base):
     """Track website visitors and chatbot conversations."""
@@ -39,6 +53,16 @@ class ChatSession(Base):
     visitor_step: Mapped[str] = mapped_column(
         String(20),
         default=VISITOR_STEP_NAME,
+        nullable=False,
+    )
+    is_active: Mapped[str] = mapped_column(
+        String(20),
+        default=SESSION_STATUS_ACTIVE,
+        nullable=False,
+    )
+    is_resolved: Mapped[str] = mapped_column(
+        String(20),
+        default=SESSION_RESOLVED_PENDING,
         nullable=False,
     )
     started_at: Mapped[datetime] = mapped_column(
