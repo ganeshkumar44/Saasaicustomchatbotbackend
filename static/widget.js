@@ -128,6 +128,8 @@ const OPEN_CHAT_ICON_SVG = `<svg fill="#ffffff" width="800px" height="800px" vie
   <path d="M232.002,64.00293v128a16.02084,16.02084,0,0,1-16,16l-133.95312.375-31.75,26.69531a15.86968,15.86968,0,0,1-10.25,3.77344,16.11258,16.11258,0,0,1-6.79688-1.51563,15.8614,15.8614,0,0,1-9.25-14.50781V64.00293a16.02085,16.02085,0,0,1,16-16h176A16.02084,16.02084,0,0,1,232.002,64.00293Z"/>
 </svg>`;
 
+const MINIMIZE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M6 12h12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>`;
+
 function hexToRgba(hex, alpha) {
   const normalized = hex.replace("#", "");
   const full =
@@ -214,6 +216,33 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
       background: ${config.primary_color};
       color: ${config.text_color};
       flex-shrink: 0;
+    }
+
+    .saas-widget-minimize {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: ${config.text_color};
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-left: auto;
+      transition: background 0.2s ease;
+    }
+
+    .saas-widget-minimize svg {
+      width: 18px;
+      height: 18px;
+      display: block;
+    }
+
+    .saas-widget-minimize:hover {
+      background: rgba(255, 255, 255, 0.15);
     }
 
     .saas-widget-avatar {
@@ -417,6 +446,13 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
   title.className = "saas-widget-title";
   title.textContent = config.chat_title;
   header.appendChild(title);
+
+  const minimizeButton = document.createElement("button");
+  minimizeButton.className = "saas-widget-minimize";
+  minimizeButton.type = "button";
+  minimizeButton.innerHTML = MINIMIZE_ICON_SVG;
+  minimizeButton.setAttribute("aria-label", "Minimize chat");
+  header.appendChild(minimizeButton);
 
   const messages = document.createElement("div");
   messages.className = "saas-widget-messages";
@@ -699,6 +735,12 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
     isOpen = !isOpen;
     popup.classList.toggle("open", isOpen);
     button.setAttribute("aria-label", isOpen ? "Close chat" : "Open chat");
+  });
+
+  minimizeButton.addEventListener("click", () => {
+    isOpen = false;
+    popup.classList.remove("open");
+    button.setAttribute("aria-label", "Open chat");
   });
 
   sendButton.addEventListener("click", sendMessage);
