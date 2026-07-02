@@ -4,8 +4,11 @@ Chatbot analysis Pydantic schemas.
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel
+
+AnalyticsTrend = Literal["up", "down", "neutral"]
 
 
 class ChatbotAnalyticsItem(BaseModel):
@@ -42,11 +45,19 @@ class MergedChatbotAnalyticsData(BaseModel):
 
     total_chatbots: int
     total_conversations: int
+    total_conversations_change: Decimal
+    total_conversations_trend: AnalyticsTrend
     total_visitors: int
+    total_visitors_change: Decimal
+    total_visitors_trend: AnalyticsTrend
     resolved_conversations: int
     unresolved_conversations: int
     resolution_rate: Decimal
+    resolution_rate_change: Decimal
+    resolution_rate_trend: AnalyticsTrend
     average_response_time: Decimal
+    average_response_time_change: Decimal
+    average_response_time_trend: AnalyticsTrend
     total_messages: int
     total_user_messages: int
     total_bot_messages: int
