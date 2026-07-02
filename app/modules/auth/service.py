@@ -39,6 +39,7 @@ from app.modules.auth.utils import (
     normalize_email,
     normalize_signup_fields,
     normalize_verification_code,
+    resolve_initial_signup_role,
     send_forgot_password_email,
     send_verification_email,
     validate_email,
@@ -308,13 +309,15 @@ def register_user(db: Session, payload: SignupRequest) -> SignupSuccessResponse:
         )
         return _build_signup_response(existing_user)
 
+    assigned_role = resolve_initial_signup_role(db)
+
     user = User(
         first_name=normalized["first_name"],
         last_name=normalized["last_name"],
         email=normalized["email"],
         mobile=normalized["mobile"],
         password_hash=hash_password(payload.password),
-        role="user",
+        role=assigned_role,
         is_email_verified=False,
         verification_code=verification_code,
         verification_code_expires_at=get_verification_code_expiry(),
@@ -333,6 +336,13 @@ def register_user(db: Session, payload: SignupRequest) -> SignupSuccessResponse:
     db.refresh(user)
     ensure_user_details_exists(db, user.id)
     send_verification_email(user.first_name, user.email, verification_code)
+
+    logger.info(
+        "Registered new user user_id=%s email=%s role=%s",
+        user.id,
+        user.email,
+        user.role,
+    )
 
     return _build_signup_response(user)
 

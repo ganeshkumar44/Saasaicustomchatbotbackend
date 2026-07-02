@@ -7,8 +7,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 import bcrypt
-from sqlalchemy import inspect, text
+from sqlalchemy import func, inspect, select, text
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
 
 from app.core import messages
 from app.core.config import get_settings
@@ -23,6 +24,7 @@ from app.core.security import (
     get_token_identifier,
     is_token_blacklisted,
 )
+from app.modules.auth.model import User
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,10 @@ _PASSWORD_SPECIAL = re.compile(r"[!@#$%^&*(),.?\":{}|<>_\-+=\[\]\\;/'`~]")
 _VERIFICATION_CODE_LENGTH = 6
 _VERIFICATION_CODE_PATTERN = re.compile(rf"^\d{{{_VERIFICATION_CODE_LENGTH}}}$")
 
+USER_ROLE_ADMIN = "admin"
+USER_ROLE_USER = "user"
+SIGNUP_ROLE_ASSIGNMENT_LOCK_ID = 8347291
+
 __all__ = [
     "InvalidTokenError",
     "TokenBlacklistedError",
@@ -66,6 +72,7 @@ __all__ = [
     "normalize_email",
     "normalize_signup_fields",
     "normalize_verification_code",
+    "resolve_initial_signup_role",
     "send_forgot_password_email",
     "send_verification_email",
     "validate_email",
@@ -412,6 +419,32 @@ def normalize_signup_fields(
         "email": email.strip().lower(),
         "mobile": mobile.strip(),
     }
+
+
+def resolve_initial_signup_role(db: Session) -> str:
+    """
+    Determine the role for a newly registered user.
+
+    The first non-deleted user becomes administrator; all later users are normal
+    users. A PostgreSQL advisory transaction lock prevents concurrent signups on
+    a fresh installation from creating more than one administrator.
+    """
+    db.execute(
+        text("SELECT pg_advisory_xact_lock(:lock_id)"),
+        {"lock_id": SIGNUP_ROLE_ASSIGNMENT_LOCK_ID},
+    )
+
+    existing_user_count = db.scalar(
+        select(func.count())
+        .select_from(User)
+        .where(User.is_deleted.is_(False))
+    ) or 0
+
+    if existing_user_count == 0:
+        logger.info("Assigning administrator role to first registered user")
+        return USER_ROLE_ADMIN
+
+    return USER_ROLE_USER
 
 
 def apply_verification_migrations(db_engine: Engine) -> None:
