@@ -90,9 +90,24 @@ def ensure_chat_analysis_for_chatbot(db: Session, chatbot_id: int) -> ChatAnalys
 
 
 def record_new_chat_session(db: Session, chatbot_id: int, *, commit: bool = True) -> None:
-    """Increment conversation and visitor counters for a newly created chat session."""
+    """Increment conversation counter for a newly created chat session."""
     analysis = _get_or_create_analysis(db, chatbot_id)
     analysis.total_conversations = max(0, analysis.total_conversations + 1)
+    _touch_analysis(analysis)
+
+    if commit:
+        db.commit()
+
+    logger.info(
+        "Recorded new chat session analytics chatbot_id=%s total_conversations=%s",
+        chatbot_id,
+        analysis.total_conversations,
+    )
+
+
+def record_new_visitor(db: Session, chatbot_id: int, *, commit: bool = True) -> None:
+    """Increment visitor counter when a new widget visitor profile is created."""
+    analysis = _get_or_create_analysis(db, chatbot_id)
     analysis.total_visitors = max(0, analysis.total_visitors + 1)
     _touch_analysis(analysis)
 
@@ -100,10 +115,8 @@ def record_new_chat_session(db: Session, chatbot_id: int, *, commit: bool = True
         db.commit()
 
     logger.info(
-        "Recorded new chat session analytics chatbot_id=%s total_conversations=%s "
-        "total_visitors=%s",
+        "Recorded new visitor analytics chatbot_id=%s total_visitors=%s",
         chatbot_id,
-        analysis.total_conversations,
         analysis.total_visitors,
     )
 

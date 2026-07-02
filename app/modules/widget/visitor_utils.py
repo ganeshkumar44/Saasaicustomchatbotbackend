@@ -52,12 +52,17 @@ def save_widget_visitor(
     visitor_name: str,
     visitor_email: str,
     visitor_phone: str,
-) -> WidgetVisitor:
-    """Create or update a persistent widget visitor profile."""
+) -> tuple[WidgetVisitor, bool]:
+    """Create or update a persistent widget visitor profile.
+
+    Returns the visitor record and whether a new profile was created.
+    """
     now = datetime.now(timezone.utc)
     visitor = get_widget_visitor_by_key(db, chatbot_id, visitor_key)
+    created = False
 
     if visitor is None:
+        created = True
         visitor = WidgetVisitor(
             chatbot_id=chatbot_id,
             visitor_key=visitor_key,
@@ -84,4 +89,4 @@ def save_widget_visitor(
 
     db.commit()
     db.refresh(visitor)
-    return visitor
+    return visitor, created

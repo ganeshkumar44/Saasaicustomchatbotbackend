@@ -10,8 +10,14 @@ from sqlalchemy.sql import Select
 
 from app.modules.auth.model import User
 from app.modules.chat_analysis.model import ChatAnalysis
+from app.modules.chat_sessions.model import (
+    SESSION_RESOLVED_RESOLVED,
+    SESSION_RESOLVED_UNRESOLVED,
+    ChatSession,
+)
 from app.modules.chatbot.model import CHATBOT_STATUS_DRAFT, Chatbot
 from app.modules.user_details.utils import is_admin
+from app.modules.widget.model import WidgetVisitor
 
 _TWO_PLACES = Decimal("0.01")
 
@@ -24,23 +30,75 @@ def _apply_eligible_chatbot_filters(query: Select, user: User) -> Select:
     return query
 
 
+def _chat_session_count_subquery():
+    """Count chat sessions per chatbot from the source table."""
+    return (
+        select(func.count(ChatSession.id))
+        .where(ChatSession.chatbot_id == Chatbot.id)
+        .correlate(Chatbot)
+        .scalar_subquery()
+    )
+
+
+def _widget_visitor_count_subquery():
+    """Count unique widget visitors per chatbot from the source table."""
+    return (
+        select(func.count(WidgetVisitor.id))
+        .where(WidgetVisitor.chatbot_id == Chatbot.id)
+        .correlate(Chatbot)
+        .scalar_subquery()
+    )
+
+
+def _resolved_session_count_subquery():
+    """Count resolved chat sessions per chatbot from the source table."""
+    return (
+        select(func.count(ChatSession.id))
+        .where(
+            ChatSession.chatbot_id == Chatbot.id,
+            ChatSession.is_resolved == SESSION_RESOLVED_RESOLVED,
+        )
+        .correlate(Chatbot)
+        .scalar_subquery()
+    )
+
+
+def _unresolved_session_count_subquery():
+    """Count unresolved chat sessions per chatbot from the source table."""
+    return (
+        select(func.count(ChatSession.id))
+        .where(
+            ChatSession.chatbot_id == Chatbot.id,
+            ChatSession.is_resolved == SESSION_RESOLVED_UNRESOLVED,
+        )
+        .correlate(Chatbot)
+        .scalar_subquery()
+    )
+
+
 def build_chatbot_analytics_query(user: User) -> Select:
     """
     Build a query joining chatbots with chat_analysis for dashboard reporting.
 
+    Conversation and visitor counts are read from source tables to avoid
+    inflated values in cached chat_analysis counters.
     Administrators see all non-draft chatbots; normal users see only their own.
     """
+    session_count = _chat_session_count_subquery()
+    visitor_count = _widget_visitor_count_subquery()
+    resolved_count = _resolved_session_count_subquery()
+    unresolved_count = _unresolved_session_count_subquery()
+
     query = (
         select(
             Chatbot.id.label("chatbot_id"),
             Chatbot.chatbot_name,
             Chatbot.status,
             Chatbot.ai_model,
-            ChatAnalysis.total_conversations,
-            ChatAnalysis.total_visitors,
-            ChatAnalysis.resolved_conversations,
-            ChatAnalysis.unresolved_conversations,
-            ChatAnalysis.resolution_rate,
+            func.coalesce(session_count, 0).label("total_conversations"),
+            func.coalesce(visitor_count, 0).label("total_visitors"),
+            func.coalesce(resolved_count, 0).label("resolved_conversations"),
+            func.coalesce(unresolved_count, 0).label("unresolved_conversations"),
             ChatAnalysis.average_response_time,
             ChatAnalysis.total_messages,
             ChatAnalysis.total_user_messages,
@@ -56,18 +114,17 @@ def build_chatbot_analytics_query(user: User) -> Select:
 
 def build_merged_chatbot_analytics_query(user: User) -> Select:
     """Build an aggregate query for merged chatbot analytics overview."""
+    session_count = _chat_session_count_subquery()
+    visitor_count = _widget_visitor_count_subquery()
+    resolved_count = _resolved_session_count_subquery()
+    unresolved_count = _unresolved_session_count_subquery()
+
     query = select(
         func.count(Chatbot.id).label("total_chatbots"),
-        func.coalesce(func.sum(ChatAnalysis.total_conversations), 0).label(
-            "total_conversations"
-        ),
-        func.coalesce(func.sum(ChatAnalysis.total_visitors), 0).label("total_visitors"),
-        func.coalesce(func.sum(ChatAnalysis.resolved_conversations), 0).label(
-            "resolved_conversations"
-        ),
-        func.coalesce(func.sum(ChatAnalysis.unresolved_conversations), 0).label(
-            "unresolved_conversations"
-        ),
+        func.coalesce(func.sum(session_count), 0).label("total_conversations"),
+        func.coalesce(func.sum(visitor_count), 0).label("total_visitors"),
+        func.coalesce(func.sum(resolved_count), 0).label("resolved_conversations"),
+        func.coalesce(func.sum(unresolved_count), 0).label("unresolved_conversations"),
         func.coalesce(func.sum(ChatAnalysis.total_messages), 0).label("total_messages"),
         func.coalesce(func.sum(ChatAnalysis.total_user_messages), 0).label(
             "total_user_messages"

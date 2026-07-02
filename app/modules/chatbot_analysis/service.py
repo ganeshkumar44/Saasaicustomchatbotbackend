@@ -51,7 +51,10 @@ def get_chatbot_analytics_details(
             total_visitors=int(row.total_visitors),
             resolved_conversations=int(row.resolved_conversations),
             unresolved_conversations=int(row.unresolved_conversations),
-            resolution_rate=row.resolution_rate,
+            resolution_rate=calculate_merged_resolution_rate(
+                int(row.resolved_conversations),
+                int(row.unresolved_conversations),
+            ),
             average_response_time=row.average_response_time,
             total_messages=int(row.total_messages),
             total_user_messages=int(row.total_user_messages),

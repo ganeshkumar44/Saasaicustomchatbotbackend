@@ -27,6 +27,7 @@ from app.modules.chat_sessions.schema import (
 from app.modules.chat_analysis.service import (
     record_chat_exchange,
     record_new_chat_session,
+    record_new_visitor,
 )
 from app.modules.chat_sessions.service import (
     ChatAlreadyClosedError,
@@ -221,7 +222,7 @@ def process_visitor_info(
         visitor_email = session.visitor_email or ""
         visitor_phone = payload.value.strip()  # type: ignore[union-attr]
 
-        save_widget_visitor(
+        _, created = save_widget_visitor(
             db,
             chatbot_id=session.chatbot_id,
             visitor_key=visitor_key,
@@ -229,6 +230,14 @@ def process_visitor_info(
             visitor_email=visitor_email,
             visitor_phone=visitor_phone,
         )
+        if created:
+            try:
+                record_new_visitor(db, session.chatbot_id)
+            except Exception:
+                logger.exception(
+                    "Failed to update visitor analytics for chatbot_id=%s",
+                    session.chatbot_id,
+                )
         update_visitor_onboarding(
             db,
             session,
