@@ -6,7 +6,11 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.modules.auth.model import User
 from app.modules.graphs import service
-from app.modules.graphs.schema import ChartSuccessResponse
+from app.modules.graphs.schema import (
+    ChartSuccessResponse,
+    ResolutionChartSuccessResponse,
+    ResponseTimeChartSuccessResponse,
+)
 from app.modules.graphs.utils import DEFAULT_DATE_RANGE, InvalidDateRangeError
 
 router = APIRouter(
@@ -48,6 +52,46 @@ def get_users_chart(
     """Return unique visitor counts grouped by the selected chart period."""
     try:
         return service.get_users_chart(db, current_user, date_range)
+    except InvalidDateRangeError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": exc.message},
+        )
+
+
+@router.get(
+    "/analysis/resolution-chart",
+    status_code=status.HTTP_200_OK,
+    response_model=ResolutionChartSuccessResponse,
+)
+def get_resolution_chart(
+    date_range: str = Query(default=DEFAULT_DATE_RANGE, alias="range"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return resolved vs unresolved conversation counts grouped by the selected period."""
+    try:
+        return service.get_resolution_chart(db, current_user, date_range)
+    except InvalidDateRangeError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": exc.message},
+        )
+
+
+@router.get(
+    "/analysis/response-time-chart",
+    status_code=status.HTTP_200_OK,
+    response_model=ResponseTimeChartSuccessResponse,
+)
+def get_response_time_chart(
+    date_range: str = Query(default=DEFAULT_DATE_RANGE, alias="range"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return average AI response times grouped by the selected period."""
+    try:
+        return service.get_response_time_chart(db, current_user, date_range)
     except InvalidDateRangeError as exc:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,

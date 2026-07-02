@@ -4,16 +4,28 @@ Graphs module helper utilities.
 
 import calendar
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal, ROUND_HALF_UP
 
-from sqlalchemy import func, select
+from sqlalchemy import Integer, case, cast, func, select
 from sqlalchemy.orm import Session
 
 from app.core import messages
 from app.modules.auth.model import User
-from app.modules.chat_sessions.model import ChatSession
+from app.modules.chat_messages.model import ChatMessage
+from app.modules.chat_sessions.model import (
+    SESSION_RESOLVED_RESOLVED,
+    SESSION_RESOLVED_UNRESOLVED,
+    ChatSession,
+)
 from app.modules.chatbot.model import CHATBOT_STATUS_DRAFT, Chatbot
-from app.modules.graphs.schema import ChartDataPoint
+from app.modules.graphs.schema import (
+    ChartDataPoint,
+    ResolutionChartDataPoint,
+    ResponseTimeChartDataPoint,
+)
 from app.modules.user_details.utils import is_admin
+
+_TWO_PLACES = Decimal("0.01")
 
 ALLOWED_DATE_RANGES = frozenset({"7d", "30d", "3m", "6m", "1y"})
 DEFAULT_DATE_RANGE = "7d"
@@ -226,6 +238,254 @@ def build_chart_data_points(
         ChartDataPoint(
             label=label,
             value=aggregated.get(bucket_key, 0),
+        )
+        for bucket_key, label in label_specs
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Resolution chart helpers
+# ---------------------------------------------------------------------------
+
+RESPONSE_TIME_HOUR_BUCKETS: list[tuple[int, str]] = [
+    (0, "00:00"),
+    (4, "04:00"),
+    (8, "08:00"),
+    (12, "12:00"),
+    (16, "16:00"),
+    (20, "20:00"),
+]
+
+
+def _get_resolution_bucket_expression(range_key: str):
+    """Return the SQL expression used to bucket resolution chart timestamps."""
+    if range_key in {"7d", "30d"}:
+        return func.date_trunc("day", ChatSession.last_activity)
+    if range_key == "3m":
+        return func.date_trunc("week", ChatSession.last_activity)
+    return func.date_trunc("month", ChatSession.last_activity)
+
+
+def _apply_eligible_chatbot_resolution_filters(
+    query,
+    user: User,
+    period_start: datetime,
+    period_end: datetime,
+):
+    """Restrict resolution chart queries to eligible chatbots and the requested period."""
+    query = (
+        query.select_from(ChatSession)
+        .join(Chatbot, Chatbot.id == ChatSession.chatbot_id)
+        .where(Chatbot.status != CHATBOT_STATUS_DRAFT)
+        .where(
+            ChatSession.is_resolved.in_(
+                (SESSION_RESOLVED_RESOLVED, SESSION_RESOLVED_UNRESOLVED)
+            )
+        )
+        .where(ChatSession.last_activity >= period_start)
+        .where(ChatSession.last_activity <= period_end)
+    )
+    if not is_admin(user):
+        query = query.where(Chatbot.user_id == user.id)
+    return query
+
+
+def fetch_resolution_chart_rows(
+    db: Session,
+    user: User,
+    range_key: str,
+    period_start: datetime,
+    period_end: datetime,
+) -> list:
+    """Aggregate resolved and unresolved session counts for the chart period."""
+    bucket_expression = _get_resolution_bucket_expression(range_key).label("bucket")
+    query = (
+        select(
+            bucket_expression,
+            func.sum(
+                case(
+                    (ChatSession.is_resolved == SESSION_RESOLVED_RESOLVED, 1),
+                    else_=0,
+                )
+            ).label("resolved"),
+            func.sum(
+                case(
+                    (ChatSession.is_resolved == SESSION_RESOLVED_UNRESOLVED, 1),
+                    else_=0,
+                )
+            ).label("unresolved"),
+        )
+        .group_by(bucket_expression)
+        .order_by(bucket_expression)
+    )
+
+    query = _apply_eligible_chatbot_resolution_filters(
+        query,
+        user,
+        period_start,
+        period_end,
+    )
+    return db.execute(query).all()
+
+
+def build_resolution_chart_data_points(
+    rows: list,
+    range_key: str,
+    period_start: datetime,
+    period_end: datetime,
+) -> list[ResolutionChartDataPoint]:
+    """Map resolution SQL rows to ordered chart data points with zero-filled gaps."""
+    period_start_date = _truncate_to_date(period_start)
+    aggregated: dict[str, dict[str, int]] = {}
+
+    for row in rows:
+        if row.bucket is None:
+            continue
+        bucket_key = _build_bucket_key(range_key, period_start_date, row.bucket)
+        bucket_totals = aggregated.setdefault(
+            bucket_key,
+            {"resolved": 0, "unresolved": 0},
+        )
+        bucket_totals["resolved"] += int(row.resolved or 0)
+        bucket_totals["unresolved"] += int(row.unresolved or 0)
+
+    if not aggregated:
+        return []
+
+    label_specs = generate_chart_label_specs(range_key, period_start, period_end)
+    return [
+        ResolutionChartDataPoint(
+            label=label,
+            resolved=aggregated.get(bucket_key, {}).get("resolved", 0),
+            unresolved=aggregated.get(bucket_key, {}).get("unresolved", 0),
+        )
+        for bucket_key, label in label_specs
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Response time chart helpers
+# ---------------------------------------------------------------------------
+
+
+def _get_message_bucket_expression(range_key: str):
+    """Return the SQL expression used to bucket chat message timestamps."""
+    if range_key == "30d":
+        return func.date_trunc("day", ChatMessage.created_at)
+    if range_key == "3m":
+        return func.date_trunc("week", ChatMessage.created_at)
+    if range_key in {"6m", "1y"}:
+        return func.date_trunc("month", ChatMessage.created_at)
+    return None
+
+
+def _get_response_time_hour_bucket_expression():
+    """Return a 4-hour bucket expression for the 7-day response time chart."""
+    hour = func.extract("hour", ChatMessage.created_at)
+    return cast(func.floor(hour / 4) * 4, Integer)
+
+
+def _apply_eligible_chatbot_message_filters(
+    query,
+    user: User,
+    period_start: datetime,
+    period_end: datetime,
+):
+    """Restrict response time chart queries to eligible chatbots and the requested period."""
+    query = (
+        query.select_from(ChatMessage)
+        .join(Chatbot, Chatbot.id == ChatMessage.chatbot_id)
+        .where(Chatbot.status != CHATBOT_STATUS_DRAFT)
+        .where(ChatMessage.created_at >= period_start)
+        .where(ChatMessage.created_at <= period_end)
+        .where(ChatMessage.response_time.is_not(None))
+    )
+    if not is_admin(user):
+        query = query.where(Chatbot.user_id == user.id)
+    return query
+
+
+def fetch_response_time_chart_rows(
+    db: Session,
+    user: User,
+    range_key: str,
+    period_start: datetime,
+    period_end: datetime,
+) -> list:
+    """Aggregate average response times from chat messages for the chart period."""
+    if range_key == "7d":
+        bucket_expression = _get_response_time_hour_bucket_expression().label("bucket")
+    else:
+        bucket_expression = _get_message_bucket_expression(range_key).label("bucket")
+
+    query = (
+        select(
+            bucket_expression,
+            func.avg(ChatMessage.response_time).label("value"),
+        )
+        .group_by(bucket_expression)
+        .order_by(bucket_expression)
+    )
+
+    query = _apply_eligible_chatbot_message_filters(
+        query,
+        user,
+        period_start,
+        period_end,
+    )
+    return db.execute(query).all()
+
+
+def _normalize_response_time(value) -> Decimal:
+    """Convert a SQL average response time value to a 2-decimal Decimal."""
+    if value is None:
+        return Decimal("0.00")
+    return Decimal(str(value)).quantize(_TWO_PLACES, rounding=ROUND_HALF_UP)
+
+
+def build_response_time_chart_data_points(
+    rows: list,
+    range_key: str,
+    period_start: datetime,
+    period_end: datetime,
+) -> list[ResponseTimeChartDataPoint]:
+    """Map response time SQL rows to ordered chart data points with zero-filled gaps."""
+    if range_key == "7d":
+        aggregated: dict[int, Decimal] = {}
+        for row in rows:
+            if row.bucket is None:
+                continue
+            bucket_key = int(row.bucket)
+            aggregated[bucket_key] = _normalize_response_time(row.value)
+
+        if not aggregated:
+            return []
+
+        return [
+            ResponseTimeChartDataPoint(
+                label=label,
+                value=aggregated.get(bucket_hour, Decimal("0.00")),
+            )
+            for bucket_hour, label in RESPONSE_TIME_HOUR_BUCKETS
+        ]
+
+    period_start_date = _truncate_to_date(period_start)
+    aggregated_dates: dict[str, Decimal] = {}
+
+    for row in rows:
+        if row.bucket is None:
+            continue
+        bucket_key = _build_bucket_key(range_key, period_start_date, row.bucket)
+        aggregated_dates[bucket_key] = _normalize_response_time(row.value)
+
+    if not aggregated_dates:
+        return []
+
+    label_specs = generate_chart_label_specs(range_key, period_start, period_end)
+    return [
+        ResponseTimeChartDataPoint(
+            label=label,
+            value=aggregated_dates.get(bucket_key, Decimal("0.00")),
         )
         for bucket_key, label in label_specs
     ]

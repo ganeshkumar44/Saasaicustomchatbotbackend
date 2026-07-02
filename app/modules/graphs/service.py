@@ -7,10 +7,18 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.modules.auth.model import User
-from app.modules.graphs.schema import ChartSuccessResponse
+from app.modules.graphs.schema import (
+    ChartSuccessResponse,
+    ResolutionChartSuccessResponse,
+    ResponseTimeChartSuccessResponse,
+)
 from app.modules.graphs.utils import (
     build_chart_data_points,
+    build_resolution_chart_data_points,
+    build_response_time_chart_data_points,
     fetch_conversation_chart_rows,
+    fetch_resolution_chart_rows,
+    fetch_response_time_chart_rows,
     fetch_unique_visitor_chart_rows,
     get_period_bounds,
     validate_date_range,
@@ -88,3 +96,83 @@ def get_users_chart(
     )
 
     return ChartSuccessResponse(range=range_key, data=data)
+
+
+def get_resolution_chart(
+    db: Session,
+    user: User,
+    date_range: str,
+) -> ResolutionChartSuccessResponse:
+    """Return resolved vs unresolved session counts grouped by the selected period."""
+    range_key = validate_date_range(date_range)
+    period_start, period_end = get_period_bounds(range_key)
+
+    logger.info(
+        "Fetching resolution chart user_id=%s admin=%s range=%s",
+        user.id,
+        is_admin(user),
+        range_key,
+    )
+
+    rows = fetch_resolution_chart_rows(
+        db,
+        user,
+        range_key,
+        period_start,
+        period_end,
+    )
+    data = build_resolution_chart_data_points(
+        rows,
+        range_key,
+        period_start,
+        period_end,
+    )
+
+    logger.info(
+        "Resolution chart fetched user_id=%s range=%s points=%s",
+        user.id,
+        range_key,
+        len(data),
+    )
+
+    return ResolutionChartSuccessResponse(range=range_key, data=data)
+
+
+def get_response_time_chart(
+    db: Session,
+    user: User,
+    date_range: str,
+) -> ResponseTimeChartSuccessResponse:
+    """Return average AI response times grouped by the selected period."""
+    range_key = validate_date_range(date_range)
+    period_start, period_end = get_period_bounds(range_key)
+
+    logger.info(
+        "Fetching response time chart user_id=%s admin=%s range=%s",
+        user.id,
+        is_admin(user),
+        range_key,
+    )
+
+    rows = fetch_response_time_chart_rows(
+        db,
+        user,
+        range_key,
+        period_start,
+        period_end,
+    )
+    data = build_response_time_chart_data_points(
+        rows,
+        range_key,
+        period_start,
+        period_end,
+    )
+
+    logger.info(
+        "Response time chart fetched user_id=%s range=%s points=%s",
+        user.id,
+        range_key,
+        len(data),
+    )
+
+    return ResponseTimeChartSuccessResponse(range=range_key, data=data)
