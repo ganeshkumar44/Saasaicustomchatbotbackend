@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.core import messages
+from app.modules.chat_analysis.service import record_chat_resolution
 from app.modules.chatbot.model import Chatbot
 from app.modules.chat_sessions.model import (
     SESSION_RESOLVED_PENDING,
@@ -235,6 +236,7 @@ def update_chat_session_status(
         session.is_active = SESSION_STATUS_CLOSED
         session.is_resolved = payload.is_resolved
         response_message = messages.CHAT_SESSION_CLOSED
+        record_chat_resolution(db, chatbot_id, payload.is_resolved)
     elif payload.is_active == SESSION_STATUS_ACTIVE:
         if session.is_active != SESSION_STATUS_ACTIVE:
             raise ChatSessionNotActiveError()

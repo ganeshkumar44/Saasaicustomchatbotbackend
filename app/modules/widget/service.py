@@ -24,6 +24,10 @@ from app.modules.chat_sessions.schema import (
     UpdateChatSessionStatusRequest as ChatSessionStatusRequest,
     UpdateChatSessionStatusResponse,
 )
+from app.modules.chat_analysis.service import (
+    record_chat_exchange,
+    record_new_chat_session,
+)
 from app.modules.chat_sessions.service import (
     ChatAlreadyClosedError,
     ChatSessionNotActiveError,
@@ -338,6 +342,15 @@ def process_public_chat(
         )
         raise ChatMessageSaveError() from exc
 
+    try:
+        record_chat_exchange(db, chatbot.id)
+    except Exception:
+        logger.exception(
+            "Failed to update chat analytics for chatbot_id=%s session_id=%s",
+            chatbot.id,
+            session.session_id,
+        )
+
     logger.info(
         "Chat message saved for session_id=%s chatbot_id=%s",
         session.session_id,
@@ -384,10 +397,23 @@ def start_chat_session(
                 session.session_id,
                 visitor.visitor_key,
             )
+            _record_new_session_analytics(db, chatbot.id)
             return StartSessionResponse(session_id=session.session_id)
 
     session = create_chat_session(db, chatbot.id)
+    _record_new_session_analytics(db, chatbot.id)
     return StartSessionResponse(session_id=session.session_id)
+
+
+def _record_new_session_analytics(db: Session, chatbot_id: int) -> None:
+    """Update analytics counters for a newly created widget chat session."""
+    try:
+        record_new_chat_session(db, chatbot_id)
+    except Exception:
+        logger.exception(
+            "Failed to update chat analytics for new session chatbot_id=%s",
+            chatbot_id,
+        )
 
 
 def get_chat_history(db: Session, session_id: str) -> ChatHistoryResponse:
