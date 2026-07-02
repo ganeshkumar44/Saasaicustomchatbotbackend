@@ -13,6 +13,24 @@ from app.modules.chatbot.model import Chatbot, ChatbotSettings
 from app.modules.knowledgebase.model import KnowledgebaseDocument
 from app.modules.user_details.utils import is_admin
 
+CHATBOT_OWNER_SELF = "Self"
+
+
+def format_chatbot_owner_name(
+    owner_user_id: int,
+    current_user: User,
+    owner_first_name: str,
+    owner_last_name: str,
+) -> str | None:
+    """Return owner display name for admins; hidden for normal users."""
+    if not is_admin(current_user):
+        return None
+
+    if owner_user_id == current_user.id:
+        return CHATBOT_OWNER_SELF
+
+    return f"{owner_first_name} {owner_last_name}".strip()
+
 
 def build_chatbot_list_query(user: User) -> Select:
     """
@@ -51,12 +69,15 @@ def build_chatbot_list_query(user: User) -> Select:
     query = (
         select(
             Chatbot.id.label("chatbot_id"),
+            Chatbot.user_id.label("owner_user_id"),
             Chatbot.chatbot_name,
             Chatbot.description,
             Chatbot.ai_model,
             Chatbot.language,
             Chatbot.status,
             ChatbotSettings.public_key,
+            User.first_name.label("owner_first_name"),
+            User.last_name.label("owner_last_name"),
             func.coalesce(session_counts.c.total_conversations, 0).label(
                 "total_conversations"
             ),
@@ -67,6 +88,7 @@ def build_chatbot_list_query(user: User) -> Select:
             Chatbot.created_at,
             Chatbot.updated_at,
         )
+        .join(User, User.id == Chatbot.user_id)
         .outerjoin(ChatbotSettings, ChatbotSettings.chatbot_id == Chatbot.id)
         .outerjoin(session_counts, session_counts.c.chatbot_id == Chatbot.id)
         .outerjoin(message_counts, message_counts.c.chatbot_id == Chatbot.id)

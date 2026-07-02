@@ -18,6 +18,7 @@ class ChatbotListItem(BaseModel):
     total_uploaded_documents: int
     created_at: datetime
     updated_at: datetime
+    owner_name: str | None = None
 
 
 class ChatbotListSuccessResponse(BaseModel):

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core import messages
 from app.modules.auth.model import User
 from app.modules.dashboard.schema import ChatbotListItem, ChatbotListSuccessResponse
-from app.modules.dashboard.utils import fetch_chatbot_list_rows
+from app.modules.dashboard.utils import fetch_chatbot_list_rows, format_chatbot_owner_name
 from app.modules.user_details.utils import is_admin
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,12 @@ def get_chatbot_list(db: Session, user: User) -> ChatbotListSuccessResponse:
             total_uploaded_documents=int(row.total_uploaded_documents),
             created_at=row.created_at,
             updated_at=row.updated_at,
+            owner_name=format_chatbot_owner_name(
+                row.owner_user_id,
+                user,
+                row.owner_first_name,
+                row.owner_last_name,
+            ),
         )
         for row in rows
     ]
