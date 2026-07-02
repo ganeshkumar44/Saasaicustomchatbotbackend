@@ -168,6 +168,14 @@ NO_CHATBOT_ANALYTICS = "No chatbot analytics found."
 MERGED_CHATBOT_ANALYTICS_SUCCESS = "Merged chatbot analytics retrieved successfully."
 
 # ---------------------------------------------------------------------------
+# Chat History
+# ---------------------------------------------------------------------------
+
+CHAT_SESSION_LIST_SUCCESS = "Chat sessions retrieved successfully."
+CHAT_HISTORY_SUCCESS = "Chat history retrieved successfully."
+NO_CHAT_HISTORY = "No chat history found."
+
+# ---------------------------------------------------------------------------
 # Graphs
 # ---------------------------------------------------------------------------
 
