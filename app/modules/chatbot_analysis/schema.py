@@ -35,3 +35,26 @@ class ChatbotAnalyticsSuccessResponse(BaseModel):
     message: str
     total_chatbots: int
     data: list[ChatbotAnalyticsItem]
+
+
+class MergedChatbotAnalyticsData(BaseModel):
+    """Merged analytics summary across eligible chatbots."""
+
+    total_chatbots: int
+    total_conversations: int
+    total_visitors: int
+    resolved_conversations: int
+    unresolved_conversations: int
+    resolution_rate: Decimal
+    average_response_time: Decimal
+    total_messages: int
+    total_user_messages: int
+    total_bot_messages: int
+
+
+class MergedChatbotAnalyticsSuccessResponse(BaseModel):
+    """Response for the merged chatbot analytics overview endpoint."""
+
+    success: bool = True
+    message: str
+    data: MergedChatbotAnalyticsData
