@@ -26,3 +26,23 @@ class ChatbotListSuccessResponse(BaseModel):
     message: str
     total_chatbots: int
     data: list[ChatbotListItem]
+
+
+class RecentConversationItem(BaseModel):
+    """Latest conversation row for the dashboard recent conversations section."""
+
+    chat_session_id: int
+    chatbot_id: int
+    chatbot_name: str | None
+    visitor_name: str | None
+    user_question: str
+    message_time: datetime
+    status: str
+
+
+class RecentConversationsSuccessResponse(BaseModel):
+    """Response for the dashboard recent conversations endpoint."""
+
+    success: bool = True
+    message: str
+    data: list[RecentConversationItem]

@@ -161,6 +161,8 @@ DRAFT_CHATBOT_CREATED = "Draft chatbot created successfully."
 
 CHATBOT_LIST_SUCCESS = "Chatbot list retrieved successfully."
 NO_CHATBOTS_FOUND = "No chatbots found."
+RECENT_CONVERSATIONS_SUCCESS = "Recent conversations retrieved successfully."
+NO_RECENT_CONVERSATIONS = "No recent conversations found."
 CHATBOT_ANALYTICS_SUCCESS = "Chatbot analytics retrieved successfully."
 NO_CHATBOT_ANALYTICS = "No chatbot analytics found."
 MERGED_CHATBOT_ANALYTICS_SUCCESS = "Merged chatbot analytics retrieved successfully."

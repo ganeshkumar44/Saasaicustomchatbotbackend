@@ -2,14 +2,20 @@
 Dashboard module helper utilities.
 """
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import Select
 
 from app.modules.auth.model import User
 from app.modules.chat_messages.model import ChatMessage
-from app.modules.chat_sessions.model import ChatSession
-from app.modules.chatbot.model import Chatbot, ChatbotSettings
+from app.modules.chat_sessions.model import (
+    SESSION_RESOLVED_RESOLVED,
+    SESSION_RESOLVED_UNRESOLVED,
+    SESSION_STATUS_ACTIVE,
+    SESSION_STATUS_CLOSED,
+    ChatSession,
+)
+from app.modules.chatbot.model import CHATBOT_STATUS_DRAFT, Chatbot, ChatbotSettings
 from app.modules.knowledgebase.model import KnowledgebaseDocument
 from app.modules.user_details.utils import is_admin
 
@@ -105,4 +111,68 @@ def build_chatbot_list_query(user: User) -> Select:
 def fetch_chatbot_list_rows(db: Session, user: User) -> list:
     """Execute the dashboard chatbot list query and return result rows."""
     query = build_chatbot_list_query(user)
+    return db.execute(query).all()
+
+
+def compute_conversation_status(is_active: str, is_resolved: str) -> str:
+    """Map session lifecycle fields to a single dashboard status label."""
+    if is_active == SESSION_STATUS_ACTIVE:
+        return SESSION_STATUS_ACTIVE
+    if is_resolved == SESSION_RESOLVED_RESOLVED:
+        return SESSION_RESOLVED_RESOLVED
+    if is_resolved == SESSION_RESOLVED_UNRESOLVED:
+        return SESSION_RESOLVED_UNRESOLVED
+    return SESSION_STATUS_CLOSED
+
+
+def build_recent_conversations_query(user: User) -> Select:
+    """Build a query for the latest conversation message per eligible chat session."""
+    latest_message_subquery = (
+        select(
+            ChatMessage.chat_session_id.label("chat_session_id"),
+            func.max(ChatMessage.created_at).label("message_time"),
+        )
+        .group_by(ChatMessage.chat_session_id)
+        .subquery()
+    )
+
+    visitor_display_name = func.coalesce(ChatSession.visitor_name, ChatSession.visitor_id)
+
+    query = (
+        select(
+            ChatSession.id.label("chat_session_id"),
+            Chatbot.id.label("chatbot_id"),
+            Chatbot.chatbot_name,
+            visitor_display_name.label("visitor_name"),
+            ChatMessage.user_message.label("user_question"),
+            ChatMessage.created_at.label("message_time"),
+            ChatSession.is_active.label("session_status"),
+            ChatSession.is_resolved.label("resolution_status"),
+        )
+        .join(
+            latest_message_subquery,
+            ChatSession.id == latest_message_subquery.c.chat_session_id,
+        )
+        .join(
+            ChatMessage,
+            and_(
+                ChatMessage.chat_session_id == latest_message_subquery.c.chat_session_id,
+                ChatMessage.created_at == latest_message_subquery.c.message_time,
+            ),
+        )
+        .join(Chatbot, Chatbot.id == ChatSession.chatbot_id)
+        .where(Chatbot.status != CHATBOT_STATUS_DRAFT)
+        .order_by(ChatMessage.created_at.desc())
+        .limit(5)
+    )
+
+    if not is_admin(user):
+        query = query.where(Chatbot.user_id == user.id)
+
+    return query
+
+
+def fetch_recent_conversation_rows(db: Session, user: User) -> list:
+    """Execute the recent conversations query and return result rows."""
+    query = build_recent_conversations_query(user)
     return db.execute(query).all()
