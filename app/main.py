@@ -25,6 +25,7 @@ from app.modules.ai.routes import router as ai_router
 from app.modules.user_details.routes import router as user_details_router
 from app.modules.dashboard.routes import router as dashboard_router
 from app.modules.chatbot_analysis.routes import router as chatbot_analysis_router
+from app.modules.graphs.routes import router as graphs_router
 from app.modules.user_details.utils import apply_user_account_migrations, sync_existing_user_details
 from app.modules.chat_analysis.utils import sync_existing_chat_analysis
 
@@ -82,6 +83,7 @@ app.include_router(ai_router)
 app.include_router(user_details_router)
 app.include_router(dashboard_router)
 app.include_router(chatbot_analysis_router)
+app.include_router(graphs_router)
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

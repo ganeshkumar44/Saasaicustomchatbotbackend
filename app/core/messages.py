@@ -166,6 +166,14 @@ NO_CHATBOT_ANALYTICS = "No chatbot analytics found."
 MERGED_CHATBOT_ANALYTICS_SUCCESS = "Merged chatbot analytics retrieved successfully."
 
 # ---------------------------------------------------------------------------
+# Graphs
+# ---------------------------------------------------------------------------
+
+INVALID_DATE_RANGE = (
+    "Invalid date range. Allowed values are 7d, 30d, 3m, 6m, and 1y."
+)
+
+# ---------------------------------------------------------------------------
 # User Details
 # ---------------------------------------------------------------------------
 
