@@ -3,9 +3,15 @@ User Details module helper utilities.
 """
 
 import logging
+import os
 import re
+import time
+from io import BytesIO
+from pathlib import Path
 from urllib.parse import urlparse
 
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 from sqlalchemy import inspect, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -28,6 +34,15 @@ logger = logging.getLogger(__name__)
 COMPANY_MAX_LENGTH = 150
 BIO_MAX_LENGTH = 1000
 ADMIN_ROLE = "admin"
+PROFILE_IMAGE_PREFIX = "profile-images/"
+MAX_PROFILE_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
+ALLOWED_PROFILE_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+ALLOWED_PROFILE_IMAGE_CONTENT_TYPES = {
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+}
 _WEBSITE_PATTERN = re.compile(
     r"^https?://"
     r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+"
@@ -298,3 +313,124 @@ def mobile_belongs_to_other_user(
         )
     ).scalar_one_or_none()
     return existing is not None
+
+
+def _get_aws_setting(name: str) -> str:
+    """Read an AWS configuration value from the environment."""
+    return os.getenv(name, "").strip()
+
+
+def get_s3_client():
+    """Create a configured boto3 S3 client using environment variables."""
+    return boto3.client(
+        "s3",
+        aws_access_key_id=_get_aws_setting("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=_get_aws_setting("AWS_SECRET_ACCESS_KEY"),
+        region_name=_get_aws_setting("AWS_REGION"),
+    )
+
+
+def validate_profile_image_upload(
+    *,
+    filename: str | None,
+    content_type: str | None,
+    file_size: int,
+) -> str | None:
+    """Validate profile image type and size. Returns an error message when invalid."""
+    if not filename or not filename.strip():
+        return messages.INVALID_IMAGE_TYPE
+
+    extension = Path(filename.strip()).suffix.lower()
+    if extension not in ALLOWED_PROFILE_IMAGE_EXTENSIONS:
+        return messages.INVALID_IMAGE_TYPE
+
+    if file_size <= 0:
+        return messages.INVALID_IMAGE_TYPE
+
+    if file_size > MAX_PROFILE_IMAGE_SIZE_BYTES:
+        return messages.IMAGE_SIZE_EXCEEDED
+
+    if content_type:
+        normalized_content_type = content_type.split(";", 1)[0].strip().lower()
+        if normalized_content_type not in ALLOWED_PROFILE_IMAGE_CONTENT_TYPES:
+            return messages.INVALID_IMAGE_TYPE
+
+    return None
+
+
+def build_profile_image_object_key(user_id: int, filename: str) -> str:
+    """Build a unique S3 object key for a profile image upload."""
+    extension = Path(filename).suffix.lower()
+    if extension == ".jpeg":
+        extension = ".jpg"
+    timestamp = int(time.time())
+    return f"{PROFILE_IMAGE_PREFIX}user_{user_id}_{timestamp}{extension}"
+
+
+def build_profile_image_public_url(object_key: str) -> str:
+    """Build the public S3 URL for a stored profile image object."""
+    bucket_name = _get_aws_setting("AWS_BUCKET_NAME")
+    region = _get_aws_setting("AWS_REGION")
+    return f"https://{bucket_name}.s3.{region}.amazonaws.com/{object_key}"
+
+
+def upload_profile_image_to_s3(
+    *,
+    content: bytes,
+    object_key: str,
+    content_type: str,
+) -> str:
+    """Upload a profile image to S3 and return its public URL."""
+    bucket_name = _get_aws_setting("AWS_BUCKET_NAME")
+    if not bucket_name:
+        raise ValueError("AWS_BUCKET_NAME is not configured")
+
+    client = get_s3_client()
+    upload_content_type = content_type.split(";", 1)[0].strip().lower() or "image/jpeg"
+
+    try:
+        client.upload_fileobj(
+            BytesIO(content),
+            bucket_name,
+            object_key,
+            ExtraArgs={"ContentType": upload_content_type},
+        )
+    except (BotoCoreError, ClientError) as exc:
+        logger.exception("Failed to upload profile image to S3 object_key=%s", object_key)
+        raise RuntimeError(messages.PROFILE_IMAGE_UPLOAD_FAILED) from exc
+
+    return build_profile_image_public_url(object_key)
+
+
+def extract_profile_image_object_key(image_url: str | None) -> str | None:
+    """Extract the S3 object key from a stored profile image URL."""
+    if not image_url or not image_url.strip():
+        return None
+
+    parsed = urlparse(image_url.strip())
+    object_key = parsed.path.lstrip("/")
+    if not object_key.startswith(PROFILE_IMAGE_PREFIX):
+        return None
+
+    return object_key
+
+
+def delete_profile_image_from_s3(image_url: str | None) -> None:
+    """Delete a profile image object from S3 when possible."""
+    object_key = extract_profile_image_object_key(image_url)
+    if object_key is None:
+        return
+
+    bucket_name = _get_aws_setting("AWS_BUCKET_NAME")
+    if not bucket_name:
+        logger.warning("Skipping profile image delete; AWS_BUCKET_NAME is not configured")
+        return
+
+    try:
+        get_s3_client().delete_object(Bucket=bucket_name, Key=object_key)
+        logger.info("Deleted old profile image from S3 object_key=%s", object_key)
+    except (BotoCoreError, ClientError):
+        logger.exception(
+            "Failed to delete old profile image from S3 object_key=%s",
+            object_key,
+        )

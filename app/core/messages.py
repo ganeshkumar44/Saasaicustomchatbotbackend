@@ -190,6 +190,9 @@ INVALID_DATE_RANGE = (
 USER_DETAILS_FETCH_SUCCESS = "User details retrieved successfully."
 USER_DETAILS_CREATED = "User details created successfully."
 USER_DETAILS_UPDATED = "User details updated successfully."
+INVALID_IMAGE_TYPE = "Invalid image type. Allowed formats are JPG, JPEG, PNG, and WEBP."
+IMAGE_SIZE_EXCEEDED = "Image size exceeds the maximum allowed limit of 5 MB."
+PROFILE_IMAGE_UPLOAD_FAILED = "Failed to upload profile image. Please try again."
 
 CURRENT_PASSWORD_REQUIRED = "Current password is required."
 CURRENT_PASSWORD_INVALID = "Current password is incorrect."

@@ -5,6 +5,7 @@ User Details module business logic.
 import logging
 from datetime import datetime, timezone
 
+from fastapi import UploadFile
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -27,11 +28,15 @@ from app.modules.user_details.schema import (
 )
 from app.modules.user_details.model import UserDetails
 from app.modules.user_details.utils import (
+    build_profile_image_object_key,
     can_manage_account,
+    delete_profile_image_from_s3,
     email_belongs_to_other_user,
     ensure_user_details_exists,
     is_admin,
     mobile_belongs_to_other_user,
+    upload_profile_image_to_s3,
+    validate_profile_image_upload,
     validate_update_password_request,
     validate_update_user_details_request,
 )
@@ -85,6 +90,14 @@ class AccountAlreadyDeactivatedError(Exception):
 
 class AccountAlreadyDeletedError(Exception):
     """Raised when attempting to delete an already deleted account."""
+
+
+class ProfileImageUploadError(Exception):
+    """Raised when a profile image upload fails."""
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
 
 
 def build_merged_user_details(user: User, details: UserDetails) -> UserDetailsData:
@@ -161,10 +174,11 @@ def update_password(
     return UpdatePasswordSuccessResponse(message=messages.PASSWORD_UPDATED_SUCCESS)
 
 
-def update_user_details(
+async def update_user_details(
     db: Session,
     user: User,
     payload: UpdateUserDetailsRequest,
+    profile_image: UploadFile | None = None,
 ) -> UpdateUserDetailsSuccessResponse:
     """Update the authenticated user's profile fields across users and user_details."""
     logger.info("User details update requested for user_id=%s", user.id)
@@ -192,6 +206,7 @@ def update_user_details(
         raise MobileAlreadyInUseError()
 
     details = ensure_user_details_exists(db, user.id)
+    previous_profile_image = details.profile_image
 
     user.first_name = payload.first_name.strip()
     user.last_name = payload.last_name.strip()
@@ -205,6 +220,26 @@ def update_user_details(
     details.bio = payload.bio.strip() if payload.bio and payload.bio.strip() else None
     details.updated_at = datetime.now(timezone.utc)
 
+    if profile_image is not None and profile_image.filename:
+        image_content = await profile_image.read()
+        image_validation_error = validate_profile_image_upload(
+            filename=profile_image.filename,
+            content_type=profile_image.content_type,
+            file_size=len(image_content),
+        )
+        if image_validation_error:
+            raise UserDetailsValidationError(image_validation_error)
+
+        object_key = build_profile_image_object_key(user.id, profile_image.filename)
+        try:
+            details.profile_image = upload_profile_image_to_s3(
+                content=image_content,
+                object_key=object_key,
+                content_type=profile_image.content_type or "image/jpeg",
+            )
+        except RuntimeError as exc:
+            raise ProfileImageUploadError(str(exc)) from exc
+
     try:
         db.commit()
     except IntegrityError as exc:
@@ -212,12 +247,23 @@ def update_user_details(
         logger.exception("Failed to update user details for user_id=%s", user.id)
         raise EmailAlreadyInUseError() from exc
 
+    if (
+        profile_image is not None
+        and profile_image.filename
+        and previous_profile_image
+        and previous_profile_image != details.profile_image
+    ):
+        delete_profile_image_from_s3(previous_profile_image)
+
     db.refresh(user)
     db.refresh(details)
 
     logger.info("User details updated successfully for user_id=%s", user.id)
 
-    return UpdateUserDetailsSuccessResponse(message=messages.USER_DETAILS_UPDATED)
+    return UpdateUserDetailsSuccessResponse(
+        message=messages.USER_DETAILS_UPDATED,
+        data=build_merged_user_details(user, details),
+    )
 
 
 def _get_target_user(db: Session, user_id: int) -> User:

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Depends, status
+from fastapi import APIRouter, Body, Depends, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -25,6 +25,59 @@ router = APIRouter(
     prefix="/v1",
     tags=["User Details"],
 )
+
+
+def _optional_form_value(value) -> str | None:
+    """Normalize optional multipart form values."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _update_user_details_json_openapi_schema() -> dict:
+    """Build an inline OpenAPI schema for JSON update-user-details requests."""
+    schema = UpdateUserDetailsRequest.model_json_schema()
+    schema.pop("$defs", None)
+    schema.pop("title", None)
+    return schema
+
+
+_UPDATE_USER_DETAILS_OPENAPI_BODY = {
+    "requestBody": {
+        "content": {
+            "multipart/form-data": {
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "first_name",
+                        "last_name",
+                        "email",
+                        "mobile",
+                        "language",
+                    ],
+                    "properties": {
+                        "first_name": {"type": "string"},
+                        "last_name": {"type": "string"},
+                        "email": {"type": "string"},
+                        "mobile": {"type": "string"},
+                        "company": {"type": "string"},
+                        "website": {"type": "string"},
+                        "language": {"type": "string"},
+                        "bio": {"type": "string"},
+                        "profile_image": {
+                            "type": "string",
+                            "format": "binary",
+                        },
+                    },
+                }
+            },
+            "application/json": {
+                "schema": _update_user_details_json_openapi_schema(),
+            },
+        }
+    }
+}
 
 
 @router.get(
@@ -83,16 +136,53 @@ def update_password(
     "/update-user-details",
     status_code=status.HTTP_200_OK,
     response_model=UpdateUserDetailsSuccessResponse,
+    openapi_extra=_UPDATE_USER_DETAILS_OPENAPI_BODY,
 )
-def update_user_details(
-    payload: UpdateUserDetailsRequest,
+async def update_user_details(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Update the authenticated user's profile information."""
+    content_type = request.headers.get("content-type", "")
+    profile_image = None
+
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        profile_image = form.get("profile_image")
+        if profile_image is not None and not getattr(profile_image, "filename", None):
+            profile_image = None
+
+        payload = UpdateUserDetailsRequest(
+            first_name=str(form.get("first_name") or ""),
+            last_name=str(form.get("last_name") or ""),
+            email=str(form.get("email") or ""),
+            mobile=str(form.get("mobile") or ""),
+            company=_optional_form_value(form.get("company")),
+            website=_optional_form_value(form.get("website")),
+            language=str(form.get("language") or ""),
+            bio=_optional_form_value(form.get("bio")),
+        )
+    else:
+        body = await request.json()
+        payload = UpdateUserDetailsRequest(**body)
+
     try:
-        return service.update_user_details(db, current_user, payload)
+        return await service.update_user_details(
+            db,
+            current_user,
+            payload,
+            profile_image,  # type: ignore[arg-type]
+        )
     except service.UserDetailsValidationError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": exc.message,
+            },
+        )
+    except service.ProfileImageUploadError as exc:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={

@@ -1,6 +1,14 @@
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel, Field
+from fastapi import UploadFile
+from pydantic import BaseModel, Field, WithJsonSchema
+
+# Swagger UI renders multipart file fields as "Choose File" when format is binary.
+SwaggerUploadFile = Annotated[
+    UploadFile,
+    WithJsonSchema({"type": "string", "format": "binary"}),
+]
 
 
 class UserDetailsData(BaseModel):
@@ -57,6 +65,7 @@ class UpdateUserDetailsRequest(BaseModel):
 class UpdateUserDetailsSuccessResponse(BaseModel):
     success: bool = True
     message: str
+    data: UserDetailsData | None = None
 
 
 class DeleteAccountRequest(BaseModel):
