@@ -20,6 +20,11 @@ DEFAULT_PER_PAGE = 10
 MAX_PER_PAGE = 100
 
 
+def _visitor_display_name_expression():
+    """Return the visitor display name, falling back to the visitor key when needed."""
+    return func.coalesce(ChatSession.visitor_name, ChatSession.visitor_id)
+
+
 def normalize_pagination(page: int, per_page: int) -> tuple[int, int, int]:
     """Validate pagination inputs and return page, per_page, and offset."""
     normalized_page = page if page and page > 0 else DEFAULT_PAGE
@@ -91,7 +96,7 @@ def build_chat_sessions_list_query(user: User) -> Select:
             ChatSession.id.label("chat_session_id"),
             Chatbot.id.label("chatbot_id"),
             Chatbot.chatbot_name,
-            ChatSession.visitor_id.label("visitor_name"),
+            _visitor_display_name_expression().label("visitor_name"),
             ChatSession.visitor_email,
             first_messages.c.user_message.label("first_message"),
             func.coalesce(message_counts.c.total_messages, 0).label("total_messages"),
@@ -149,7 +154,7 @@ def fetch_accessible_chat_session_row(
             ChatSession.id.label("chat_session_id"),
             Chatbot.id.label("chatbot_id"),
             Chatbot.chatbot_name,
-            ChatSession.visitor_id.label("visitor_name"),
+            _visitor_display_name_expression().label("visitor_name"),
             ChatSession.visitor_email,
             ChatSession.started_at.label("session_started_at"),
             ChatSession.is_active,
