@@ -3,8 +3,9 @@ Chat messages ORM models.
 """
 
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from app.core.database import Base
@@ -30,6 +31,10 @@ class ChatMessage(Base):
     )
     user_message: Mapped[str] = mapped_column(Text, nullable=False)
     bot_response: Mapped[str] = mapped_column(Text, nullable=False)
+    response_time: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 3),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

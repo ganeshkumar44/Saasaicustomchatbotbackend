@@ -3,6 +3,8 @@ Widget module business logic.
 """
 
 import logging
+import time
+from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
@@ -303,14 +305,18 @@ def process_public_chat(
         chatbot.id,
     )
 
+    start_time = time.perf_counter()
     ai_response = generate_ai_answer(db, chatbot.id, user_message)
+    response_time = Decimal(str(round(time.perf_counter() - start_time, 3)))
     answer = ai_response.answer
 
     logger.info(
-        "AI answer generated for chatbot_id=%s session_id=%s answer_length=%s",
+        "AI answer generated for chatbot_id=%s session_id=%s answer_length=%s "
+        "response_time=%s",
         chatbot.id,
         session.session_id,
         len(answer),
+        response_time,
     )
 
     try:
@@ -320,6 +326,7 @@ def process_public_chat(
                 session_id=session.id,
                 user_message=user_message,
                 bot_response=answer,
+                response_time=response_time,
             ),
         )
         update_last_activity(db, session.session_id)

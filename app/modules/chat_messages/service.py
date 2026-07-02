@@ -79,6 +79,7 @@ def create_message(
         chat_session_id=session.id,
         user_message=payload.user_message,
         bot_response=payload.bot_response,
+        response_time=payload.response_time,
     )
 
     db.add(message)
@@ -86,10 +87,12 @@ def create_message(
     db.refresh(message)
 
     logger.info(
-        "Chat message saved message_id=%s chatbot_id=%s chat_session_id=%s",
+        "Chat message saved message_id=%s chatbot_id=%s chat_session_id=%s "
+        "response_time=%s",
         message.id,
         message.chatbot_id,
         message.chat_session_id,
+        message.response_time,
     )
 
     return build_chat_message_response(message)

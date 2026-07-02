@@ -2,11 +2,16 @@
 Chat messages helper utilities.
 """
 
-from sqlalchemy import select
+import logging
+
+from sqlalchemy import inspect, select, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.modules.chat_messages.model import ChatMessage
 from app.modules.chat_messages.schema import ChatMessageResponse
+
+logger = logging.getLogger(__name__)
 
 
 def get_message_by_id(db: Session, message_id: int) -> ChatMessage | None:
@@ -34,3 +39,33 @@ def build_chat_message_response(message: ChatMessage) -> ChatMessageResponse:
         bot_response=message.bot_response,
         created_at=message.created_at,
     )
+
+
+def apply_chat_message_migrations(db_engine: Engine) -> None:
+    """
+    Align existing chat_messages tables with the current ORM schema.
+
+    create_all() only creates new tables; it does not alter existing ones.
+    """
+    inspector = inspect(db_engine)
+    if "chat_messages" not in inspector.get_table_names():
+        return
+
+    columns = {
+        column["name"] for column in inspector.get_columns("chat_messages")
+    }
+    statements: list[str] = []
+
+    if "response_time" not in columns:
+        statements.append(
+            "ALTER TABLE chat_messages ADD COLUMN response_time NUMERIC(10, 3)"
+        )
+
+    if not statements:
+        return
+
+    with db_engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+    logger.info("Applied chat_messages schema migrations: %s", statements)
