@@ -41,6 +41,7 @@ class ChatbotDetailsData(BaseModel):
     ai_model: str | None
     language: str | None
     status: str
+    is_editable: bool = True
     published_at: datetime | None
     created_at: datetime
     updated_at: datetime

@@ -13,7 +13,11 @@ from sqlalchemy.orm import Session
 
 from app.core import messages
 from app.modules.auth.model import User
-from app.modules.chatbot.model import Chatbot, ChatbotSettings
+from app.modules.chatbot.model import (
+    CHATBOT_STATUS_DELETED,
+    Chatbot,
+    ChatbotSettings,
+)
 from app.modules.chatbot.schema import AIModelEnum
 from app.modules.chatbot.service import ChatbotNotFoundError, ChatbotPermissionError
 from app.modules.chatbot_settings.schema import ChatbotDetailsData, KnowledgebaseDocumentItem
@@ -84,6 +88,40 @@ def get_owned_chatbot(db: Session, user: User, chatbot_id: int) -> Chatbot:
         )
 
     return chatbot
+
+
+def get_viewable_chatbot(db: Session, user: User, chatbot_id: int) -> Chatbot:
+    """Return a chatbot the user may view, including soft-deleted chatbots."""
+    chatbot = db.get(Chatbot, chatbot_id)
+    if chatbot is None:
+        logger.warning("Chatbot not found for chatbot_id=%s user_id=%s", chatbot_id, user.id)
+        raise ChatbotNotFoundError()
+
+    if not can_access_chatbot(user, chatbot):
+        logger.warning(
+            "Unauthorized chatbot access attempt chatbot_id=%s owner_id=%s user_id=%s",
+            chatbot_id,
+            chatbot.user_id,
+            user.id,
+        )
+        raise ChatbotPermissionError()
+
+    if is_admin(user) and chatbot.user_id != user.id:
+        logger.info(
+            "Admin accessing chatbot chatbot_id=%s owner_id=%s admin_user_id=%s",
+            chatbot_id,
+            chatbot.user_id,
+            user.id,
+        )
+
+    return chatbot
+
+
+def resolve_chatbot_details_status(chatbot: Chatbot) -> str:
+    """Return the display status for chatbot details, including soft-deleted chatbots."""
+    if getattr(chatbot, "is_deleted", False):
+        return CHATBOT_STATUS_DELETED
+    return chatbot.status
 
 
 def get_chatbot_settings_record(chatbot: Chatbot) -> ChatbotSettings | None:
@@ -379,7 +417,8 @@ def build_chatbot_details_data(
         personality=chatbot.personality,
         ai_model=chatbot.ai_model,
         language=chatbot.language,
-        status=chatbot.status,
+        status=resolve_chatbot_details_status(chatbot),
+        is_editable=not bool(getattr(chatbot, "is_deleted", False)),
         published_at=chatbot.published_at,
         created_at=chatbot.created_at,
         updated_at=chatbot.updated_at,

@@ -39,6 +39,7 @@ from app.modules.chatbot_settings.utils import (
     get_knowledgebase_documents,
     get_owned_chatbot,
     get_owned_chatbot_with_settings,
+    get_viewable_chatbot,
     restore_chromadb_vectors_for_chatbot,
     validate_ai_model,
     validate_and_normalize_allowed_domains,
@@ -98,7 +99,7 @@ def get_chatbot_details(
         user.id,
     )
 
-    chatbot = get_owned_chatbot(db, user, chatbot_id)
+    chatbot = get_viewable_chatbot(db, user, chatbot_id)
 
     settings = get_chatbot_settings_record(chatbot)
     if settings is None:
