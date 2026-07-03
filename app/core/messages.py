@@ -184,6 +184,14 @@ INVALID_DATE_RANGE = (
 )
 
 # ---------------------------------------------------------------------------
+# Theme
+# ---------------------------------------------------------------------------
+
+THEME_UPDATED_SUCCESS = "Theme updated successfully."
+INVALID_THEME = "Invalid theme. Allowed values are dark and light."
+THEME_NOT_FOUND = "Theme preference not found."
+
+# ---------------------------------------------------------------------------
 # User Details
 # ---------------------------------------------------------------------------
 

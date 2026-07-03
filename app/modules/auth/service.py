@@ -49,6 +49,7 @@ from app.modules.auth.utils import (
     verify_password,
 )
 from app.modules.user_details.utils import ensure_user_details_exists
+from app.modules.theme.utils import ensure_user_theme_exists
 
 logger = logging.getLogger(__name__)
 
@@ -302,6 +303,7 @@ def register_user(db: Session, payload: SignupRequest) -> SignupSuccessResponse:
 
         db.refresh(existing_user)
         ensure_user_details_exists(db, existing_user.id)
+        ensure_user_theme_exists(db, existing_user.id)
         send_verification_email(
             existing_user.first_name,
             existing_user.email,
@@ -335,6 +337,7 @@ def register_user(db: Session, payload: SignupRequest) -> SignupSuccessResponse:
 
     db.refresh(user)
     ensure_user_details_exists(db, user.id)
+    ensure_user_theme_exists(db, user.id)
     send_verification_email(user.first_name, user.email, verification_code)
 
     logger.info(

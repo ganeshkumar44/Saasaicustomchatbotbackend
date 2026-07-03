@@ -27,8 +27,10 @@ from app.modules.dashboard.routes import router as dashboard_router
 from app.modules.chatbot_analysis.routes import router as chatbot_analysis_router
 from app.modules.graphs.routes import router as graphs_router
 from app.modules.chat_history.routes import router as chat_history_router
+from app.modules.theme.routes import router as theme_router
 from app.modules.user_details.utils import apply_user_account_migrations, sync_existing_user_details
 from app.modules.chat_analysis.utils import sync_existing_chat_analysis
+from app.modules.theme.utils import sync_existing_user_themes
 
 # Import all ORM models so they register with Base.metadata before create_all().
 import app.modules.auth.model  # noqa: F401
@@ -40,6 +42,7 @@ import app.modules.knowledge_chunks.model  # noqa: F401
 import app.modules.user_details.model  # noqa: F401
 import app.modules.widget.model  # noqa: F401
 import app.modules.chat_analysis.model  # noqa: F401
+import app.modules.theme.model  # noqa: F401
 
 
 @asynccontextmanager
@@ -55,6 +58,7 @@ async def lifespan(app: FastAPI):
     apply_knowledgebase_migrations(engine)
     sync_existing_user_details(engine)
     sync_existing_chat_analysis(engine)
+    sync_existing_user_themes(engine)
     yield
 
 
@@ -86,6 +90,7 @@ app.include_router(dashboard_router)
 app.include_router(chatbot_analysis_router)
 app.include_router(graphs_router)
 app.include_router(chat_history_router)
+app.include_router(theme_router)
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
