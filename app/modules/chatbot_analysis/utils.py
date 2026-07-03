@@ -71,11 +71,8 @@ def get_merged_analytics_period_bounds(
 
 
 def _apply_eligible_chatbot_filters(query: Select, user: User) -> Select:
-    """Apply non-draft, non-deleted chatbot filters and role-based ownership restrictions."""
-    query = query.where(
-        Chatbot.status != CHATBOT_STATUS_DRAFT,
-        Chatbot.is_deleted.is_(False),
-    )
+    """Apply non-draft chatbot filters and role-based ownership restrictions."""
+    query = query.where(Chatbot.status != CHATBOT_STATUS_DRAFT)
     if not is_admin(user):
         query = query.where(Chatbot.user_id == user.id)
     return query
@@ -141,7 +138,6 @@ def _merged_session_count_subquery(
         .join(Chatbot, Chatbot.id == ChatSession.chatbot_id)
         .where(
             Chatbot.status != CHATBOT_STATUS_DRAFT,
-            Chatbot.is_deleted.is_(False),
             ChatSession.created_at >= period_start,
             ChatSession.created_at <= period_end,
         )
@@ -165,7 +161,6 @@ def _merged_visitor_count_subquery(
         .join(Chatbot, Chatbot.id == WidgetVisitor.chatbot_id)
         .where(
             Chatbot.status != CHATBOT_STATUS_DRAFT,
-            Chatbot.is_deleted.is_(False),
             WidgetVisitor.created_at >= period_start,
             WidgetVisitor.created_at <= period_end,
         )
@@ -187,7 +182,6 @@ def _merged_average_response_time_subquery(
         .join(Chatbot, Chatbot.id == ChatMessage.chatbot_id)
         .where(
             Chatbot.status != CHATBOT_STATUS_DRAFT,
-            Chatbot.is_deleted.is_(False),
             ChatMessage.created_at >= period_start,
             ChatMessage.created_at <= period_end,
             ChatMessage.response_time.is_not(None),

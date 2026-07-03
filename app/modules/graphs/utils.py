@@ -162,7 +162,6 @@ def _apply_eligible_chatbot_session_filters(
         query.select_from(ChatSession)
         .join(Chatbot, Chatbot.id == ChatSession.chatbot_id)
         .where(Chatbot.status != CHATBOT_STATUS_DRAFT)
-        .where(Chatbot.is_deleted.is_(False))
         .where(ChatSession.created_at >= period_start)
         .where(ChatSession.created_at <= period_end)
     )
@@ -278,7 +277,6 @@ def _apply_eligible_chatbot_resolution_filters(
         query.select_from(ChatSession)
         .join(Chatbot, Chatbot.id == ChatSession.chatbot_id)
         .where(Chatbot.status != CHATBOT_STATUS_DRAFT)
-        .where(Chatbot.is_deleted.is_(False))
         .where(
             ChatSession.is_resolved.in_(
                 (SESSION_RESOLVED_RESOLVED, SESSION_RESOLVED_UNRESOLVED)
@@ -398,7 +396,6 @@ def _apply_eligible_chatbot_message_filters(
         query.select_from(ChatMessage)
         .join(Chatbot, Chatbot.id == ChatMessage.chatbot_id)
         .where(Chatbot.status != CHATBOT_STATUS_DRAFT)
-        .where(Chatbot.is_deleted.is_(False))
         .where(ChatMessage.created_at >= period_start)
         .where(ChatMessage.created_at <= period_end)
         .where(ChatMessage.response_time.is_not(None))
