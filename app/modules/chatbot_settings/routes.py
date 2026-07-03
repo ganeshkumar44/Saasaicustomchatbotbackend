@@ -12,6 +12,7 @@ from app.modules.chatbot.utils import get_authenticated_user
 from app.modules.chatbot_settings import service
 from app.modules.chatbot_settings.schema import (
     ChatbotDetailsSuccessResponse,
+    DeleteChatbotSuccessResponse,
     SettingsUpdateSuccessResponse,
     SwaggerUploadFile,
     UpdateAppearanceSettingsRequest,
@@ -245,6 +246,31 @@ async def update_knowledge_base(
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"success": False, "message": "Maximum upload size is 50 MB"},
+        )
+    except (ChatbotNotFoundError, ChatbotPermissionError, ChatbotSettingsNotFoundError) as exc:
+        response = _chatbot_access_error_response(exc)
+        if response is not None:
+            return response
+        raise
+
+
+@router.delete(
+    "/chatbots/{chatbot_id}/delete",
+    status_code=status.HTTP_200_OK,
+    response_model=DeleteChatbotSuccessResponse,
+)
+def delete_chatbot(
+    chatbot_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_authenticated_user),
+):
+    """Soft-delete a chatbot and disable all public widget access."""
+    try:
+        return service.delete_chatbot(db, current_user, chatbot_id)
+    except service.ChatbotAlreadyDeletedError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": messages.CHATBOT_ALREADY_DELETED},
         )
     except (ChatbotNotFoundError, ChatbotPermissionError, ChatbotSettingsNotFoundError) as exc:
         response = _chatbot_access_error_response(exc)

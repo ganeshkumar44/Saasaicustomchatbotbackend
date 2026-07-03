@@ -14,11 +14,14 @@ class WidgetConfigResponse(BaseModel):
     typing_indicator: bool
     widget_position: str
     allowed_domains: str
+    input_placeholder: str = "Type your message..."
 
 
 class WidgetConfigSuccessResponse(BaseModel):
     success: bool = True
-    data: WidgetConfigResponse
+    chatbot_available: bool = True
+    message: str | None = None
+    data: WidgetConfigResponse | None = None
 
 
 class PublicChatRequest(BaseModel):
@@ -33,7 +36,9 @@ class PublicChatResponse(BaseModel):
     """AI-generated answer returned to the embedded widget."""
 
     success: bool = True
-    answer: str
+    chatbot_available: bool = True
+    answer: str | None = None
+    message: str | None = None
 
 
 class StartSessionRequest(BaseModel):
@@ -43,7 +48,9 @@ class StartSessionRequest(BaseModel):
 
 class StartSessionResponse(BaseModel):
     success: bool = True
-    session_id: str
+    chatbot_available: bool = True
+    session_id: str | None = None
+    message: str | None = None
 
 
 class ChatHistoryMessage(BaseModel):
@@ -54,14 +61,16 @@ class ChatHistoryMessage(BaseModel):
 
 class ChatHistoryResponse(BaseModel):
     success: bool = True
-    session_id: str
-    messages: list[ChatHistoryMessage]
+    chatbot_available: bool = True
+    session_id: str | None = None
+    messages: list[ChatHistoryMessage] = []
     visitor_step: str = "completed"
     question: str | None = None
     can_skip: bool = False
     onboarding_complete: bool = True
     is_active: str = "active"
     is_resolved: str = "pending"
+    message: str | None = None
 
 
 class UpdateChatSessionStatusRequest(BaseModel):

@@ -42,8 +42,11 @@ def calculate_total_pages(total_records: int, per_page: int) -> int:
 
 
 def _apply_eligible_chatbot_filters(query: Select, user: User) -> Select:
-    """Restrict chat history queries to non-draft chatbots and role-based access."""
-    query = query.where(Chatbot.status != CHATBOT_STATUS_DRAFT)
+    """Restrict chat history queries to non-draft, non-deleted chatbots and role-based access."""
+    query = query.where(
+        Chatbot.status != CHATBOT_STATUS_DRAFT,
+        Chatbot.is_deleted.is_(False),
+    )
     if not is_admin(user):
         query = query.where(Chatbot.user_id == user.id)
     return query

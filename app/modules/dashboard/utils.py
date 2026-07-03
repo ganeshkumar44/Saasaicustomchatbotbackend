@@ -99,6 +99,7 @@ def build_chatbot_list_query(user: User) -> Select:
         .outerjoin(session_counts, session_counts.c.chatbot_id == Chatbot.id)
         .outerjoin(message_counts, message_counts.c.chatbot_id == Chatbot.id)
         .outerjoin(document_counts, document_counts.c.chatbot_id == Chatbot.id)
+        .where(Chatbot.is_deleted.is_(False))
         .order_by(Chatbot.updated_at.desc())
     )
 
@@ -161,7 +162,10 @@ def build_recent_conversations_query(user: User) -> Select:
             ),
         )
         .join(Chatbot, Chatbot.id == ChatSession.chatbot_id)
-        .where(Chatbot.status != CHATBOT_STATUS_DRAFT)
+        .where(
+            Chatbot.status != CHATBOT_STATUS_DRAFT,
+            Chatbot.is_deleted.is_(False),
+        )
         .order_by(ChatMessage.created_at.desc())
         .limit(5)
     )

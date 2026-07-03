@@ -12,7 +12,12 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.modules.chatbot.model import CHATBOT_STATUS_DRAFT, Chatbot, ChatbotSettings
+from app.modules.chatbot.model import (
+    CHATBOT_STATUS_DRAFT,
+    CHATBOT_STATUS_PUBLISHED,
+    Chatbot,
+    ChatbotSettings,
+)
 from app.modules.auth.model import User
 from app.modules.auth.utils import InvalidTokenError, decode_access_token
 
@@ -26,6 +31,7 @@ def find_draft_for_user(db: Session, user_id: int) -> Chatbot | None:
         .where(
             Chatbot.user_id == user_id,
             Chatbot.status == CHATBOT_STATUS_DRAFT,
+            Chatbot.is_deleted.is_(False),
         )
         .order_by(Chatbot.created_at.desc())
         .limit(1)
@@ -139,6 +145,14 @@ def apply_chatbot_migrations(db_engine: Engine) -> None:
         statements.append(
             "ALTER TABLE chatbots ADD COLUMN published_at TIMESTAMP WITH TIME ZONE"
         )
+    if "is_deleted" not in existing_columns:
+        statements.append(
+            "ALTER TABLE chatbots ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+    if "deleted_at" not in existing_columns:
+        statements.append(
+            "ALTER TABLE chatbots ADD COLUMN deleted_at TIMESTAMP WITH TIME ZONE"
+        )
 
     # Draft builder fields must allow NULL until the user completes each step.
     for column_name in (
@@ -207,6 +221,18 @@ def generate_unique_public_key(db: Session) -> str:
         ).scalar_one_or_none()
         if existing is None:
             return public_key
+
+
+def is_chatbot_deleted(chatbot: Chatbot | None) -> bool:
+    """Return True when the chatbot has been soft-deleted."""
+    return chatbot is not None and bool(getattr(chatbot, "is_deleted", False))
+
+
+def is_chatbot_widget_available(chatbot: Chatbot | None) -> bool:
+    """Return True when the chatbot can accept public widget traffic."""
+    if chatbot is None or is_chatbot_deleted(chatbot):
+        return False
+    return chatbot.status == CHATBOT_STATUS_PUBLISHED
 
 
 def generate_embed_code(public_key: str) -> str:

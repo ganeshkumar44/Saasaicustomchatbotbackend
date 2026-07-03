@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.core import messages
 from app.modules.ai.service import generate_ai_answer
-from app.modules.chatbot.model import CHATBOT_STATUS_PUBLISHED, Chatbot
+from app.modules.chatbot.model import Chatbot
+from app.modules.chatbot.utils import is_chatbot_widget_available
 from app.modules.chat_messages.schema import CreateChatMessageRequest
 from app.modules.chat_messages.service import create_message
 from app.modules.chat_messages.utils import get_messages_by_session_id
@@ -55,10 +56,12 @@ from app.modules.widget.schema import (
 )
 from app.modules.auth.utils import normalize_email
 from app.modules.widget.utils import (
+    build_default_widget_config,
     build_onboarding_state,
     build_widget_config_response,
     get_chatbot_settings_by_public_key,
     is_onboarding_complete,
+    is_widget_chatbot_available,
     validate_visitor_email,
     validate_visitor_name,
     validate_visitor_phone,
@@ -70,6 +73,10 @@ from app.modules.widget.visitor_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class ChatbotUnavailableError(Exception):
+    """Raised when the chatbot cannot accept public widget traffic."""
 
 
 class WidgetConfigNotFoundError(Exception):
@@ -117,7 +124,7 @@ class InvalidVisitorStepError(Exception):
 
 
 def _resolve_published_chatbot(db: Session, public_key: str) -> Chatbot:
-    """Return a published chatbot for the given widget public key."""
+    """Return a published, available chatbot for the given widget public key."""
     settings = get_chatbot_settings_by_public_key(db, public_key)
     if settings is None:
         raise ChatbotNotFoundError()
@@ -126,8 +133,8 @@ def _resolve_published_chatbot(db: Session, public_key: str) -> Chatbot:
     if chatbot is None:
         raise ChatbotNotFoundError()
 
-    if chatbot.status != CHATBOT_STATUS_PUBLISHED:
-        raise ChatbotNotPublishedError()
+    if not is_widget_chatbot_available(db, settings):
+        raise ChatbotUnavailableError()
 
     return chatbot
 
@@ -136,10 +143,23 @@ def get_widget_config(db: Session, public_key: str) -> WidgetConfigSuccessRespon
     """Return public widget configuration for the given public key."""
     settings = get_chatbot_settings_by_public_key(db, public_key)
     if settings is None:
-        raise WidgetConfigNotFoundError
+        return WidgetConfigSuccessResponse(
+            chatbot_available=False,
+            message=messages.CHATBOT_UNAVAILABLE,
+            data=build_default_widget_config(),
+        )
+
+    config_data = build_widget_config_response(settings)
+    if not is_widget_chatbot_available(db, settings):
+        return WidgetConfigSuccessResponse(
+            chatbot_available=False,
+            message=messages.CHATBOT_UNAVAILABLE,
+            data=config_data,
+        )
 
     return WidgetConfigSuccessResponse(
-        data=build_widget_config_response(settings),
+        chatbot_available=True,
+        data=config_data,
     )
 
 
@@ -281,14 +301,18 @@ def process_public_chat(
         logger.warning("Chatbot settings not found for public_key=%s", public_key)
         raise ChatbotNotFoundError()
 
-    chatbot = db.get(Chatbot, settings.chatbot_id)
-    if chatbot is None or chatbot.status != CHATBOT_STATUS_PUBLISHED:
+    if not is_widget_chatbot_available(db, settings):
         logger.warning(
-            "Chatbot unavailable or unpublished for public_key=%s chatbot_id=%s",
+            "Chatbot unavailable for public_key=%s chatbot_id=%s",
             public_key,
             settings.chatbot_id,
         )
-        raise ChatbotNotPublishedError()
+        raise ChatbotUnavailableError()
+
+    chatbot = db.get(Chatbot, settings.chatbot_id)
+    if chatbot is None:
+        logger.warning("Chatbot not found for public_key=%s", public_key)
+        raise ChatbotNotFoundError()
 
     logger.info("Chatbot resolved for public_key=%s chatbot_id=%s", public_key, chatbot.id)
 
@@ -381,12 +405,12 @@ def start_chat_session(
     if settings is None:
         raise ChatbotNotFoundError()
 
+    if not is_widget_chatbot_available(db, settings):
+        raise ChatbotUnavailableError()
+
     chatbot = db.get(Chatbot, settings.chatbot_id)
     if chatbot is None:
         raise ChatbotNotFoundError()
-
-    if chatbot.status != CHATBOT_STATUS_PUBLISHED:
-        raise ChatbotNotPublishedError()
 
     visitor_key = payload.visitor_key.strip() if payload.visitor_key else None
     if visitor_key:
@@ -433,6 +457,14 @@ def get_chat_history(db: Session, session_id: str) -> ChatHistoryResponse:
     session = get_chat_session_by_session_id(db, session_id.strip())
     if session is None:
         raise ChatSessionNotFoundError()
+
+    chatbot = db.get(Chatbot, session.chatbot_id)
+    if not is_chatbot_widget_available(chatbot):
+        return ChatHistoryResponse(
+            success=False,
+            chatbot_available=False,
+            message=messages.CHATBOT_UNAVAILABLE_PUBLIC,
+        )
 
     messages_list = get_messages_by_session_id(db, session.id)
     onboarding = build_onboarding_state(session.visitor_step)

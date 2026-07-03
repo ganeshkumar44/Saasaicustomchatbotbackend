@@ -161,6 +161,15 @@ DRAFT_CHATBOT_CREATED = "Draft chatbot created successfully."
 
 CHATBOT_LIST_SUCCESS = "Chatbot list retrieved successfully."
 NO_CHATBOTS_FOUND = "No chatbots found."
+CHATBOT_DELETED_SUCCESS = "Chatbot deleted successfully."
+CHATBOT_ALREADY_DELETED = "Chatbot has already been deleted."
+CHATBOT_UNAVAILABLE = (
+    "This chatbot is currently unavailable. It may have been deleted or there may be "
+    "a temporary server issue. Please contact the website administrator."
+)
+CHATBOT_UNAVAILABLE_PUBLIC = (
+    "This chatbot is currently unavailable. Please contact the website administrator."
+)
 RECENT_CONVERSATIONS_SUCCESS = "Recent conversations retrieved successfully."
 NO_RECENT_CONVERSATIONS = "No recent conversations found."
 CHATBOT_ANALYTICS_SUCCESS = "Chatbot analytics retrieved successfully."

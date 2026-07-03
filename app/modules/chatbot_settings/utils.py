@@ -55,6 +55,14 @@ def get_owned_chatbot(db: Session, user: User, chatbot_id: int) -> Chatbot:
         logger.warning("Chatbot not found for chatbot_id=%s user_id=%s", chatbot_id, user.id)
         raise ChatbotNotFoundError()
 
+    if getattr(chatbot, "is_deleted", False):
+        logger.warning(
+            "Deleted chatbot access attempt chatbot_id=%s user_id=%s",
+            chatbot_id,
+            user.id,
+        )
+        raise ChatbotNotFoundError()
+
     if not can_access_chatbot(user, chatbot):
         logger.warning(
             "Unauthorized chatbot access attempt chatbot_id=%s owner_id=%s user_id=%s",
@@ -223,6 +231,19 @@ def delete_chromadb_vectors_for_document(document_id: int) -> None:
         logger.exception(
             "Failed to delete ChromaDB vectors for document_id=%s",
             document_id,
+        )
+
+
+def delete_chromadb_vectors_for_chatbot(chatbot_id: int) -> None:
+    """Remove all ChromaDB vectors associated with a chatbot."""
+    try:
+        collection = get_knowledge_base_collection()
+        collection.delete(where={"chatbot_id": chatbot_id})
+        logger.info("Deleted ChromaDB vectors for chatbot_id=%s", chatbot_id)
+    except Exception:
+        logger.exception(
+            "Failed to delete ChromaDB vectors for chatbot_id=%s",
+            chatbot_id,
         )
 
 

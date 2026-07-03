@@ -33,6 +33,15 @@ router = APIRouter(
 static_router = APIRouter(tags=["Widget"])
 
 
+def _chatbot_unavailable_content() -> dict:
+    """Return a consistent public response when a chatbot cannot accept traffic."""
+    return {
+        "success": False,
+        "chatbot_available": False,
+        "message": messages.CHATBOT_UNAVAILABLE_PUBLIC,
+    }
+
+
 @static_router.get("/static/widget.js", include_in_schema=False)
 def serve_widget_js() -> Response:
     """Serve widget.js with the API base URL from application settings."""
@@ -52,16 +61,7 @@ def get_widget_config(
     db: Session = Depends(get_db),
 ):
     """Return public widget configuration for an embedded chatbot."""
-    try:
-        return service.get_widget_config(db, public_key)
-    except service.WidgetConfigNotFoundError:
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={
-                "success": False,
-                "message": "Widget configuration not found",
-            },
-        )
+    return service.get_widget_config(db, public_key)
 
 
 @router.post(
@@ -100,21 +100,15 @@ def public_chat(
                 "message": "Chat session not found",
             },
         )
-    except service.ChatbotNotPublishedError:
+    except (service.ChatbotUnavailableError, service.ChatbotNotPublishedError):
         return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "success": False,
-                "message": "Chatbot is not published",
-            },
+            status_code=status.HTTP_200_OK,
+            content=_chatbot_unavailable_content(),
         )
     except service.ChatbotNotFoundError:
         return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={
-                "success": False,
-                "message": "Chatbot not found",
-            },
+            status_code=status.HTTP_200_OK,
+            content=_chatbot_unavailable_content(),
         )
     except GeminiAPIKeyMissingError:
         return JSONResponse(
@@ -242,15 +236,15 @@ def update_chat_session_status(
             status_code=status.HTTP_404_NOT_FOUND,
             content={"success": False, "message": messages.SESSION_NOT_FOUND},
         )
-    except service.ChatbotNotPublishedError:
+    except (service.ChatbotUnavailableError, service.ChatbotNotPublishedError):
         return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"success": False, "message": "Chatbot is not published"},
+            status_code=status.HTTP_200_OK,
+            content=_chatbot_unavailable_content(),
         )
     except service.ChatbotNotFoundError:
         return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={"success": False, "message": "Chatbot not found"},
+            status_code=status.HTTP_200_OK,
+            content=_chatbot_unavailable_content(),
         )
 
 
@@ -266,19 +260,13 @@ def start_chat_session(
     """Create a new chat session when the widget loads for the first time."""
     try:
         return service.start_chat_session(db, payload)
-    except service.ChatbotNotPublishedError:
+    except (service.ChatbotUnavailableError, service.ChatbotNotPublishedError):
         return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "success": False,
-                "message": "Chatbot is not published",
-            },
+            status_code=status.HTTP_200_OK,
+            content=_chatbot_unavailable_content(),
         )
     except service.ChatbotNotFoundError:
         return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={
-                "success": False,
-                "message": "Chatbot not found",
-            },
+            status_code=status.HTTP_200_OK,
+            content=_chatbot_unavailable_content(),
         )

@@ -10,9 +10,16 @@ from sqlalchemy.orm import Session
 
 from app.core import messages
 from app.modules.auth.model import User
-from app.modules.chatbot.service import InvalidAIModelError
+from app.modules.chatbot.service import (
+    ChatbotNotFoundError,
+    ChatbotPermissionError,
+    InvalidAIModelError,
+)
+from app.modules.chatbot.model import Chatbot
 from app.modules.chatbot_settings.schema import (
     ChatbotDetailsSuccessResponse,
+    DeleteChatbotData,
+    DeleteChatbotSuccessResponse,
     SettingsUpdateSuccessResponse,
     UpdateAppearanceSettingsRequest,
     UpdateGeneralSettingsRequest,
@@ -22,6 +29,9 @@ from app.modules.chatbot_settings.schema import (
 from app.modules.chatbot_settings.utils import (
     ChatbotSettingsNotFoundError,
     build_chatbot_details_data,
+    can_access_chatbot,
+    delete_chromadb_vectors_for_chatbot,
+    delete_chromadb_vectors_for_document,
     delete_knowledgebase_document,
     get_chatbot_settings_record,
     get_knowledgebase_documents,
@@ -57,6 +67,10 @@ class ChatbotSettingsValidationError(Exception):
 
 class KnowledgeBaseRequiredError(Exception):
     """Raised when a chatbot would be left without knowledge base sources."""
+
+
+class ChatbotAlreadyDeletedError(Exception):
+    """Raised when attempting to delete an already deleted chatbot."""
 
 
 def get_chatbot_details(
@@ -315,3 +329,67 @@ def update_knowledge_base(
 
     logger.info("Knowledge base updated for chatbot_id=%s", chatbot_id)
     return SettingsUpdateSuccessResponse(message=messages.KNOWLEDGE_BASE_UPDATED)
+
+
+def delete_chatbot(
+    db: Session,
+    user: User,
+    chatbot_id: int,
+) -> DeleteChatbotSuccessResponse:
+    """Soft-delete a chatbot and remove its knowledge base vectors from ChromaDB."""
+    logger.info(
+        "Chatbot delete requested chatbot_id=%s user_id=%s",
+        chatbot_id,
+        user.id,
+    )
+
+    chatbot = db.get(Chatbot, chatbot_id)
+    if chatbot is None:
+        raise ChatbotNotFoundError()
+
+    if chatbot.is_deleted:
+        raise ChatbotAlreadyDeletedError()
+
+    if not can_access_chatbot(user, chatbot):
+        logger.warning(
+            "Unauthorized chatbot delete attempt chatbot_id=%s owner_id=%s user_id=%s",
+            chatbot_id,
+            chatbot.user_id,
+            user.id,
+        )
+        raise ChatbotPermissionError()
+
+    documents = get_knowledgebase_documents(db, chatbot_id)
+    for document in documents:
+        delete_chromadb_vectors_for_document(document.id)
+
+    delete_chromadb_vectors_for_chatbot(chatbot_id)
+
+    now = datetime.now(timezone.utc)
+    chatbot.is_deleted = True
+    chatbot.deleted_at = now
+    chatbot.updated_at = now
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to delete chatbot_id=%s", chatbot_id)
+        raise
+
+    db.refresh(chatbot)
+
+    logger.info(
+        "Chatbot soft-deleted chatbot_id=%s user_id=%s admin=%s",
+        chatbot_id,
+        user.id,
+        chatbot.user_id != user.id,
+    )
+
+    return DeleteChatbotSuccessResponse(
+        message=messages.CHATBOT_DELETED_SUCCESS,
+        data=DeleteChatbotData(
+            chatbot_id=chatbot.id,
+            status=chatbot.status,
+        ),
+    )

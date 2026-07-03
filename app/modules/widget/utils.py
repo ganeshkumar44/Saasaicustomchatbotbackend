@@ -18,6 +18,7 @@ from app.modules.chat_sessions.model import (
     VISITOR_STEP_PHONE,
 )
 from app.modules.chatbot.model import ChatbotSettings
+from app.modules.chatbot.utils import is_chatbot_widget_available
 from app.modules.widget.schema import WidgetConfigResponse
 
 WIDGET_JS_PLACEHOLDER = "__WIDGET_API_BASE_URL__"
@@ -45,6 +46,21 @@ def get_chatbot_settings_by_public_key(
     ).scalar_one_or_none()
 
 
+def build_default_widget_config() -> WidgetConfigResponse:
+    """Return fallback widget styling when settings cannot be resolved."""
+    return WidgetConfigResponse(
+        chat_title="Chat Assistant",
+        welcome_message="",
+        primary_color="#4F46E5",
+        text_color="#FFFFFF",
+        show_avatar=True,
+        typing_indicator=True,
+        widget_position="bottom-right",
+        allowed_domains="*",
+        input_placeholder="Type your message...",
+    )
+
+
 def build_widget_config_response(settings: ChatbotSettings) -> WidgetConfigResponse:
     """Map chatbot settings to the public widget configuration response."""
     return WidgetConfigResponse(
@@ -56,7 +72,23 @@ def build_widget_config_response(settings: ChatbotSettings) -> WidgetConfigRespo
         typing_indicator=settings.typing_indicator,
         widget_position=settings.widget_position,
         allowed_domains=settings.allowed_domains,
+        input_placeholder=settings.input_placeholder,
     )
+
+
+def get_chatbot_for_settings(db: Session, settings: ChatbotSettings):
+    """Return the chatbot record associated with widget settings."""
+    from app.modules.chatbot.model import Chatbot
+
+    return db.get(Chatbot, settings.chatbot_id)
+
+
+def is_widget_chatbot_available(db: Session, settings: ChatbotSettings | None) -> bool:
+    """Return True when widget settings resolve to an available published chatbot."""
+    if settings is None:
+        return False
+    chatbot = get_chatbot_for_settings(db, settings)
+    return is_chatbot_widget_available(chatbot)
 
 
 def validate_visitor_name(value: str | None) -> str | None:

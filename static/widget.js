@@ -28,6 +28,22 @@ const CHAT_END_CONFIRMATION_SUBTITLE =
 const CHAT_FEEDBACK_QUESTION = "Are you satisfied with our AI responses?";
 const THANK_YOU_FEEDBACK = "Your chat has ended. Thank you for your feedback.";
 const START_NEW_CHAT_LABEL = "Start New Chat";
+const CHATBOT_UNAVAILABLE_MESSAGE =
+  "This chatbot is currently unavailable. It may have been deleted or there may be a temporary server issue. Please contact the website administrator.";
+
+function getDefaultConfig() {
+  return {
+    chat_title: "Chat Assistant",
+    welcome_message: "",
+    primary_color: "#4F46E5",
+    text_color: "#FFFFFF",
+    show_avatar: true,
+    typing_indicator: true,
+    widget_position: "bottom-right",
+    allowed_domains: "*",
+    input_placeholder: "Type your message...",
+  };
+}
 
 function getFeedbackPendingKey(sessionId) {
   return `chat_feedback_pending_${sessionId}`;
@@ -65,6 +81,12 @@ async function startChatSession(publicKey, visitorKey = null) {
 
   const data = await response.json();
 
+  if (data.chatbot_available === false) {
+    const error = new Error("Chatbot unavailable");
+    error.chatbotUnavailable = true;
+    throw error;
+  }
+
   if (!response.ok || !data.success || !data.session_id) {
     throw new Error("Failed to start chat session");
   }
@@ -77,7 +99,16 @@ async function isSessionValid(sessionId) {
   const response = await fetch(
     `${API_BASE_URL}/v1/widget/chat-history/${sessionId}`
   );
-  return response.ok;
+  if (!response.ok) {
+    return false;
+  }
+
+  const data = await response.json();
+  if (data.chatbot_available === false) {
+    return false;
+  }
+
+  return data.success !== false;
 }
 
 async function ensureChatSession(publicKey) {
@@ -113,6 +144,20 @@ async function fetchChatHistory(sessionId) {
 
   const data = await response.json();
 
+  if (data.chatbot_available === false) {
+    return {
+      chatbot_available: false,
+      message: data.message || CHATBOT_UNAVAILABLE_MESSAGE,
+      messages: [],
+      visitor_step: "completed",
+      question: null,
+      can_skip: false,
+      onboarding_complete: true,
+      is_active: "active",
+      is_resolved: "pending",
+    };
+  }
+
   if (!data.success) {
     return {
       messages: [],
@@ -126,6 +171,7 @@ async function fetchChatHistory(sessionId) {
   }
 
   return {
+    chatbot_available: true,
     messages: Array.isArray(data.messages) ? data.messages : [],
     visitor_step: data.visitor_step || "completed",
     question: data.question || null,
@@ -155,27 +201,61 @@ async function updateChatSessionStatus(publicKey, sessionId, isActive, isResolve
 }
 
 async function loadWidget(publicKey) {
-  const sessionId = await ensureChatSession(publicKey);
+  let configResponse;
 
-  const [configResponse, historyData] = await Promise.all([
-    fetch(`${API_BASE_URL}/v1/widget/config/${publicKey}`).then(async (res) => {
-      if (!res.ok) {
-        throw new Error("Widget configuration not found");
-      }
-      return res.json();
-    }),
-    fetchChatHistory(sessionId),
-  ]);
-
-  console.log("Chat session:", sessionId);
-  console.log(configResponse);
-  console.log("Chat history:", historyData);
-
-  if (!configResponse.success || !configResponse.data) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/v1/widget/config/${publicKey}`);
+    configResponse = await response.json();
+  } catch (error) {
+    initWidget(getDefaultConfig(), publicKey, null, {}, {
+      chatbotUnavailable: true,
+    });
     return;
   }
 
-  initWidget(configResponse.data, publicKey, sessionId, historyData);
+  const configData = configResponse.data || getDefaultConfig();
+  const unavailableMessage =
+    configResponse.message || CHATBOT_UNAVAILABLE_MESSAGE;
+
+  if (configResponse.chatbot_available === false) {
+    initWidget(configData, publicKey, null, {}, {
+      chatbotUnavailable: true,
+      unavailableMessage,
+    });
+    return;
+  }
+
+  if (!configResponse.success || !configResponse.data) {
+    initWidget(getDefaultConfig(), publicKey, null, {}, {
+      chatbotUnavailable: true,
+      unavailableMessage,
+    });
+    return;
+  }
+
+  try {
+    const sessionId = await ensureChatSession(publicKey);
+    const historyData = await fetchChatHistory(sessionId);
+
+    if (historyData.chatbot_available === false) {
+      initWidget(configData, publicKey, null, {}, {
+        chatbotUnavailable: true,
+        unavailableMessage: historyData.message || unavailableMessage,
+      });
+      return;
+    }
+
+    console.log("Chat session:", sessionId);
+    console.log(configResponse);
+    console.log("Chat history:", historyData);
+
+    initWidget(configData, publicKey, sessionId, historyData);
+  } catch (error) {
+    initWidget(configData, publicKey, null, {}, {
+      chatbotUnavailable: true,
+      unavailableMessage,
+    });
+  }
 }
 
 if (!chatbotKey) {
@@ -218,7 +298,10 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function initWidget(config, publicKey, sessionId, historyData = {}) {
+function initWidget(config, publicKey, sessionId, historyData = {}, options = {}) {
+  const chatbotUnavailable = Boolean(options.chatbotUnavailable);
+  const unavailableMessage =
+    options.unavailableMessage || CHATBOT_UNAVAILABLE_MESSAGE;
   let currentSessionId = sessionId;
   const historyMessages = historyData.messages || [];
   let visitorStep = historyData.visitor_step || "completed";
@@ -429,6 +512,27 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
 
     .saas-widget-footer.hidden {
       display: none;
+    }
+
+    .saas-widget-unavailable {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      padding: 24px 20px;
+      text-align: center;
+    }
+
+    .saas-widget-unavailable.visible {
+      display: flex;
+    }
+
+    .saas-widget-unavailable-message {
+      font-size: 14px;
+      line-height: 1.6;
+      color: #484848;
+      margin: 0;
+      max-width: 280px;
     }
 
     .saas-widget-messages.hidden {
@@ -733,6 +837,13 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
   const messages = document.createElement("div");
   messages.className = "saas-widget-messages";
 
+  const unavailableAlert = document.createElement("div");
+  unavailableAlert.className = "saas-widget-unavailable";
+
+  const unavailableMessageEl = document.createElement("p");
+  unavailableMessageEl.className = "saas-widget-unavailable-message";
+  unavailableAlert.appendChild(unavailableMessageEl);
+
   const endedState = document.createElement("div");
   endedState.className = "saas-widget-ended-state";
 
@@ -794,6 +905,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
 
   popup.appendChild(header);
   popup.appendChild(messages);
+  popup.appendChild(unavailableAlert);
   popup.appendChild(endedState);
   popup.appendChild(footer);
   popup.appendChild(modalOverlay);
@@ -877,6 +989,14 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
     sendButton.disabled = true;
     skipButton.disabled = true;
     footer.classList.add("hidden");
+  }
+
+  function showUnavailableState(message) {
+    messages.classList.add("hidden");
+    unavailableMessageEl.textContent = message;
+    unavailableAlert.classList.add("visible");
+    disableChatInput();
+    endChatButton.classList.add("hidden");
   }
 
   function showChatEndedState() {
@@ -1181,6 +1301,10 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
       }
 
       if (!response.ok || !data.success) {
+        if (data.chatbot_available === false) {
+          showUnavailableState(data.message || CHATBOT_UNAVAILABLE_MESSAGE);
+          return;
+        }
         addBotMessage("Sorry, something went wrong.");
         return;
       }
@@ -1199,7 +1323,9 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
     }
   }
 
-  if (onboardingComplete) {
+  if (chatbotUnavailable) {
+    showUnavailableState(unavailableMessage);
+  } else if (onboardingComplete) {
     addBotMessage(config.welcome_message);
 
     historyMessages.forEach((item) => {
@@ -1219,16 +1345,18 @@ function initWidget(config, publicKey, sessionId, historyData = {}) {
     }
   }
 
-  updateEndChatVisibility();
+  if (!chatbotUnavailable) {
+    updateEndChatVisibility();
 
-  if (chatClosed) {
-    showChatEndedState();
-  } else if (
-    !chatClosed &&
-    historyData.is_active === "active" &&
-    isFeedbackPending(currentSessionId)
-  ) {
-    showFeedbackModal();
+    if (chatClosed) {
+      showChatEndedState();
+    } else if (
+      !chatClosed &&
+      historyData.is_active === "active" &&
+      isFeedbackPending(currentSessionId)
+    ) {
+      showFeedbackModal();
+    }
   }
 
   button.addEventListener("click", () => {
