@@ -22,6 +22,7 @@ from app.modules.knowledgebase.model import (
     SOURCE_TYPE_URL,
     KnowledgebaseDocument,
 )
+from app.modules.user_details.utils import is_admin
 from app.vectorstore.chroma_client import get_knowledge_base_collection
 
 logger = logging.getLogger(__name__)
@@ -42,14 +43,19 @@ _DOMAIN_URL_PATTERN = re.compile(
 )
 
 
+def can_access_chatbot(user: User, chatbot: Chatbot) -> bool:
+    """Return True when the user may view or edit the chatbot."""
+    return is_admin(user) or chatbot.user_id == user.id
+
+
 def get_owned_chatbot(db: Session, user: User, chatbot_id: int) -> Chatbot:
-    """Return a chatbot owned by the authenticated user or raise a domain error."""
+    """Return a chatbot accessible to the authenticated user or raise a domain error."""
     chatbot = db.get(Chatbot, chatbot_id)
     if chatbot is None:
         logger.warning("Chatbot not found for chatbot_id=%s user_id=%s", chatbot_id, user.id)
         raise ChatbotNotFoundError()
 
-    if chatbot.user_id != user.id:
+    if not can_access_chatbot(user, chatbot):
         logger.warning(
             "Unauthorized chatbot access attempt chatbot_id=%s owner_id=%s user_id=%s",
             chatbot_id,
@@ -57,6 +63,14 @@ def get_owned_chatbot(db: Session, user: User, chatbot_id: int) -> Chatbot:
             user.id,
         )
         raise ChatbotPermissionError()
+
+    if is_admin(user) and chatbot.user_id != user.id:
+        logger.info(
+            "Admin accessing chatbot chatbot_id=%s owner_id=%s admin_user_id=%s",
+            chatbot_id,
+            chatbot.user_id,
+            user.id,
+        )
 
     return chatbot
 
