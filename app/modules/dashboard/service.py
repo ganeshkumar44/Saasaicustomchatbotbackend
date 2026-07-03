@@ -19,6 +19,7 @@ from app.modules.dashboard.utils import (
     fetch_chatbot_list_rows,
     fetch_recent_conversation_rows,
     format_chatbot_owner_name,
+    resolve_chatbot_list_status,
 )
 from app.modules.user_details.utils import is_admin
 
@@ -42,7 +43,7 @@ def get_chatbot_list(db: Session, user: User) -> ChatbotListSuccessResponse:
             description=row.description,
             ai_model=row.ai_model,
             language=row.language,
-            status=row.status,
+            status=resolve_chatbot_list_status(row.status, bool(row.is_deleted)),
             public_key=row.public_key,
             total_conversations=int(row.total_conversations),
             total_messages=int(row.total_messages),

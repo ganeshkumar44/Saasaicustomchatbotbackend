@@ -163,6 +163,8 @@ CHATBOT_LIST_SUCCESS = "Chatbot list retrieved successfully."
 NO_CHATBOTS_FOUND = "No chatbots found."
 CHATBOT_DELETED_SUCCESS = "Chatbot deleted successfully."
 CHATBOT_ALREADY_DELETED = "Chatbot has already been deleted."
+CHATBOT_ACTIVATED_SUCCESS = "Chatbot activated successfully."
+CHATBOT_ALREADY_ACTIVE = "Chatbot is already active."
 CHATBOT_UNAVAILABLE = (
     "This chatbot is currently unavailable. It may have been deleted or there may be "
     "a temporary server issue. Please contact the website administrator."

@@ -22,7 +22,10 @@ from app.modules.knowledgebase.model import (
     SOURCE_TYPE_URL,
     KnowledgebaseDocument,
 )
+from app.modules.knowledge_chunks.utils import get_chunks_by_document_id
 from app.modules.user_details.utils import is_admin
+from app.embeddings.embedding_service import generate_embeddings_for_chunks
+from app.vectorstore.chroma_service import store_chunks_in_chromadb
 from app.vectorstore.chroma_client import get_knowledge_base_collection
 
 logger = logging.getLogger(__name__)
@@ -245,6 +248,39 @@ def delete_chromadb_vectors_for_chatbot(chatbot_id: int) -> None:
             "Failed to delete ChromaDB vectors for chatbot_id=%s",
             chatbot_id,
         )
+
+
+def restore_chromadb_vectors_for_chatbot(db: Session, chatbot_id: int) -> None:
+    """Re-generate and store ChromaDB vectors from existing knowledge chunks."""
+    documents = get_knowledgebase_documents(db, chatbot_id)
+    restored_chunks = 0
+
+    for document in documents:
+        chunks = get_chunks_by_document_id(db, document.id)
+        if not chunks:
+            continue
+
+        chunks_data = [
+            {
+                "chunk_index": chunk.chunk_index,
+                "chunk_text": chunk.chunk_text,
+                "character_count": chunk.character_count,
+            }
+            for chunk in chunks
+        ]
+        embedded_chunks = generate_embeddings_for_chunks(chunks_data)
+        if embedded_chunks:
+            restored_chunks += store_chunks_in_chromadb(
+                chatbot_id,
+                document.id,
+                embedded_chunks,
+            )
+
+    logger.info(
+        "Restored %s ChromaDB vectors for chatbot_id=%s",
+        restored_chunks,
+        chatbot_id,
+    )
 
 
 def delete_knowledgebase_document(

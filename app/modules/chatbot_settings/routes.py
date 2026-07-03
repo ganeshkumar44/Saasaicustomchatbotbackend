@@ -11,6 +11,7 @@ from app.modules.chatbot.service import ChatbotNotFoundError, ChatbotPermissionE
 from app.modules.chatbot.utils import get_authenticated_user
 from app.modules.chatbot_settings import service
 from app.modules.chatbot_settings.schema import (
+    ActivateChatbotSuccessResponse,
     ChatbotDetailsSuccessResponse,
     DeleteChatbotSuccessResponse,
     SettingsUpdateSuccessResponse,
@@ -277,3 +278,33 @@ def delete_chatbot(
         if response is not None:
             return response
         raise
+
+
+@router.put(
+    "/chatbots/{chatbot_id}/activate",
+    status_code=status.HTTP_200_OK,
+    response_model=ActivateChatbotSuccessResponse,
+)
+def activate_chatbot(
+    chatbot_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_authenticated_user),
+):
+    """Restore a soft-deleted chatbot (admin only)."""
+    try:
+        return service.activate_chatbot(db, current_user, chatbot_id)
+    except service.ChatbotAlreadyActiveError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": messages.CHATBOT_ALREADY_ACTIVE},
+        )
+    except service.ChatbotActivatePermissionError:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"success": False, "message": messages.UNAUTHORIZED_ACTION},
+        )
+    except ChatbotNotFoundError:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"success": False, "message": messages.CHATBOT_NOT_FOUND},
+        )

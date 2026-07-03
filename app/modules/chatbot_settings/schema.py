@@ -112,3 +112,14 @@ class DeleteChatbotSuccessResponse(BaseModel):
     success: bool = True
     message: str
     data: DeleteChatbotData
+
+
+class ActivateChatbotData(BaseModel):
+    chatbot_id: int
+    status: str
+
+
+class ActivateChatbotSuccessResponse(BaseModel):
+    success: bool = True
+    message: str
+    data: ActivateChatbotData

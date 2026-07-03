@@ -15,11 +15,23 @@ from app.modules.chat_sessions.model import (
     SESSION_STATUS_CLOSED,
     ChatSession,
 )
-from app.modules.chatbot.model import CHATBOT_STATUS_DRAFT, Chatbot, ChatbotSettings
+from app.modules.chatbot.model import (
+    CHATBOT_STATUS_DELETED,
+    CHATBOT_STATUS_DRAFT,
+    Chatbot,
+    ChatbotSettings,
+)
 from app.modules.knowledgebase.model import KnowledgebaseDocument
 from app.modules.user_details.utils import is_admin
 
 CHATBOT_OWNER_SELF = "Self"
+
+
+def resolve_chatbot_list_status(stored_status: str, is_deleted: bool) -> str:
+    """Return the dashboard status label, including soft-deleted chatbots."""
+    if is_deleted:
+        return CHATBOT_STATUS_DELETED
+    return stored_status
 
 
 def format_chatbot_owner_name(
@@ -81,6 +93,7 @@ def build_chatbot_list_query(user: User) -> Select:
             Chatbot.ai_model,
             Chatbot.language,
             Chatbot.status,
+            Chatbot.is_deleted,
             ChatbotSettings.public_key,
             User.first_name.label("owner_first_name"),
             User.last_name.label("owner_last_name"),
@@ -99,7 +112,6 @@ def build_chatbot_list_query(user: User) -> Select:
         .outerjoin(session_counts, session_counts.c.chatbot_id == Chatbot.id)
         .outerjoin(message_counts, message_counts.c.chatbot_id == Chatbot.id)
         .outerjoin(document_counts, document_counts.c.chatbot_id == Chatbot.id)
-        .where(Chatbot.is_deleted.is_(False))
         .order_by(Chatbot.updated_at.desc())
     )
 

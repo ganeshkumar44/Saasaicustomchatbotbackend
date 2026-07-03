@@ -15,8 +15,10 @@ from app.modules.chatbot.service import (
     ChatbotPermissionError,
     InvalidAIModelError,
 )
-from app.modules.chatbot.model import Chatbot
+from app.modules.chatbot.model import CHATBOT_STATUS_PUBLISHED, Chatbot
 from app.modules.chatbot_settings.schema import (
+    ActivateChatbotData,
+    ActivateChatbotSuccessResponse,
     ChatbotDetailsSuccessResponse,
     DeleteChatbotData,
     DeleteChatbotSuccessResponse,
@@ -37,12 +39,15 @@ from app.modules.chatbot_settings.utils import (
     get_knowledgebase_documents,
     get_owned_chatbot,
     get_owned_chatbot_with_settings,
+    restore_chromadb_vectors_for_chatbot,
     validate_ai_model,
     validate_and_normalize_allowed_domains,
     validate_appearance_settings,
     validate_general_settings,
     validate_messages_settings,
 )
+from app.modules.chat_analysis.service import ensure_chat_analysis_for_chatbot
+from app.modules.user_details.utils import is_admin
 from app.modules.knowledgebase.service import (
     FileSizeExceededError,
     UnsupportedFileTypeError,
@@ -71,6 +76,14 @@ class KnowledgeBaseRequiredError(Exception):
 
 class ChatbotAlreadyDeletedError(Exception):
     """Raised when attempting to delete an already deleted chatbot."""
+
+
+class ChatbotAlreadyActiveError(Exception):
+    """Raised when attempting to activate a chatbot that is not deleted."""
+
+
+class ChatbotActivatePermissionError(Exception):
+    """Raised when a non-admin attempts to activate a chatbot."""
 
 
 def get_chatbot_details(
@@ -389,6 +402,67 @@ def delete_chatbot(
     return DeleteChatbotSuccessResponse(
         message=messages.CHATBOT_DELETED_SUCCESS,
         data=DeleteChatbotData(
+            chatbot_id=chatbot.id,
+            status=chatbot.status,
+        ),
+    )
+
+
+def activate_chatbot(
+    db: Session,
+    user: User,
+    chatbot_id: int,
+) -> ActivateChatbotSuccessResponse:
+    """Restore a soft-deleted chatbot so it can accept widget traffic again."""
+    logger.info(
+        "Chatbot activate requested chatbot_id=%s user_id=%s",
+        chatbot_id,
+        user.id,
+    )
+
+    if not is_admin(user):
+        logger.warning(
+            "Unauthorized chatbot activate attempt chatbot_id=%s user_id=%s",
+            chatbot_id,
+            user.id,
+        )
+        raise ChatbotActivatePermissionError()
+
+    chatbot = db.get(Chatbot, chatbot_id)
+    if chatbot is None:
+        raise ChatbotNotFoundError()
+
+    if not chatbot.is_deleted:
+        raise ChatbotAlreadyActiveError()
+
+    now = datetime.now(timezone.utc)
+    chatbot.is_deleted = False
+    chatbot.deleted_at = None
+    chatbot.status = CHATBOT_STATUS_PUBLISHED
+    if chatbot.published_at is None:
+        chatbot.published_at = now
+    chatbot.updated_at = now
+
+    try:
+        restore_chromadb_vectors_for_chatbot(db, chatbot_id)
+        ensure_chat_analysis_for_chatbot(db, chatbot.id)
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to activate chatbot_id=%s", chatbot_id)
+        raise
+
+    db.refresh(chatbot)
+
+    logger.info(
+        "Chatbot activated chatbot_id=%s user_id=%s",
+        chatbot_id,
+        user.id,
+    )
+
+    return ActivateChatbotSuccessResponse(
+        message=messages.CHATBOT_ACTIVATED_SUCCESS,
+        data=ActivateChatbotData(
             chatbot_id=chatbot.id,
             status=chatbot.status,
         ),

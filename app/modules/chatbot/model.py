@@ -11,6 +11,7 @@ from app.core.database import Base
 
 CHATBOT_STATUS_DRAFT = "draft"
 CHATBOT_STATUS_PUBLISHED = "published"
+CHATBOT_STATUS_DELETED = "deleted"
 
 
 class Chatbot(Base):
