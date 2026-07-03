@@ -19,32 +19,17 @@ from app.modules.auth.utils import InvalidTokenError, decode_access_token
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def is_unfinished_draft(chatbot: Chatbot) -> bool:
-    """Return True when a draft has no basic info filled in yet."""
-    if chatbot.status != CHATBOT_STATUS_DRAFT:
-        return False
-
-    name_blank = not chatbot.chatbot_name or not chatbot.chatbot_name.strip()
-    description_blank = not chatbot.description or not chatbot.description.strip()
-    return name_blank and description_blank
-
-
-def find_unfinished_draft_for_user(db: Session, user_id: int) -> Chatbot | None:
-    """Return the most recent unfinished draft for a user, if one exists."""
-    drafts = db.execute(
+def find_draft_for_user(db: Session, user_id: int) -> Chatbot | None:
+    """Return the user's existing draft chatbot, if one exists."""
+    return db.execute(
         select(Chatbot)
         .where(
             Chatbot.user_id == user_id,
             Chatbot.status == CHATBOT_STATUS_DRAFT,
         )
         .order_by(Chatbot.created_at.desc())
-    ).scalars().all()
-
-    for chatbot in drafts:
-        if is_unfinished_draft(chatbot):
-            return chatbot
-
-    return None
+        .limit(1)
+    ).scalar_one_or_none()
 
 
 def get_authenticated_user(

@@ -27,7 +27,7 @@ from app.modules.chatbot.utils import (
     DEFAULT_TYPING_INDICATOR,
     DEFAULT_WELCOME_MESSAGE,
     DEFAULT_WIDGET_POSITION,
-    find_unfinished_draft_for_user,
+    find_draft_for_user,
     generate_embed_code,
     generate_unique_public_key,
     get_default_allowed_domains,
@@ -89,19 +89,20 @@ class ChatbotIncompleteConfigError(Exception):
 
 def create_chatbot_draft(db: Session, user: User) -> CreateChatbotDraftSuccessResponse:
     """
-    Return an existing unfinished draft or create a new blank chatbot draft.
+    Return an existing draft or create a new blank chatbot draft.
 
-    At most one unfinished draft (no basic info) exists per user at any time.
+    At most one draft chatbot exists per user at any time.
     """
-    existing_draft = find_unfinished_draft_for_user(db, user.id)
+    existing_draft = find_draft_for_user(db, user.id)
     if existing_draft is not None:
         logger.info(
-            "Returning existing unfinished draft chatbot_id=%s user_id=%s",
+            "Returning existing draft chatbot_id=%s user_id=%s",
             existing_draft.id,
             user.id,
         )
         return CreateChatbotDraftSuccessResponse(
             message=messages.DRAFT_CHATBOT_EXISTS,
+            is_existing_draft=True,
             data=CreateChatbotDraftData(
                 chatbot_id=existing_draft.id,
                 status=existing_draft.status,
@@ -126,6 +127,7 @@ def create_chatbot_draft(db: Session, user: User) -> CreateChatbotDraftSuccessRe
 
     return CreateChatbotDraftSuccessResponse(
         message=messages.DRAFT_CHATBOT_CREATED,
+        is_existing_draft=False,
         data=CreateChatbotDraftData(
             chatbot_id=chatbot.id,
             status=chatbot.status,
