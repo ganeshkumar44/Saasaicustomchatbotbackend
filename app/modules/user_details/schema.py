@@ -99,3 +99,10 @@ class ActivateAccountRequest(BaseModel):
 class ActivateAccountSuccessResponse(BaseModel):
     success: bool = True
     message: str
+
+
+class RemoveProfilePictureSuccessResponse(BaseModel):
+    """Response after removing the authenticated user's profile picture."""
+
+    success: bool = True
+    message: str

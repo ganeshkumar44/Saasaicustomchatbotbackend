@@ -213,6 +213,10 @@ INVALID_IMAGE_TYPE = "Invalid image type. Allowed formats are JPG, JPEG, PNG, an
 IMAGE_SIZE_EXCEEDED = "Image size exceeds the maximum allowed limit of 5 MB."
 PROFILE_IMAGE_UPLOAD_FAILED = "Failed to upload profile image. Please try again."
 PROFILE_IMAGE_UPDATED = "Profile image updated successfully."
+PROFILE_PICTURE_REMOVED_SUCCESS = "Profile picture removed successfully."
+PROFILE_PICTURE_NOT_FOUND = "Profile picture does not exist."
+USER_PROFILE_NOT_FOUND = "User profile not found."
+PROFILE_IMAGE_DELETE_FAILED = "Failed to remove profile picture. Please try again."
 
 CURRENT_PASSWORD_REQUIRED = "Current password is required."
 CURRENT_PASSWORD_INVALID = "Current password is incorrect."

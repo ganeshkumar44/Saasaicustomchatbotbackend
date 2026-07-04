@@ -14,6 +14,7 @@ from app.modules.user_details.schema import (
     DeactivateAccountSuccessResponse,
     DeleteAccountRequest,
     DeleteAccountSuccessResponse,
+    RemoveProfilePictureSuccessResponse,
     UpdatePasswordRequest,
     UpdatePasswordSuccessResponse,
     UpdateUserDetailsRequest,
@@ -204,6 +205,44 @@ async def update_user_details(
             content={
                 "success": False,
                 "message": messages.MOBILE_ALREADY_EXISTS,
+            },
+        )
+
+
+@router.delete(
+    "/remove-profile-picture",
+    status_code=status.HTTP_200_OK,
+    response_model=RemoveProfilePictureSuccessResponse,
+)
+def remove_profile_picture(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove the authenticated user's profile picture."""
+    try:
+        return service.remove_profile_picture(db, current_user)
+    except service.UserProfileNotFoundError:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "success": False,
+                "message": messages.USER_PROFILE_NOT_FOUND,
+            },
+        )
+    except service.ProfilePictureNotFoundError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": messages.PROFILE_PICTURE_NOT_FOUND,
+            },
+        )
+    except service.ProfileImageDeleteError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "success": False,
+                "message": exc.message,
             },
         )
 

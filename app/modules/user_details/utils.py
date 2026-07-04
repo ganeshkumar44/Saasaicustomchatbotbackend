@@ -434,3 +434,28 @@ def delete_profile_image_from_s3(image_url: str | None) -> None:
             "Failed to delete old profile image from S3 object_key=%s",
             object_key,
         )
+
+
+def delete_profile_image_from_s3_strict(image_url: str | None) -> None:
+    """
+    Delete a profile image from S3 and raise when deletion is required but fails.
+
+    No-op when the URL does not resolve to a managed S3 object key.
+    """
+    object_key = extract_profile_image_object_key(image_url)
+    if object_key is None:
+        return
+
+    bucket_name = _get_aws_setting("AWS_BUCKET_NAME")
+    if not bucket_name:
+        raise RuntimeError(messages.PROFILE_IMAGE_DELETE_FAILED)
+
+    try:
+        get_s3_client().delete_object(Bucket=bucket_name, Key=object_key)
+        logger.info("Deleted profile image from S3 object_key=%s", object_key)
+    except (BotoCoreError, ClientError) as exc:
+        logger.exception(
+            "Failed to delete profile image from S3 object_key=%s",
+            object_key,
+        )
+        raise RuntimeError(messages.PROFILE_IMAGE_DELETE_FAILED) from exc

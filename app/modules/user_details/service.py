@@ -19,6 +19,7 @@ from app.modules.user_details.schema import (
     DeactivateAccountSuccessResponse,
     DeleteAccountRequest,
     DeleteAccountSuccessResponse,
+    RemoveProfilePictureSuccessResponse,
     UpdatePasswordRequest,
     UpdatePasswordSuccessResponse,
     UpdateUserDetailsRequest,
@@ -35,8 +36,10 @@ from app.modules.user_details.utils import (
     build_profile_image_object_key,
     can_manage_account,
     delete_profile_image_from_s3,
+    delete_profile_image_from_s3_strict,
     email_belongs_to_other_user,
     ensure_user_details_exists,
+    get_user_details_by_user_id,
     is_admin,
     mobile_belongs_to_other_user,
     upload_profile_image_to_s3,
@@ -104,6 +107,22 @@ class ProfileImageUploadError(Exception):
         super().__init__(message)
 
 
+class UserProfileNotFoundError(Exception):
+    """Raised when the authenticated user has no user_details record."""
+
+
+class ProfilePictureNotFoundError(Exception):
+    """Raised when the user has no profile picture to remove."""
+
+
+class ProfileImageDeleteError(Exception):
+    """Raised when removing a profile picture from S3 fails."""
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
+
+
 def build_merged_user_details(user: User, details: UserDetails) -> UserDetailsData:
     """Merge users and user_details records into a single response payload."""
     return UserDetailsData(
@@ -139,6 +158,48 @@ def get_user_details(db: Session, user: User) -> UserDetailsSuccessResponse:
     return UserDetailsSuccessResponse(
         message=messages.USER_DETAILS_FETCH_SUCCESS,
         data=build_merged_user_details(user, details),
+    )
+
+
+def remove_profile_picture(db: Session, user: User) -> RemoveProfilePictureSuccessResponse:
+    """Remove the authenticated user's profile picture from S3 and the database."""
+    logger.info("Profile picture removal requested for user_id=%s", user.id)
+
+    details = get_user_details_by_user_id(db, user.id)
+    if details is None:
+        logger.warning("Profile picture removal failed; profile not found user_id=%s", user.id)
+        raise UserProfileNotFoundError()
+
+    if not details.profile_image or not details.profile_image.strip():
+        logger.warning(
+            "Profile picture removal failed; no image stored user_id=%s",
+            user.id,
+        )
+        raise ProfilePictureNotFoundError()
+
+    previous_image_url = details.profile_image.strip()
+
+    try:
+        delete_profile_image_from_s3_strict(previous_image_url)
+    except RuntimeError as exc:
+        raise ProfileImageDeleteError(str(exc)) from exc
+
+    details.profile_image = None
+    details.updated_at = datetime.now(timezone.utc)
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to remove profile picture for user_id=%s", user.id)
+        raise
+
+    db.refresh(details)
+
+    logger.info("Profile picture removed successfully for user_id=%s", user.id)
+
+    return RemoveProfilePictureSuccessResponse(
+        message=messages.PROFILE_PICTURE_REMOVED_SUCCESS,
     )
 
 
