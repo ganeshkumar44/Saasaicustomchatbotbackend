@@ -236,6 +236,21 @@ INVALID_WEBSITE = "Please enter a valid website URL."
 INVALID_LANGUAGE = "Invalid language. Only English is supported at this time."
 UNAUTHORIZED_ACTION = "You are not authorized to perform this action."
 
+# ---------------------------------------------------------------------------
+# Manage Users
+# ---------------------------------------------------------------------------
+
+USERS_RETRIEVED_SUCCESS = "Users retrieved successfully."
+USER_UPDATED_SUCCESS = "User updated successfully."
+USER_ACTIVATED_SUCCESS = "User activated successfully."
+USER_DEACTIVATED_SUCCESS = "User deactivated successfully."
+USER_DELETED_SUCCESS = "User deleted successfully."
+SELF_ACTION_NOT_ALLOWED = (
+    "You cannot deactivate or delete your own administrator account."
+)
+INVALID_USER_STATUS_ACTION = "Invalid account action. Allowed values are activate, deactivate, and delete."
+INVALID_USER_ROLE = "Invalid role. Allowed values are admin and user."
+
 COMPANY_TOO_LONG = "Company name must not exceed 150 characters."
 BIO_TOO_LONG = "Bio must not exceed 1000 characters."
 
