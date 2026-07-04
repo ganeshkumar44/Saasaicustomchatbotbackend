@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.modules.auth.model import User
 from app.modules.chatbot.model import (
     CHATBOT_STATUS_DRAFT,
     CHATBOT_STATUS_PUBLISHED,
@@ -228,11 +229,27 @@ def is_chatbot_deleted(chatbot: Chatbot | None) -> bool:
     return chatbot is not None and bool(getattr(chatbot, "is_deleted", False))
 
 
-def is_chatbot_widget_available(chatbot: Chatbot | None) -> bool:
+def is_owner_account_widget_eligible(owner: User | None) -> bool:
+    """Return True when the chatbot owner's account can serve public widget traffic."""
+    if owner is None:
+        return False
+    if getattr(owner, "is_deleted", False):
+        return False
+    return bool(owner.is_active)
+
+
+def is_chatbot_widget_available(
+    chatbot: Chatbot | None,
+    owner: User | None = None,
+) -> bool:
     """Return True when the chatbot can accept public widget traffic."""
     if chatbot is None or is_chatbot_deleted(chatbot):
         return False
-    return chatbot.status == CHATBOT_STATUS_PUBLISHED
+    if chatbot.status != CHATBOT_STATUS_PUBLISHED:
+        return False
+    if owner is not None and not is_owner_account_widget_eligible(owner):
+        return False
+    return True
 
 
 def generate_embed_code(public_key: str) -> str:

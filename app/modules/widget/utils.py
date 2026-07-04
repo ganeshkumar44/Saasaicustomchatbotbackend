@@ -20,6 +20,7 @@ from app.modules.chat_sessions.model import (
 from app.modules.chatbot.model import ChatbotSettings
 from app.modules.chatbot.utils import is_chatbot_widget_available
 from app.modules.widget.schema import WidgetConfigResponse
+from app.modules.auth.model import User
 
 WIDGET_JS_PLACEHOLDER = "__WIDGET_API_BASE_URL__"
 WIDGET_JS_PATH = Path(__file__).resolve().parents[3] / "static" / "widget.js"
@@ -88,7 +89,10 @@ def is_widget_chatbot_available(db: Session, settings: ChatbotSettings | None) -
     if settings is None:
         return False
     chatbot = get_chatbot_for_settings(db, settings)
-    return is_chatbot_widget_available(chatbot)
+    if chatbot is None:
+        return False
+    owner = db.get(User, chatbot.user_id)
+    return is_chatbot_widget_available(chatbot, owner)
 
 
 def validate_visitor_name(value: str | None) -> str | None:

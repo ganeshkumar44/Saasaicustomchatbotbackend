@@ -12,7 +12,12 @@ from sqlalchemy.sql import Select
 from app.core import messages
 from app.core.dependencies import get_current_user
 from app.modules.auth.model import User
-from app.modules.chatbot.model import Chatbot
+from app.modules.chatbot.model import (
+    CHATBOT_STATUS_DRAFT,
+    CHATBOT_STATUS_PUBLISHED,
+    Chatbot,
+)
+from app.modules.theme.model import DEFAULT_THEME, Theme
 from app.modules.user_details.model import UserDetails
 from app.modules.user_details.utils import (
     ADMIN_ROLE,
@@ -141,6 +146,80 @@ def _chatbot_count_subquery():
         .group_by(Chatbot.user_id)
         .subquery()
     )
+
+
+def _chatbot_stats_subquery():
+    """Aggregate published, draft, and deleted chatbot counts per user."""
+    return (
+        select(
+            Chatbot.user_id.label("user_id"),
+            func.count(Chatbot.id).label("total_chatbots"),
+            func.count(Chatbot.id)
+            .filter(Chatbot.is_deleted.is_(True))
+            .label("total_deleted_chatbots"),
+            func.count(Chatbot.id)
+            .filter(
+                Chatbot.is_deleted.is_(False),
+                Chatbot.status == CHATBOT_STATUS_PUBLISHED,
+            )
+            .label("total_published_chatbots"),
+            func.count(Chatbot.id)
+            .filter(
+                Chatbot.is_deleted.is_(False),
+                Chatbot.status == CHATBOT_STATUS_DRAFT,
+            )
+            .label("total_draft_chatbots"),
+        )
+        .group_by(Chatbot.user_id)
+        .subquery()
+    )
+
+
+def build_manage_user_detail_query(user_id: int) -> Select:
+    """Build a query returning complete manage-user profile and chatbot statistics."""
+    chatbot_stats = _chatbot_stats_subquery()
+
+    return (
+        select(
+            User.id.label("user_id"),
+            User.first_name,
+            User.last_name,
+            User.email,
+            User.mobile,
+            User.role,
+            User.is_email_verified,
+            User.is_mobile_verified,
+            User.is_active,
+            User.is_deleted,
+            User.created_at,
+            User.updated_at,
+            UserDetails.profile_image,
+            UserDetails.company,
+            UserDetails.website,
+            UserDetails.language,
+            UserDetails.bio,
+            func.coalesce(Theme.theme, DEFAULT_THEME).label("theme"),
+            func.coalesce(chatbot_stats.c.total_chatbots, 0).label("total_chatbots"),
+            func.coalesce(chatbot_stats.c.total_published_chatbots, 0).label(
+                "total_published_chatbots"
+            ),
+            func.coalesce(chatbot_stats.c.total_draft_chatbots, 0).label(
+                "total_draft_chatbots"
+            ),
+            func.coalesce(chatbot_stats.c.total_deleted_chatbots, 0).label(
+                "total_deleted_chatbots"
+            ),
+        )
+        .outerjoin(UserDetails, UserDetails.user_id == User.id)
+        .outerjoin(Theme, Theme.user_id == User.id)
+        .outerjoin(chatbot_stats, chatbot_stats.c.user_id == User.id)
+        .where(User.id == user_id)
+    )
+
+
+def fetch_manage_user_detail_row(db: Session, user_id: int):
+    """Return a single manage-user detail row or None when the user does not exist."""
+    return db.execute(build_manage_user_detail_query(user_id)).one_or_none()
 
 
 def _apply_search_filter(query: Select, search: str | None) -> Select:

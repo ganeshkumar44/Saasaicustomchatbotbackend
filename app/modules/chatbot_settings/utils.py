@@ -15,6 +15,7 @@ from app.core import messages
 from app.modules.auth.model import User
 from app.modules.chatbot.model import (
     CHATBOT_STATUS_DELETED,
+    CHATBOT_STATUS_PUBLISHED,
     Chatbot,
     ChatbotSettings,
 )
@@ -28,6 +29,7 @@ from app.modules.knowledgebase.model import (
 )
 from app.modules.knowledge_chunks.utils import get_chunks_by_document_id
 from app.modules.user_details.utils import is_admin
+from app.modules.chat_analysis.service import ensure_chat_analysis_for_chatbot
 from app.embeddings.embedding_service import generate_embeddings_for_chunks
 from app.vectorstore.chroma_service import store_chunks_in_chromadb
 from app.vectorstore.chroma_client import get_knowledge_base_collection
@@ -319,6 +321,73 @@ def restore_chromadb_vectors_for_chatbot(db: Session, chatbot_id: int) -> None:
         restored_chunks,
         chatbot_id,
     )
+
+
+def soft_delete_chatbot_record(db: Session, chatbot: Chatbot) -> None:
+    """Soft-delete a chatbot and remove its knowledge base vectors from ChromaDB."""
+    if chatbot.is_deleted:
+        return
+
+    documents = get_knowledgebase_documents(db, chatbot.id)
+    for document in documents:
+        delete_chromadb_vectors_for_document(document.id)
+
+    delete_chromadb_vectors_for_chatbot(chatbot.id)
+
+    now = datetime.now(timezone.utc)
+    chatbot.is_deleted = True
+    chatbot.deleted_at = now
+    chatbot.updated_at = now
+
+
+def restore_chatbot_record(db: Session, chatbot: Chatbot) -> None:
+    """Restore a soft-deleted chatbot and rebuild its ChromaDB vectors."""
+    if not chatbot.is_deleted:
+        return
+
+    now = datetime.now(timezone.utc)
+    chatbot.is_deleted = False
+    chatbot.deleted_at = None
+    chatbot.status = CHATBOT_STATUS_PUBLISHED
+    if chatbot.published_at is None:
+        chatbot.published_at = now
+    chatbot.updated_at = now
+    restore_chromadb_vectors_for_chatbot(db, chatbot.id)
+    ensure_chat_analysis_for_chatbot(db, chatbot.id)
+
+
+def soft_delete_all_chatbots_for_user(db: Session, user_id: int) -> int:
+    """Soft-delete all active chatbots owned by a user."""
+    chatbots = list(
+        db.execute(
+            select(Chatbot).where(
+                Chatbot.user_id == user_id,
+                Chatbot.is_deleted.is_(False),
+            )
+        ).scalars().all()
+    )
+    for chatbot in chatbots:
+        soft_delete_chatbot_record(db, chatbot)
+
+    logger.info("Soft-deleted %s chatbots for user_id=%s", len(chatbots), user_id)
+    return len(chatbots)
+
+
+def restore_all_chatbots_for_user(db: Session, user_id: int) -> int:
+    """Restore all soft-deleted chatbots owned by a user."""
+    chatbots = list(
+        db.execute(
+            select(Chatbot).where(
+                Chatbot.user_id == user_id,
+                Chatbot.is_deleted.is_(True),
+            )
+        ).scalars().all()
+    )
+    for chatbot in chatbots:
+        restore_chatbot_record(db, chatbot)
+
+    logger.info("Restored %s chatbots for user_id=%s", len(chatbots), user_id)
+    return len(chatbots)
 
 
 def delete_knowledgebase_document(

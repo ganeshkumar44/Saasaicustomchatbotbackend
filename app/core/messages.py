@@ -212,6 +212,7 @@ USER_DETAILS_UPDATED = "User details updated successfully."
 INVALID_IMAGE_TYPE = "Invalid image type. Allowed formats are JPG, JPEG, PNG, and WEBP."
 IMAGE_SIZE_EXCEEDED = "Image size exceeds the maximum allowed limit of 5 MB."
 PROFILE_IMAGE_UPLOAD_FAILED = "Failed to upload profile image. Please try again."
+PROFILE_IMAGE_UPDATED = "Profile image updated successfully."
 
 CURRENT_PASSWORD_REQUIRED = "Current password is required."
 CURRENT_PASSWORD_INVALID = "Current password is incorrect."
@@ -241,6 +242,7 @@ UNAUTHORIZED_ACTION = "You are not authorized to perform this action."
 # ---------------------------------------------------------------------------
 
 USERS_RETRIEVED_SUCCESS = "Users retrieved successfully."
+USER_DETAILS_RETRIEVED_SUCCESS = "User details retrieved successfully."
 USER_UPDATED_SUCCESS = "User updated successfully."
 USER_ACTIVATED_SUCCESS = "User activated successfully."
 USER_DEACTIVATED_SUCCESS = "User deactivated successfully."

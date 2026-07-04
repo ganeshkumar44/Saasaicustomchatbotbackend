@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core import messages
 from app.modules.ai.service import generate_ai_answer
+from app.modules.auth.model import User
 from app.modules.chatbot.model import Chatbot
 from app.modules.chatbot.utils import is_chatbot_widget_available
 from app.modules.chat_messages.schema import CreateChatMessageRequest
@@ -459,7 +460,8 @@ def get_chat_history(db: Session, session_id: str) -> ChatHistoryResponse:
         raise ChatSessionNotFoundError()
 
     chatbot = db.get(Chatbot, session.chatbot_id)
-    if not is_chatbot_widget_available(chatbot):
+    owner = db.get(User, chatbot.user_id) if chatbot is not None else None
+    if not is_chatbot_widget_available(chatbot, owner):
         return ChatHistoryResponse(
             success=False,
             chatbot_available=False,

@@ -27,6 +27,10 @@ from app.modules.user_details.schema import (
     UserDetailsSuccessResponse,
 )
 from app.modules.user_details.model import UserDetails
+from app.modules.chatbot_settings.utils import (
+    restore_all_chatbots_for_user,
+    soft_delete_all_chatbots_for_user,
+)
 from app.modules.user_details.utils import (
     build_profile_image_object_key,
     can_manage_account,
@@ -314,7 +318,18 @@ def delete_account(
     target_user.deleted_at = now
     target_user.is_active = False
     target_user.updated_at = now
-    db.commit()
+    soft_delete_all_chatbots_for_user(db, target_user_id)
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Failed to delete account target_user_id=%s actor_user_id=%s",
+            target_user_id,
+            actor.id,
+        )
+        raise
 
     logger.info(
         "Account deleted successfully target_user_id=%s actor_user_id=%s",
@@ -394,7 +409,8 @@ def activate_account(
 
     target_user = _get_target_user(db, payload.user_id)
 
-    if target_user.is_deleted:
+    was_deleted = target_user.is_deleted
+    if was_deleted:
         target_user.is_deleted = False
         target_user.deleted_at = None
     elif target_user.is_active:
@@ -403,7 +419,20 @@ def activate_account(
     now = datetime.now(timezone.utc)
     target_user.is_active = True
     target_user.updated_at = now
-    db.commit()
+
+    if was_deleted:
+        restore_all_chatbots_for_user(db, payload.user_id)
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Failed to activate account target_user_id=%s actor_user_id=%s",
+            payload.user_id,
+            actor.id,
+        )
+        raise
 
     logger.info(
         "Account activated successfully target_user_id=%s actor_user_id=%s",

@@ -2,7 +2,7 @@
 Manage Users module API routes.
 """
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.modules.auth.model import User
 from app.modules.manage_users import service
 from app.modules.manage_users.schema import (
+    ManageUserDetailSuccessResponse,
     ManageUsersListSuccessResponse,
     UpdateManageUserRequest,
     UpdateManageUserSuccessResponse,
@@ -23,6 +24,61 @@ router = APIRouter(
     prefix="/v1",
     tags=["Manage Users"],
 )
+
+
+def _optional_form_value(value) -> str | None:
+    """Normalize optional multipart form values."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _update_manage_user_json_openapi_schema() -> dict:
+    """Build an inline OpenAPI schema for JSON manage-user update requests."""
+    schema = UpdateManageUserRequest.model_json_schema()
+    schema.pop("$defs", None)
+    schema.pop("title", None)
+    return schema
+
+
+_UPDATE_MANAGE_USER_OPENAPI_BODY = {
+    "requestBody": {
+        "content": {
+            "multipart/form-data": {
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "first_name",
+                        "last_name",
+                        "email",
+                        "mobile",
+                        "language",
+                        "role",
+                    ],
+                    "properties": {
+                        "first_name": {"type": "string"},
+                        "last_name": {"type": "string"},
+                        "email": {"type": "string"},
+                        "mobile": {"type": "string"},
+                        "company": {"type": "string"},
+                        "website": {"type": "string"},
+                        "language": {"type": "string"},
+                        "bio": {"type": "string"},
+                        "role": {"type": "string"},
+                        "profile_image": {
+                            "type": "string",
+                            "format": "binary",
+                        },
+                    },
+                }
+            },
+            "application/json": {
+                "schema": _update_manage_user_json_openapi_schema(),
+            },
+        }
+    }
+}
 
 
 @router.get(
@@ -45,6 +101,26 @@ def get_manage_users(
         per_page=per_page,
         search=search,
     )
+
+
+@router.get(
+    "/manage-users/{user_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=ManageUserDetailSuccessResponse,
+)
+def get_manage_user_detail(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin_user),
+):
+    """Return complete profile details for a single user (administrator only)."""
+    try:
+        return service.get_user_detail(db, current_user, user_id)
+    except service.UserNotFoundError:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"success": False, "message": messages.USER_NOT_FOUND},
+        )
 
 
 @router.put(
@@ -97,17 +173,53 @@ def update_manage_user_status(
     "/manage-users/{user_id}",
     status_code=status.HTTP_200_OK,
     response_model=UpdateManageUserSuccessResponse,
+    openapi_extra=_UPDATE_MANAGE_USER_OPENAPI_BODY,
 )
-def update_manage_user(
+async def update_manage_user(
     user_id: int,
-    payload: UpdateManageUserRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin_user),
 ):
     """Update any user's profile fields (administrator only)."""
+    content_type = request.headers.get("content-type", "")
+    profile_image = None
+
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        profile_image = form.get("profile_image")
+        if profile_image is not None and not getattr(profile_image, "filename", None):
+            profile_image = None
+
+        payload = UpdateManageUserRequest(
+            first_name=str(form.get("first_name") or ""),
+            last_name=str(form.get("last_name") or ""),
+            email=str(form.get("email") or ""),
+            mobile=str(form.get("mobile") or ""),
+            company=_optional_form_value(form.get("company")),
+            website=_optional_form_value(form.get("website")),
+            language=str(form.get("language") or ""),
+            bio=_optional_form_value(form.get("bio")),
+            role=str(form.get("role") or ""),
+        )
+    else:
+        body = await request.json()
+        payload = UpdateManageUserRequest(**body)
+
     try:
-        return service.update_user(db, current_user, user_id, payload)
+        return await service.update_user(
+            db,
+            current_user,
+            user_id,
+            payload,
+            profile_image,  # type: ignore[arg-type]
+        )
     except service.ManageUsersValidationError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": exc.message},
+        )
+    except service.ProfileImageUploadError as exc:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"success": False, "message": exc.message},

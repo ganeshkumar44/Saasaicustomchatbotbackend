@@ -5,6 +5,7 @@ Manage Users module business logic.
 import logging
 from datetime import datetime, timezone
 
+from fastapi import UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -13,7 +14,13 @@ from app.core import messages
 from app.modules.auth.model import User
 from app.modules.auth.utils import normalize_email
 from app.modules.chatbot.model import Chatbot
+from app.modules.chatbot_settings.utils import (
+    restore_all_chatbots_for_user,
+    soft_delete_all_chatbots_for_user,
+)
 from app.modules.manage_users.schema import (
+    ManageUserDetailData,
+    ManageUserDetailSuccessResponse,
     ManageUserListItem,
     ManageUsersListSuccessResponse,
     UpdateManageUserRequest,
@@ -24,6 +31,7 @@ from app.modules.manage_users.schema import (
 from app.modules.manage_users.utils import (
     build_full_name,
     calculate_total_pages,
+    fetch_manage_user_detail_row,
     fetch_manage_users_page,
     normalize_pagination,
     resolve_account_status,
@@ -32,9 +40,13 @@ from app.modules.manage_users.utils import (
     validate_status_action,
 )
 from app.modules.user_details.utils import (
+    build_profile_image_object_key,
+    delete_profile_image_from_s3,
     email_belongs_to_other_user,
     ensure_user_details_exists,
     mobile_belongs_to_other_user,
+    upload_profile_image_to_s3,
+    validate_profile_image_upload,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,6 +86,14 @@ class AccountAlreadyDeactivatedError(Exception):
 
 class AccountAlreadyDeletedError(Exception):
     """Raised when attempting to delete an already deleted account."""
+
+
+class ProfileImageUploadError(Exception):
+    """Raised when a profile image upload fails."""
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
 
 
 def _get_target_user(db: Session, user_id: int) -> User:
@@ -127,6 +147,67 @@ def _build_manage_user_list_item_from_row(row) -> ManageUserListItem:
         total_chatbots=int(row.total_chatbots or 0),
         created_at=row.created_at,
         updated_at=row.updated_at,
+    )
+
+
+def _build_manage_user_detail_from_row(row) -> ManageUserDetailData:
+    """Map a manage-user detail query row to the API response shape."""
+    return ManageUserDetailData(
+        user_id=row.user_id,
+        first_name=row.first_name,
+        last_name=row.last_name,
+        full_name=build_full_name(row.first_name, row.last_name),
+        email=row.email,
+        mobile=row.mobile,
+        role=row.role,
+        account_status=resolve_account_status_from_flags(row.is_deleted, row.is_active),
+        email_verified=row.is_email_verified,
+        mobile_verified=row.is_mobile_verified,
+        profile_image=row.profile_image,
+        company=row.company,
+        website=row.website,
+        language=row.language,
+        bio=row.bio,
+        theme=row.theme,
+        total_chatbots=int(row.total_chatbots or 0),
+        total_published_chatbots=int(row.total_published_chatbots or 0),
+        total_draft_chatbots=int(row.total_draft_chatbots or 0),
+        total_deleted_chatbots=int(row.total_deleted_chatbots or 0),
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+def get_user_detail(
+    db: Session,
+    admin_user: User,
+    user_id: int,
+) -> ManageUserDetailSuccessResponse:
+    """Return complete profile details for a single user (administrator only)."""
+    logger.info(
+        "Fetching manage-user detail admin_user_id=%s target_user_id=%s",
+        admin_user.id,
+        user_id,
+    )
+
+    row = fetch_manage_user_detail_row(db, user_id)
+    if row is None:
+        logger.warning(
+            "Manage-user detail not found admin_user_id=%s target_user_id=%s",
+            admin_user.id,
+            user_id,
+        )
+        raise UserNotFoundError()
+
+    logger.info(
+        "Manage-user detail fetched admin_user_id=%s target_user_id=%s",
+        admin_user.id,
+        user_id,
+    )
+
+    return ManageUserDetailSuccessResponse(
+        message=messages.USER_DETAILS_RETRIEVED_SUCCESS,
+        data=_build_manage_user_detail_from_row(row),
     )
 
 
@@ -201,39 +282,54 @@ def update_user_status(
     target_user = _get_target_user(db, user_id)
     now = datetime.now(timezone.utc)
 
-    if action == "activate":
-        if target_user.is_deleted:
-            target_user.is_deleted = False
-            target_user.deleted_at = None
-        elif target_user.is_active and not target_user.is_deleted:
-            raise AccountAlreadyActiveError()
+    try:
+        if action == "activate":
+            was_deleted = target_user.is_deleted
+            if was_deleted:
+                target_user.is_deleted = False
+                target_user.deleted_at = None
+            elif target_user.is_active and not target_user.is_deleted:
+                raise AccountAlreadyActiveError()
 
-        target_user.is_active = True
-        target_user.updated_at = now
-        success_message = messages.USER_ACTIVATED_SUCCESS
+            target_user.is_active = True
+            target_user.updated_at = now
+            if was_deleted:
+                restore_all_chatbots_for_user(db, user_id)
+            success_message = messages.USER_ACTIVATED_SUCCESS
 
-    elif action == "deactivate":
-        if target_user.is_deleted:
-            raise AccountAlreadyDeletedError()
+        elif action == "deactivate":
+            if target_user.is_deleted:
+                raise AccountAlreadyDeletedError()
 
-        if not target_user.is_active:
-            raise AccountAlreadyDeactivatedError()
+            if not target_user.is_active:
+                raise AccountAlreadyDeactivatedError()
 
-        target_user.is_active = False
-        target_user.updated_at = now
-        success_message = messages.USER_DEACTIVATED_SUCCESS
+            target_user.is_active = False
+            target_user.updated_at = now
+            success_message = messages.USER_DEACTIVATED_SUCCESS
 
-    else:
-        if target_user.is_deleted:
-            raise AccountAlreadyDeletedError()
+        else:
+            if target_user.is_deleted:
+                raise AccountAlreadyDeletedError()
 
-        target_user.is_deleted = True
-        target_user.deleted_at = now
-        target_user.is_active = False
-        target_user.updated_at = now
-        success_message = messages.USER_DELETED_SUCCESS
+            target_user.is_deleted = True
+            target_user.deleted_at = now
+            target_user.is_active = False
+            target_user.updated_at = now
+            soft_delete_all_chatbots_for_user(db, user_id)
+            success_message = messages.USER_DELETED_SUCCESS
 
-    db.commit()
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Failed to update manage-user status admin_user_id=%s target_user_id=%s action=%s",
+            admin_user.id,
+            user_id,
+            action,
+        )
+        raise
+
     db.refresh(target_user)
 
     logger.info(
@@ -251,11 +347,12 @@ def update_user_status(
     )
 
 
-def update_user(
+async def update_user(
     db: Session,
     admin_user: User,
     user_id: int,
     payload: UpdateManageUserRequest,
+    profile_image: UploadFile | None = None,
 ) -> UpdateManageUserSuccessResponse:
     """Update any user's profile fields as an administrator."""
     logger.info(
@@ -289,6 +386,7 @@ def update_user(
         raise MobileAlreadyInUseError()
 
     details = ensure_user_details_exists(db, target_user.id)
+    previous_profile_image = details.profile_image
     now = datetime.now(timezone.utc)
 
     target_user.first_name = payload.first_name.strip()
@@ -308,6 +406,26 @@ def update_user(
     details.bio = payload.bio.strip() if payload.bio and payload.bio.strip() else None
     details.updated_at = now
 
+    if profile_image is not None and profile_image.filename:
+        image_content = await profile_image.read()
+        image_validation_error = validate_profile_image_upload(
+            filename=profile_image.filename,
+            content_type=profile_image.content_type,
+            file_size=len(image_content),
+        )
+        if image_validation_error:
+            raise ManageUsersValidationError(image_validation_error)
+
+        object_key = build_profile_image_object_key(target_user.id, profile_image.filename)
+        try:
+            details.profile_image = upload_profile_image_to_s3(
+                content=image_content,
+                object_key=object_key,
+                content_type=profile_image.content_type or "image/jpeg",
+            )
+        except RuntimeError as exc:
+            raise ProfileImageUploadError(str(exc)) from exc
+
     try:
         db.commit()
     except IntegrityError as exc:
@@ -317,6 +435,14 @@ def update_user(
             target_user.id,
         )
         raise EmailAlreadyInUseError() from exc
+
+    if (
+        profile_image is not None
+        and profile_image.filename
+        and previous_profile_image
+        and previous_profile_image != details.profile_image
+    ):
+        delete_profile_image_from_s3(previous_profile_image)
 
     db.refresh(target_user)
     db.refresh(details)
