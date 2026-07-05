@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 from app.modules.auth.model import User
 from app.modules.chatbot.model import Chatbot
 from app.modules.chatbot.service import ChatbotNotFoundError, ChatbotPermissionError
+from app.modules.chatbot_settings.utils import get_owned_chatbot
 from app.modules.knowledgebase.model import (
     SOURCE_TYPE_FILE,
     SOURCE_TYPE_URL,
@@ -58,15 +59,8 @@ class UploadedFilePayload:
 
 
 def _get_owned_chatbot(db: Session, user: User, chatbot_id: int) -> Chatbot:
-    """Return a chatbot owned by the user or raise a domain error."""
-    chatbot = db.get(Chatbot, chatbot_id)
-    if not chatbot:
-        raise ChatbotNotFoundError()
-
-    if chatbot.user_id != user.id:
-        raise ChatbotPermissionError()
-
-    return chatbot
+    """Return a chatbot the user may modify or raise a domain error."""
+    return get_owned_chatbot(db, user, chatbot_id)
 
 
 def _validate_upload_payload(

@@ -4,9 +4,14 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from app.core import messages
 from app.core.database import get_db
 from app.modules.auth.model import User
-from app.modules.chatbot.service import ChatbotNotFoundError, ChatbotPermissionError
+from app.modules.chatbot.service import (
+    ChatbotNotFoundError,
+    ChatbotPermissionError,
+    SuperAdminChatbotProtectedError,
+)
 from app.modules.chatbot.utils import get_authenticated_user
 from app.modules.knowledgebase import service
 from app.modules.knowledgebase.schema import KnowledgebaseUploadSuccessResponse
@@ -113,7 +118,7 @@ async def upload_knowledgebase(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "success": False,
-                "message": "Chatbot not found",
+                "message": messages.CHATBOT_NOT_FOUND,
             },
         )
     except ChatbotPermissionError:
@@ -121,6 +126,14 @@ async def upload_knowledgebase(
             status_code=status.HTTP_403_FORBIDDEN,
             content={
                 "success": False,
-                "message": "You do not have permission to access this chatbot",
+                "message": messages.UNAUTHORIZED_CHATBOT_ACCESS,
+            },
+        )
+    except SuperAdminChatbotProtectedError:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={
+                "success": False,
+                "message": messages.SUPERADMIN_CHATBOT_PROTECTED,
             },
         )

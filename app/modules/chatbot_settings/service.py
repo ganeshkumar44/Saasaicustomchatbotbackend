@@ -10,12 +10,14 @@ from sqlalchemy.orm import Session
 
 from app.core import messages
 from app.modules.auth.model import User
+from app.modules.auth.utils import USER_ROLE_ADMIN
 from app.modules.chatbot.service import (
     ChatbotNotFoundError,
     ChatbotPermissionError,
     InvalidAIModelError,
+    SuperAdminChatbotProtectedError,
 )
-from app.modules.chatbot.model import CHATBOT_STATUS_PUBLISHED, Chatbot
+from app.modules.chatbot.model import CHATBOT_STATUS_DRAFT, CHATBOT_STATUS_PUBLISHED, Chatbot
 from app.modules.chatbot_settings.schema import (
     ActivateChatbotData,
     ActivateChatbotSuccessResponse,
@@ -31,16 +33,19 @@ from app.modules.chatbot_settings.schema import (
 from app.modules.chatbot_settings.utils import (
     ChatbotSettingsNotFoundError,
     build_chatbot_details_data,
-    can_access_chatbot,
-    delete_chromadb_vectors_for_chatbot,
-    delete_chromadb_vectors_for_document,
+    can_hard_delete_chatbot,
+    can_manage_chatbot,
     delete_knowledgebase_document,
+    get_chatbot_owner,
     get_chatbot_settings_record,
     get_knowledgebase_documents,
     get_owned_chatbot,
     get_owned_chatbot_with_settings,
     get_viewable_chatbot,
+    hard_delete_chatbot_record,
+    is_superadmin_owned,
     restore_chromadb_vectors_for_chatbot,
+    soft_delete_chatbot_record,
     validate_ai_model,
     validate_and_normalize_allowed_domains,
     validate_appearance_settings,
@@ -87,6 +92,10 @@ class ChatbotActivatePermissionError(Exception):
     """Raised when a non-admin attempts to activate a chatbot."""
 
 
+class OnlyDraftHardDeleteError(Exception):
+    """Raised when a permanent delete is attempted on a non-draft chatbot."""
+
+
 def get_chatbot_details(
     db: Session,
     user: User,
@@ -100,6 +109,7 @@ def get_chatbot_details(
     )
 
     chatbot = get_viewable_chatbot(db, user, chatbot_id)
+    owner = get_chatbot_owner(db, chatbot)
 
     settings = get_chatbot_settings_record(chatbot)
     if settings is None:
@@ -125,7 +135,13 @@ def get_chatbot_details(
 
     return ChatbotDetailsSuccessResponse(
         message=messages.CHATBOT_DETAILS_FETCH_SUCCESS,
-        data=build_chatbot_details_data(chatbot, settings, documents),
+        data=build_chatbot_details_data(
+            chatbot,
+            settings,
+            documents,
+            is_editable=can_manage_chatbot(user, chatbot, owner)
+            and not bool(getattr(chatbot, "is_deleted", False)),
+        ),
     )
 
 
@@ -350,7 +366,7 @@ def delete_chatbot(
     user: User,
     chatbot_id: int,
 ) -> DeleteChatbotSuccessResponse:
-    """Soft-delete a chatbot and remove its knowledge base vectors from ChromaDB."""
+    """Delete a chatbot: hard-delete drafts, soft-delete published chatbots."""
     logger.info(
         "Chatbot delete requested chatbot_id=%s user_id=%s",
         chatbot_id,
@@ -364,47 +380,68 @@ def delete_chatbot(
     if chatbot.is_deleted:
         raise ChatbotAlreadyDeletedError()
 
-    if not can_access_chatbot(user, chatbot):
+    owner = get_chatbot_owner(db, chatbot)
+
+    is_hard_delete = chatbot.status == CHATBOT_STATUS_DRAFT
+    if is_hard_delete:
+        if not can_hard_delete_chatbot(user, chatbot, owner):
+            logger.warning(
+                "Unauthorized chatbot hard-delete attempt chatbot_id=%s owner_id=%s user_id=%s",
+                chatbot_id,
+                chatbot.user_id,
+                user.id,
+            )
+            if user.role == USER_ROLE_ADMIN and is_superadmin_owned(owner):
+                raise SuperAdminChatbotProtectedError()
+            raise ChatbotPermissionError()
+    elif not can_manage_chatbot(user, chatbot, owner):
         logger.warning(
             "Unauthorized chatbot delete attempt chatbot_id=%s owner_id=%s user_id=%s",
             chatbot_id,
             chatbot.user_id,
             user.id,
         )
+        if user.role == USER_ROLE_ADMIN and is_superadmin_owned(owner):
+            raise SuperAdminChatbotProtectedError()
         raise ChatbotPermissionError()
 
-    documents = get_knowledgebase_documents(db, chatbot_id)
-    for document in documents:
-        delete_chromadb_vectors_for_document(document.id)
-
-    delete_chromadb_vectors_for_chatbot(chatbot_id)
-
-    now = datetime.now(timezone.utc)
-    chatbot.is_deleted = True
-    chatbot.deleted_at = now
-    chatbot.updated_at = now
+    success_message = messages.CHATBOT_DELETED_SUCCESS
+    deleted_status = chatbot.status
 
     try:
+        if is_hard_delete:
+            hard_delete_chatbot_record(db, chatbot)
+            success_message = messages.CHATBOT_HARD_DELETED_SUCCESS
+        else:
+            soft_delete_chatbot_record(db, chatbot)
+            deleted_status = chatbot.status
+
         db.commit()
+    except ValueError as exc:
+        db.rollback()
+        if str(exc) == messages.ONLY_DRAFT_CAN_BE_HARD_DELETED:
+            raise OnlyDraftHardDeleteError() from exc
+        raise
     except Exception:
         db.rollback()
         logger.exception("Failed to delete chatbot_id=%s", chatbot_id)
         raise
 
-    db.refresh(chatbot)
+    if not is_hard_delete:
+        db.refresh(chatbot)
 
     logger.info(
-        "Chatbot soft-deleted chatbot_id=%s user_id=%s admin=%s",
+        "Chatbot deleted chatbot_id=%s user_id=%s hard_delete=%s",
         chatbot_id,
         user.id,
-        chatbot.user_id != user.id,
+        is_hard_delete,
     )
 
     return DeleteChatbotSuccessResponse(
-        message=messages.CHATBOT_DELETED_SUCCESS,
+        message=success_message,
         data=DeleteChatbotData(
-            chatbot_id=chatbot.id,
-            status=chatbot.status,
+            chatbot_id=chatbot_id,
+            status=deleted_status if is_hard_delete else chatbot.status,
         ),
     )
 
@@ -435,6 +472,18 @@ def activate_chatbot(
 
     if not chatbot.is_deleted:
         raise ChatbotAlreadyActiveError()
+
+    owner = get_chatbot_owner(db, chatbot)
+    if not can_manage_chatbot(user, chatbot, owner):
+        logger.warning(
+            "Unauthorized chatbot activate attempt chatbot_id=%s owner_id=%s user_id=%s",
+            chatbot_id,
+            chatbot.user_id,
+            user.id,
+        )
+        if user.role == USER_ROLE_ADMIN and is_superadmin_owned(owner):
+            raise SuperAdminChatbotProtectedError()
+        raise ChatbotPermissionError()
 
     now = datetime.now(timezone.utc)
     chatbot.is_deleted = False

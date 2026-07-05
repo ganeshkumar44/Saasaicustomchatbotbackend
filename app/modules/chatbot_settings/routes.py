@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core import messages
 from app.core.database import get_db
 from app.modules.auth.model import User
-from app.modules.chatbot.service import ChatbotNotFoundError, ChatbotPermissionError, InvalidAIModelError
+from app.modules.chatbot.service import ChatbotNotFoundError, ChatbotPermissionError, SuperAdminChatbotProtectedError, InvalidAIModelError
 from app.modules.chatbot.utils import get_authenticated_user
 from app.modules.chatbot_settings import service
 from app.modules.chatbot_settings.schema import (
@@ -45,6 +45,11 @@ def _chatbot_access_error_response(exc: Exception) -> JSONResponse | None:
             status_code=status.HTTP_403_FORBIDDEN,
             content={"success": False, "message": messages.UNAUTHORIZED_CHATBOT_ACCESS},
         )
+    if isinstance(exc, SuperAdminChatbotProtectedError):
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"success": False, "message": messages.SUPERADMIN_CHATBOT_PROTECTED},
+        )
     if isinstance(exc, ChatbotSettingsNotFoundError):
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -66,7 +71,7 @@ def get_chatbot_details(
     """Return complete chatbot configuration for the settings page."""
     try:
         return service.get_chatbot_details(db, current_user, chatbot_id)
-    except (ChatbotNotFoundError, ChatbotPermissionError, ChatbotSettingsNotFoundError) as exc:
+    except (ChatbotNotFoundError, ChatbotPermissionError, SuperAdminChatbotProtectedError, ChatbotSettingsNotFoundError) as exc:
         response = _chatbot_access_error_response(exc)
         if response is not None:
             return response
@@ -91,7 +96,7 @@ def update_general_settings(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"success": False, "message": exc.message},
         )
-    except (ChatbotNotFoundError, ChatbotPermissionError, ChatbotSettingsNotFoundError) as exc:
+    except (ChatbotNotFoundError, ChatbotPermissionError, SuperAdminChatbotProtectedError, ChatbotSettingsNotFoundError) as exc:
         response = _chatbot_access_error_response(exc)
         if response is not None:
             return response
@@ -116,7 +121,7 @@ def update_appearance_settings(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"success": False, "message": exc.message},
         )
-    except (ChatbotNotFoundError, ChatbotPermissionError, ChatbotSettingsNotFoundError) as exc:
+    except (ChatbotNotFoundError, ChatbotPermissionError, SuperAdminChatbotProtectedError, ChatbotSettingsNotFoundError) as exc:
         response = _chatbot_access_error_response(exc)
         if response is not None:
             return response
@@ -141,7 +146,7 @@ def update_messages_settings(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"success": False, "message": exc.message},
         )
-    except (ChatbotNotFoundError, ChatbotPermissionError, ChatbotSettingsNotFoundError) as exc:
+    except (ChatbotNotFoundError, ChatbotPermissionError, SuperAdminChatbotProtectedError, ChatbotSettingsNotFoundError) as exc:
         response = _chatbot_access_error_response(exc)
         if response is not None:
             return response
@@ -171,7 +176,7 @@ def update_security_settings(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"success": False, "message": exc.message},
         )
-    except (ChatbotNotFoundError, ChatbotPermissionError, ChatbotSettingsNotFoundError) as exc:
+    except (ChatbotNotFoundError, ChatbotPermissionError, SuperAdminChatbotProtectedError, ChatbotSettingsNotFoundError) as exc:
         response = _chatbot_access_error_response(exc)
         if response is not None:
             return response
@@ -248,7 +253,7 @@ async def update_knowledge_base(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"success": False, "message": "Maximum upload size is 50 MB"},
         )
-    except (ChatbotNotFoundError, ChatbotPermissionError, ChatbotSettingsNotFoundError) as exc:
+    except (ChatbotNotFoundError, ChatbotPermissionError, SuperAdminChatbotProtectedError, ChatbotSettingsNotFoundError) as exc:
         response = _chatbot_access_error_response(exc)
         if response is not None:
             return response
@@ -273,7 +278,12 @@ def delete_chatbot(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"success": False, "message": messages.CHATBOT_ALREADY_DELETED},
         )
-    except (ChatbotNotFoundError, ChatbotPermissionError, ChatbotSettingsNotFoundError) as exc:
+    except service.OnlyDraftHardDeleteError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": messages.ONLY_DRAFT_CAN_BE_HARD_DELETED},
+        )
+    except (ChatbotNotFoundError, ChatbotPermissionError, SuperAdminChatbotProtectedError, ChatbotSettingsNotFoundError) as exc:
         response = _chatbot_access_error_response(exc)
         if response is not None:
             return response
@@ -302,6 +312,16 @@ def activate_chatbot(
         return JSONResponse(
             status_code=status.HTTP_403_FORBIDDEN,
             content={"success": False, "message": messages.UNAUTHORIZED_ACTION},
+        )
+    except SuperAdminChatbotProtectedError:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"success": False, "message": messages.SUPERADMIN_CHATBOT_PROTECTED},
+        )
+    except ChatbotPermissionError:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"success": False, "message": messages.UNAUTHORIZED_CHATBOT_ACCESS},
         )
     except ChatbotNotFoundError:
         return JSONResponse(

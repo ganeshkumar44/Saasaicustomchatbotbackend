@@ -4,6 +4,7 @@ Chatbot Settings module helper utilities.
 
 import logging
 import re
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -13,22 +14,29 @@ from sqlalchemy.orm import Session
 
 from app.core import messages
 from app.modules.auth.model import User
+from app.modules.auth.utils import USER_ROLE_ADMIN, USER_ROLE_SUPERADMIN
 from app.modules.chatbot.model import (
     CHATBOT_STATUS_DELETED,
+    CHATBOT_STATUS_DRAFT,
     CHATBOT_STATUS_PUBLISHED,
     Chatbot,
     ChatbotSettings,
 )
 from app.modules.chatbot.schema import AIModelEnum
-from app.modules.chatbot.service import ChatbotNotFoundError, ChatbotPermissionError
+from app.modules.chatbot.service import (
+    ChatbotNotFoundError,
+    ChatbotPermissionError,
+    SuperAdminChatbotProtectedError,
+)
 from app.modules.chatbot_settings.schema import ChatbotDetailsData, KnowledgebaseDocumentItem
 from app.modules.knowledgebase.model import (
     SOURCE_TYPE_FILE,
     SOURCE_TYPE_URL,
     KnowledgebaseDocument,
 )
+from app.modules.knowledgebase.utils import KNOWLEDGEBASE_UPLOAD_DIR
 from app.modules.knowledge_chunks.utils import get_chunks_by_document_id
-from app.modules.user_details.utils import is_admin
+from app.modules.user_details.utils import is_admin, is_superadmin
 from app.modules.chat_analysis.service import ensure_chat_analysis_for_chatbot
 from app.embeddings.embedding_service import generate_embeddings_for_chunks
 from app.vectorstore.chroma_service import store_chunks_in_chromadb
@@ -52,13 +60,78 @@ _DOMAIN_URL_PATTERN = re.compile(
 )
 
 
+def get_chatbot_owner(db: Session, chatbot: Chatbot) -> User:
+    """Return the chatbot owner or raise when the owner record is missing."""
+    owner = db.get(User, chatbot.user_id)
+    if owner is None:
+        logger.warning(
+            "Chatbot owner not found chatbot_id=%s owner_id=%s",
+            chatbot.id,
+            chatbot.user_id,
+        )
+        raise ChatbotNotFoundError()
+    return owner
+
+
+def is_superadmin_owned(owner: User) -> bool:
+    """Return True when the chatbot belongs to a SuperAdmin account."""
+    return owner.role == USER_ROLE_SUPERADMIN
+
+
+def can_view_chatbot(user: User, chatbot: Chatbot, owner: User) -> bool:
+    """Return True when the user may view chatbot details."""
+    if is_superadmin(user):
+        return True
+    if chatbot.user_id == user.id:
+        return True
+    if user.role == USER_ROLE_ADMIN:
+        return True
+    return False
+
+
+def can_manage_chatbot(user: User, chatbot: Chatbot, owner: User) -> bool:
+    """Return True when the user may edit, delete, or upload to a chatbot."""
+    if is_superadmin(user):
+        return True
+    if chatbot.user_id == user.id:
+        return True
+    if user.role == USER_ROLE_ADMIN and not is_superadmin_owned(owner):
+        return True
+    return False
+
+
+def can_delete_chatbot(user: User, chatbot: Chatbot, owner: User) -> bool:
+    """Return True when the user may delete a chatbot (soft or hard)."""
+    return can_manage_chatbot(user, chatbot, owner)
+
+
+def can_hard_delete_chatbot(user: User, chatbot: Chatbot, owner: User) -> bool:
+    """Return True when the user may permanently delete a draft chatbot."""
+    if chatbot.status != CHATBOT_STATUS_DRAFT or chatbot.is_deleted:
+        return False
+    return can_manage_chatbot(user, chatbot, owner)
+
+
+def _raise_chatbot_access_error(user: User, chatbot: Chatbot, owner: User) -> None:
+    """Raise the appropriate access error for a denied chatbot management attempt."""
+    if user.role == USER_ROLE_ADMIN and is_superadmin_owned(owner):
+        raise SuperAdminChatbotProtectedError()
+    raise ChatbotPermissionError()
+
+
 def can_access_chatbot(user: User, chatbot: Chatbot) -> bool:
-    """Return True when the user may view or edit the chatbot."""
-    return is_admin(user) or chatbot.user_id == user.id
+    """Return True when the user may manage the chatbot (legacy alias)."""
+    if chatbot.user_id == user.id:
+        return True
+    if is_superadmin(user):
+        return True
+    if user.role == USER_ROLE_ADMIN:
+        return True
+    return False
 
 
 def get_owned_chatbot(db: Session, user: User, chatbot_id: int) -> Chatbot:
-    """Return a chatbot accessible to the authenticated user or raise a domain error."""
+    """Return a chatbot the user may modify or raise a domain error."""
     chatbot = db.get(Chatbot, chatbot_id)
     if chatbot is None:
         logger.warning("Chatbot not found for chatbot_id=%s user_id=%s", chatbot_id, user.id)
@@ -72,14 +145,15 @@ def get_owned_chatbot(db: Session, user: User, chatbot_id: int) -> Chatbot:
         )
         raise ChatbotNotFoundError()
 
-    if not can_access_chatbot(user, chatbot):
+    owner = get_chatbot_owner(db, chatbot)
+    if not can_manage_chatbot(user, chatbot, owner):
         logger.warning(
-            "Unauthorized chatbot access attempt chatbot_id=%s owner_id=%s user_id=%s",
+            "Unauthorized chatbot modify attempt chatbot_id=%s owner_id=%s user_id=%s",
             chatbot_id,
             chatbot.user_id,
             user.id,
         )
-        raise ChatbotPermissionError()
+        _raise_chatbot_access_error(user, chatbot, owner)
 
     if is_admin(user) and chatbot.user_id != user.id:
         logger.info(
@@ -99,7 +173,8 @@ def get_viewable_chatbot(db: Session, user: User, chatbot_id: int) -> Chatbot:
         logger.warning("Chatbot not found for chatbot_id=%s user_id=%s", chatbot_id, user.id)
         raise ChatbotNotFoundError()
 
-    if not can_access_chatbot(user, chatbot):
+    owner = get_chatbot_owner(db, chatbot)
+    if not can_view_chatbot(user, chatbot, owner):
         logger.warning(
             "Unauthorized chatbot access attempt chatbot_id=%s owner_id=%s user_id=%s",
             chatbot_id,
@@ -323,6 +398,33 @@ def restore_chromadb_vectors_for_chatbot(db: Session, chatbot_id: int) -> None:
     )
 
 
+def hard_delete_chatbot_record(db: Session, chatbot: Chatbot) -> None:
+    """Permanently delete a draft chatbot and all related data."""
+    if chatbot.status != CHATBOT_STATUS_DRAFT:
+        raise ValueError(messages.ONLY_DRAFT_CAN_BE_HARD_DELETED)
+
+    chatbot_id = chatbot.id
+    documents = get_knowledgebase_documents(db, chatbot_id)
+    for document in documents:
+        delete_knowledgebase_document(db, document)
+
+    delete_chromadb_vectors_for_chatbot(chatbot_id)
+
+    upload_dir = KNOWLEDGEBASE_UPLOAD_DIR / str(chatbot_id)
+    if upload_dir.exists():
+        try:
+            shutil.rmtree(upload_dir)
+            logger.info("Removed knowledge base upload directory for chatbot_id=%s", chatbot_id)
+        except OSError:
+            logger.exception(
+                "Failed to remove knowledge base upload directory for chatbot_id=%s",
+                chatbot_id,
+            )
+
+    db.delete(chatbot)
+    logger.info("Hard-deleted draft chatbot_id=%s", chatbot_id)
+
+
 def soft_delete_chatbot_record(db: Session, chatbot: Chatbot) -> None:
     """Soft-delete a chatbot and remove its knowledge base vectors from ChromaDB."""
     if chatbot.is_deleted:
@@ -476,8 +578,15 @@ def build_chatbot_details_data(
     chatbot: Chatbot,
     settings: ChatbotSettings,
     knowledgebase_documents: list[KnowledgebaseDocument] | None = None,
+    *,
+    is_editable: bool | None = None,
 ) -> ChatbotDetailsData:
     """Merge chatbot and settings records into a single response payload."""
+    resolved_editable = (
+        is_editable
+        if is_editable is not None
+        else not bool(getattr(chatbot, "is_deleted", False))
+    )
     return ChatbotDetailsData(
         id=chatbot.id,
         user_id=chatbot.user_id,
@@ -487,7 +596,7 @@ def build_chatbot_details_data(
         ai_model=chatbot.ai_model,
         language=chatbot.language,
         status=resolve_chatbot_details_status(chatbot),
-        is_editable=not bool(getattr(chatbot, "is_deleted", False)),
+        is_editable=resolved_editable,
         published_at=chatbot.published_at,
         created_at=chatbot.created_at,
         updated_at=chatbot.updated_at,

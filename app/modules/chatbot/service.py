@@ -63,6 +63,10 @@ class ChatbotPermissionError(Exception):
     """Raised when the user does not own the chatbot."""
 
 
+class SuperAdminChatbotProtectedError(Exception):
+    """Raised when an Admin attempts to modify a SuperAdmin-owned chatbot."""
+
+
 class ChatbotNameRequiredError(Exception):
     """Raised when chatbot_name is missing or empty."""
 

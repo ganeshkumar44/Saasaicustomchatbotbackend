@@ -162,9 +162,16 @@ DRAFT_CHATBOT_CREATED = "Draft chatbot created successfully."
 CHATBOT_LIST_SUCCESS = "Chatbot list retrieved successfully."
 NO_CHATBOTS_FOUND = "No chatbots found."
 CHATBOT_DELETED_SUCCESS = "Chatbot deleted successfully."
+CHATBOT_HARD_DELETED_SUCCESS = "Draft chatbot permanently deleted successfully."
 CHATBOT_ALREADY_DELETED = "Chatbot has already been deleted."
 CHATBOT_ACTIVATED_SUCCESS = "Chatbot activated successfully."
 CHATBOT_ALREADY_ACTIVE = "Chatbot is already active."
+SUPERADMIN_CHATBOT_PROTECTED = (
+    "You are not authorized to modify SuperAdmin chatbots."
+)
+ONLY_DRAFT_CAN_BE_HARD_DELETED = (
+    "Only draft chatbots can be permanently deleted."
+)
 CHATBOT_UNAVAILABLE = (
     "This chatbot is currently unavailable. It may have been deleted or there may be "
     "a temporary server issue. Please contact the website administrator."
