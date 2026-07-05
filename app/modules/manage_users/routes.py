@@ -15,10 +15,13 @@ from app.modules.manage_users.schema import (
     ManageUsersListSuccessResponse,
     UpdateManageUserRequest,
     UpdateManageUserSuccessResponse,
+    UpdateUserRoleRequest,
+    UpdateUserRoleSuccessResponse,
     UpdateUserStatusRequest,
     UpdateUserStatusSuccessResponse,
 )
-from app.modules.manage_users.utils import DEFAULT_PAGE, DEFAULT_PER_PAGE, require_admin_user
+from app.modules.manage_users.utils import DEFAULT_PAGE, DEFAULT_PER_PAGE
+from app.modules.user_details.utils import require_admin_user, require_superadmin
 
 router = APIRouter(
     prefix="/v1",
@@ -167,6 +170,42 @@ def update_manage_user_status(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"success": False, "message": messages.ACCOUNT_ALREADY_DELETED},
         )
+    except service.CannotManageSuperAdminError:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"success": False, "message": messages.CANNOT_MANAGE_SUPERADMIN},
+        )
+
+
+@router.put(
+    "/manage-users/{user_id}/role",
+    status_code=status.HTTP_200_OK,
+    response_model=UpdateUserRoleSuccessResponse,
+)
+def update_manage_user_role(
+    user_id: int,
+    payload: UpdateUserRoleRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superadmin),
+):
+    """Promote or demote a user's role (SuperAdmin only)."""
+    try:
+        return service.update_user_role(db, current_user, user_id, payload)
+    except service.ManageUsersValidationError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": exc.message},
+        )
+    except service.CannotModifySuperAdminError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": messages.CANNOT_MODIFY_SUPERADMIN},
+        )
+    except service.UserNotFoundError:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"success": False, "message": messages.USER_NOT_FOUND},
+        )
 
 
 @router.put(
@@ -233,6 +272,21 @@ async def update_manage_user(
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"success": False, "message": messages.MOBILE_ALREADY_EXISTS},
+        )
+    except service.RoleChangeForbiddenError:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"success": False, "message": messages.ONLY_SUPERADMIN_CAN_ASSIGN_ADMIN},
+        )
+    except service.CannotManageSuperAdminError:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"success": False, "message": messages.CANNOT_MANAGE_SUPERADMIN},
+        )
+    except service.CannotModifySuperAdminError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": messages.SUPERADMIN_ROLE_PROTECTED},
         )
     except service.UserNotFoundError:
         return JSONResponse(

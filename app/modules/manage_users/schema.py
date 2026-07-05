@@ -112,3 +112,18 @@ class UpdateManageUserSuccessResponse(BaseModel):
     success: bool = True
     message: str
     data: ManageUserListItem
+
+
+class UpdateUserRoleRequest(BaseModel):
+    """Request payload for changing a user's role."""
+
+    role: Literal["user", "admin"]
+
+
+class UpdateUserRoleSuccessResponse(BaseModel):
+    """Response after updating a user's role."""
+
+    success: bool = True
+    message: str
+    user_id: int
+    role: str

@@ -4,14 +4,13 @@ Manage Users module helper utilities.
 
 import math
 
-from fastapi import Depends, HTTPException, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import Select
 
 from app.core import messages
-from app.core.dependencies import get_current_user
 from app.modules.auth.model import User
+from app.modules.auth.utils import USER_ROLE_ADMIN
 from app.modules.chatbot.model import (
     CHATBOT_STATUS_DRAFT,
     CHATBOT_STATUS_PUBLISHED,
@@ -20,8 +19,8 @@ from app.modules.chatbot.model import (
 from app.modules.theme.model import DEFAULT_THEME, Theme
 from app.modules.user_details.model import UserDetails
 from app.modules.user_details.utils import (
-    ADMIN_ROLE,
-    is_admin,
+    ALL_USER_ROLES,
+    ASSIGNABLE_USER_ROLES,
     validate_update_user_details_request,
 )
 
@@ -33,21 +32,7 @@ ACCOUNT_STATUS_ACTIVE = "active"
 ACCOUNT_STATUS_DEACTIVATED = "deactivated"
 ACCOUNT_STATUS_DELETED = "deleted"
 
-ALLOWED_USER_ROLES = frozenset({ADMIN_ROLE, "user"})
 ALLOWED_STATUS_ACTIONS = frozenset({"activate", "deactivate", "delete"})
-
-
-def require_admin_user(current_user: User = Depends(get_current_user)) -> User:
-    """FastAPI dependency that restricts access to administrator accounts."""
-    if not is_admin(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "success": False,
-                "message": messages.UNAUTHORIZED_ACTION,
-            },
-        )
-    return current_user
 
 
 def resolve_account_status(user: User) -> str:
@@ -90,10 +75,36 @@ def validate_role(role: str | None) -> str | None:
     if role is None or not role.strip():
         return messages.INVALID_USER_ROLE
 
-    if role.strip().lower() not in ALLOWED_USER_ROLES:
+    if role.strip().lower() not in ALL_USER_ROLES:
         return messages.INVALID_USER_ROLE
 
     return None
+
+
+def validate_assignable_role(role: str | None) -> str | None:
+    """Validate a role value that SuperAdmin may assign. Returns an error when invalid."""
+    if role is None or not role.strip():
+        return messages.INVALID_ASSIGNABLE_ROLE
+
+    if role.strip().lower() not in ASSIGNABLE_USER_ROLES:
+        return messages.INVALID_ASSIGNABLE_ROLE
+
+    return None
+
+
+def find_active_admin_users(
+    db: Session,
+    *,
+    exclude_user_id: int | None = None,
+) -> list[User]:
+    """Return active Admin accounts, optionally excluding one user."""
+    query = select(User).where(
+        User.role == USER_ROLE_ADMIN,
+        User.is_deleted.is_(False),
+    )
+    if exclude_user_id is not None:
+        query = query.where(User.id != exclude_user_id)
+    return list(db.scalars(query).all())
 
 
 def validate_status_action(action: str | None) -> str | None:

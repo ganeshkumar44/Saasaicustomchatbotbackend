@@ -252,10 +252,19 @@ USER_ACTIVATED_SUCCESS = "User activated successfully."
 USER_DEACTIVATED_SUCCESS = "User deactivated successfully."
 USER_DELETED_SUCCESS = "User deleted successfully."
 SELF_ACTION_NOT_ALLOWED = (
-    "You cannot deactivate or delete your own administrator account."
+    "You cannot deactivate or delete your own administrator or SuperAdmin account."
 )
 INVALID_USER_STATUS_ACTION = "Invalid account action. Allowed values are activate, deactivate, and delete."
-INVALID_USER_ROLE = "Invalid role. Allowed values are admin and user."
+INVALID_USER_ROLE = "Invalid role. Allowed values are superadmin, admin, and user."
+INVALID_ASSIGNABLE_ROLE = "Invalid role. Allowed values are user and admin."
+SUPERADMIN_REQUIRED = "SuperAdmin access is required to perform this action."
+ROLE_UPDATED_SUCCESS = "User role updated successfully."
+CANNOT_MODIFY_SUPERADMIN = "The SuperAdmin role cannot be modified."
+SUPERADMIN_ROLE_PROTECTED = CANNOT_MODIFY_SUPERADMIN
+ONLY_SUPERADMIN_CAN_ASSIGN_ADMIN = (
+    "Only SuperAdmin can assign or remove Admin privileges."
+)
+CANNOT_MANAGE_SUPERADMIN = "You cannot manage SuperAdmin accounts."
 
 COMPANY_TOO_LONG = "Company name must not exceed 150 characters."
 BIO_TOO_LONG = "Bio must not exceed 1000 characters."

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core import messages
 from app.modules.auth.model import User
-from app.modules.auth.utils import normalize_email
+from app.modules.auth.utils import USER_ROLE_ADMIN, USER_ROLE_SUPERADMIN, USER_ROLE_USER, normalize_email
 from app.modules.chatbot.model import Chatbot
 from app.modules.chatbot_settings.utils import (
     restore_all_chatbots_for_user,
@@ -25,6 +25,8 @@ from app.modules.manage_users.schema import (
     ManageUsersListSuccessResponse,
     UpdateManageUserRequest,
     UpdateManageUserSuccessResponse,
+    UpdateUserRoleRequest,
+    UpdateUserRoleSuccessResponse,
     UpdateUserStatusRequest,
     UpdateUserStatusSuccessResponse,
 )
@@ -33,17 +35,21 @@ from app.modules.manage_users.utils import (
     calculate_total_pages,
     fetch_manage_user_detail_row,
     fetch_manage_users_page,
+    find_active_admin_users,
     normalize_pagination,
     resolve_account_status,
     resolve_account_status_from_flags,
+    validate_assignable_role,
     validate_manage_user_update_request,
     validate_status_action,
 )
 from app.modules.user_details.utils import (
     build_profile_image_object_key,
+    can_admin_manage_user,
     delete_profile_image_from_s3,
     email_belongs_to_other_user,
     ensure_user_details_exists,
+    is_superadmin,
     mobile_belongs_to_other_user,
     upload_profile_image_to_s3,
     validate_profile_image_upload,
@@ -96,12 +102,76 @@ class ProfileImageUploadError(Exception):
         super().__init__(message)
 
 
+class RoleChangeForbiddenError(Exception):
+    """Raised when a non-SuperAdmin attempts to change a user's role."""
+
+
+class CannotManageSuperAdminError(Exception):
+    """Raised when an Admin attempts to manage a SuperAdmin account."""
+
+
+class CannotModifySuperAdminError(Exception):
+    """Raised when an attempt is made to change a SuperAdmin's role."""
+
+
 def _get_target_user(db: Session, user_id: int) -> User:
     """Return the target user or raise when the account does not exist."""
     user = db.get(User, user_id)
     if user is None:
         raise UserNotFoundError()
     return user
+
+
+def _apply_superadmin_role_change(
+    db: Session,
+    target_user: User,
+    requested_role: str,
+    *,
+    now: datetime,
+) -> None:
+    """
+    Apply a SuperAdmin-initiated role change with single-Admin enforcement.
+
+    When promoting a user to Admin, any existing Admin is demoted to User in the
+    same transaction. No-op when the requested role matches the current role.
+    """
+    normalized_role = requested_role.strip().lower()
+
+    if is_superadmin(target_user):
+        if normalized_role != target_user.role:
+            raise CannotModifySuperAdminError()
+        return
+
+    if normalized_role == USER_ROLE_SUPERADMIN:
+        raise ManageUsersValidationError(messages.SUPERADMIN_ROLE_PROTECTED)
+
+    assignable_error = validate_assignable_role(normalized_role)
+    if assignable_error:
+        raise ManageUsersValidationError(assignable_error)
+
+    if normalized_role == target_user.role:
+        return
+
+    if normalized_role == USER_ROLE_ADMIN:
+        for existing_admin in find_active_admin_users(
+            db,
+            exclude_user_id=target_user.id,
+        ):
+            logger.info(
+                "Transferring Admin role: demoting user_id=%s to user",
+                existing_admin.id,
+            )
+            existing_admin.role = USER_ROLE_USER
+            existing_admin.updated_at = now
+
+    logger.info(
+        "Applying role change target_user_id=%s previous_role=%s new_role=%s",
+        target_user.id,
+        target_user.role,
+        normalized_role,
+    )
+    target_user.role = normalized_role
+    target_user.updated_at = now
 
 
 def _build_manage_user_list_item(user: User, details, total_chatbots: int = 0) -> ManageUserListItem:
@@ -280,6 +350,10 @@ def update_user_status(
         raise SelfActionNotAllowedError()
 
     target_user = _get_target_user(db, user_id)
+
+    if not can_admin_manage_user(admin_user, target_user):
+        raise CannotManageSuperAdminError()
+
     now = datetime.now(timezone.utc)
 
     try:
@@ -379,6 +453,23 @@ async def update_user(
     normalized_email = normalize_email(payload.email)
     trimmed_mobile = payload.mobile.strip()
 
+    if not can_admin_manage_user(admin_user, target_user):
+        raise CannotManageSuperAdminError()
+
+    requested_role = payload.role.strip().lower()
+    now = datetime.now(timezone.utc)
+
+    if not is_superadmin(admin_user):
+        if requested_role != target_user.role:
+            raise RoleChangeForbiddenError()
+    else:
+        _apply_superadmin_role_change(
+            db,
+            target_user,
+            requested_role,
+            now=now,
+        )
+
     if email_belongs_to_other_user(db, normalized_email, exclude_user_id=target_user.id):
         raise EmailAlreadyInUseError()
 
@@ -387,13 +478,11 @@ async def update_user(
 
     details = ensure_user_details_exists(db, target_user.id)
     previous_profile_image = details.profile_image
-    now = datetime.now(timezone.utc)
 
     target_user.first_name = payload.first_name.strip()
     target_user.last_name = payload.last_name.strip()
     target_user.email = normalized_email
     target_user.mobile = trimmed_mobile
-    target_user.role = payload.role.strip().lower()
     target_user.updated_at = now
 
     details.company = (
@@ -460,4 +549,59 @@ async def update_user(
     return UpdateManageUserSuccessResponse(
         message=messages.USER_UPDATED_SUCCESS,
         data=_build_manage_user_list_item(target_user, details, total_chatbots),
+    )
+
+
+def update_user_role(
+    db: Session,
+    superadmin_user: User,
+    user_id: int,
+    payload: UpdateUserRoleRequest,
+) -> UpdateUserRoleSuccessResponse:
+    """Promote or demote a user's role (SuperAdmin only)."""
+    validation_error = validate_assignable_role(payload.role)
+    if validation_error:
+        raise ManageUsersValidationError(validation_error)
+
+    logger.info(
+        "Manage-user role update requested superadmin_user_id=%s target_user_id=%s role=%s",
+        superadmin_user.id,
+        user_id,
+        payload.role,
+    )
+
+    target_user = _get_target_user(db, user_id)
+
+    if is_superadmin(target_user):
+        raise CannotModifySuperAdminError()
+
+    new_role = payload.role.strip().lower()
+    now = datetime.now(timezone.utc)
+    target_user.role = new_role
+    target_user.updated_at = now
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Failed to update manage-user role superadmin_user_id=%s target_user_id=%s",
+            superadmin_user.id,
+            user_id,
+        )
+        raise
+
+    db.refresh(target_user)
+
+    logger.info(
+        "Manage-user role updated superadmin_user_id=%s target_user_id=%s role=%s",
+        superadmin_user.id,
+        user_id,
+        new_role,
+    )
+
+    return UpdateUserRoleSuccessResponse(
+        message=messages.ROLE_UPDATED_SUCCESS,
+        user_id=target_user.id,
+        role=target_user.role,
     )

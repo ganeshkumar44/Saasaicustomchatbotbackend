@@ -49,6 +49,7 @@ _PASSWORD_SPECIAL = re.compile(r"[!@#$%^&*(),.?\":{}|<>_\-+=\[\]\\;/'`~]")
 _VERIFICATION_CODE_LENGTH = 6
 _VERIFICATION_CODE_PATTERN = re.compile(rf"^\d{{{_VERIFICATION_CODE_LENGTH}}}$")
 
+USER_ROLE_SUPERADMIN = "superadmin"
 USER_ROLE_ADMIN = "admin"
 USER_ROLE_USER = "user"
 SIGNUP_ROLE_ASSIGNMENT_LOCK_ID = 8347291
@@ -425,9 +426,9 @@ def resolve_initial_signup_role(db: Session) -> str:
     """
     Determine the role for a newly registered user.
 
-    The first non-deleted user becomes administrator; all later users are normal
+    The first non-deleted user becomes SuperAdmin; all later users are normal
     users. A PostgreSQL advisory transaction lock prevents concurrent signups on
-    a fresh installation from creating more than one administrator.
+    a fresh installation from creating more than one SuperAdmin.
     """
     db.execute(
         text("SELECT pg_advisory_xact_lock(:lock_id)"),
@@ -441,8 +442,8 @@ def resolve_initial_signup_role(db: Session) -> str:
     ) or 0
 
     if existing_user_count == 0:
-        logger.info("Assigning administrator role to first registered user")
-        return USER_ROLE_ADMIN
+        logger.info("Assigning SuperAdmin role to first registered user")
+        return USER_ROLE_SUPERADMIN
 
     return USER_ROLE_USER
 

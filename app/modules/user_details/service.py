@@ -41,6 +41,7 @@ from app.modules.user_details.utils import (
     ensure_user_details_exists,
     get_user_details_by_user_id,
     is_admin,
+    can_admin_manage_user,
     mobile_belongs_to_other_user,
     upload_profile_image_to_s3,
     validate_profile_image_upload,
@@ -361,15 +362,15 @@ def delete_account(
         actor.id,
     )
 
-    if not can_manage_account(actor, target_user_id):
+    target_user = _get_target_user(db, target_user_id)
+
+    if not can_manage_account(actor, target_user_id, target_user=target_user):
         logger.warning(
             "Unauthorized account delete attempt target_user_id=%s actor_user_id=%s",
             target_user_id,
             actor.id,
         )
         raise UnauthorizedAccountActionError()
-
-    target_user = _get_target_user(db, target_user_id)
 
     if target_user.is_deleted:
         raise AccountAlreadyDeletedError()
@@ -418,15 +419,15 @@ def deactivate_account(
         actor.id,
     )
 
-    if not can_manage_account(actor, target_user_id):
+    target_user = _get_target_user(db, target_user_id)
+
+    if not can_manage_account(actor, target_user_id, target_user=target_user):
         logger.warning(
             "Unauthorized account deactivate attempt target_user_id=%s actor_user_id=%s",
             target_user_id,
             actor.id,
         )
         raise UnauthorizedAccountActionError()
-
-    target_user = _get_target_user(db, target_user_id)
 
     if target_user.is_deleted:
         raise AccountAlreadyDeletedError()
@@ -469,6 +470,14 @@ def activate_account(
         raise AdminAccessRequiredError()
 
     target_user = _get_target_user(db, payload.user_id)
+
+    if not can_admin_manage_user(actor, target_user):
+        logger.warning(
+            "Unauthorized account activate attempt target_user_id=%s actor_user_id=%s",
+            payload.user_id,
+            actor.id,
+        )
+        raise UnauthorizedAccountActionError()
 
     was_deleted = target_user.is_deleted
     if was_deleted:

@@ -18,7 +18,13 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core import messages
 from app.modules.auth.model import User
+from fastapi import Depends, HTTPException, status
+
+from app.core.dependencies import get_current_user
 from app.modules.auth.utils import (
+    USER_ROLE_ADMIN,
+    USER_ROLE_SUPERADMIN,
+    USER_ROLE_USER,
     normalize_email,
     validate_email,
     validate_mobile,
@@ -33,7 +39,10 @@ logger = logging.getLogger(__name__)
 
 COMPANY_MAX_LENGTH = 150
 BIO_MAX_LENGTH = 1000
-ADMIN_ROLE = "admin"
+ADMIN_ROLE = USER_ROLE_ADMIN
+ADMIN_PRIVILEGED_ROLES = frozenset({USER_ROLE_SUPERADMIN, USER_ROLE_ADMIN})
+ALL_USER_ROLES = frozenset({USER_ROLE_SUPERADMIN, USER_ROLE_ADMIN, USER_ROLE_USER})
+ASSIGNABLE_USER_ROLES = frozenset({USER_ROLE_ADMIN, USER_ROLE_USER})
 PROFILE_IMAGE_PREFIX = "profile-images/"
 MAX_PROFILE_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
 ALLOWED_PROFILE_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
@@ -152,14 +161,71 @@ def sync_existing_user_details(db_engine: Engine) -> int:
     return created_count
 
 
+def is_superadmin(user: User) -> bool:
+    """Return True when the user has SuperAdmin privileges."""
+    return user.role == USER_ROLE_SUPERADMIN
+
+
 def is_admin(user: User) -> bool:
-    """Return True when the user has administrator privileges."""
-    return user.role == ADMIN_ROLE
+    """Return True when the user has administrator-level privileges (Admin or SuperAdmin)."""
+    return user.role in ADMIN_PRIVILEGED_ROLES
 
 
-def can_manage_account(actor: User, target_user_id: int) -> bool:
+def can_admin_manage_user(actor: User, target: User) -> bool:
+    """Return True when an admin-level actor may manage another user's account."""
+    if actor.id == target.id:
+        return True
+    if not is_admin(actor):
+        return False
+    if is_superadmin(target) and not is_superadmin(actor):
+        return False
+    return True
+
+
+def can_manage_account(
+    actor: User,
+    target_user_id: int,
+    *,
+    target_user: User | None = None,
+) -> bool:
     """Return True when the actor may manage the target account."""
-    return is_admin(actor) or actor.id == target_user_id
+    if actor.id == target_user_id:
+        return True
+    if not is_admin(actor):
+        return False
+    if target_user is not None and is_superadmin(target_user) and not is_superadmin(actor):
+        return False
+    return True
+
+
+def require_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    """FastAPI dependency that restricts access to Admin or SuperAdmin accounts."""
+    if not is_admin(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "success": False,
+                "message": messages.UNAUTHORIZED_ACTION,
+            },
+        )
+    return current_user
+
+
+def require_superadmin(current_user: User = Depends(get_current_user)) -> User:
+    """FastAPI dependency that restricts access to SuperAdmin accounts only."""
+    if not is_superadmin(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "success": False,
+                "message": messages.SUPERADMIN_REQUIRED,
+            },
+        )
+    return current_user
+
+
+# Alias documenting that Admin and SuperAdmin share admin-level route access.
+require_admin_or_superadmin = require_admin_user
 
 
 def _is_blank(value: str | None) -> bool:
