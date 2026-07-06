@@ -1,6 +1,4 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, File, Form, status
+from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -15,17 +13,16 @@ from app.modules.chatbot_settings.schema import (
     ChatbotDetailsSuccessResponse,
     DeleteChatbotSuccessResponse,
     SettingsUpdateSuccessResponse,
-    SwaggerUploadFile,
     UpdateAppearanceSettingsRequest,
     UpdateGeneralSettingsRequest,
     UpdateMessagesSettingsRequest,
     UpdateSecuritySettingsRequest,
 )
 from app.modules.chatbot_settings.utils import ChatbotSettingsNotFoundError
+from app.modules.knowledgebase.form_parser import parse_knowledge_base_settings_form
 from app.modules.knowledgebase.service import (
     FileSizeExceededError,
     UnsupportedFileTypeError,
-    UploadedFilePayload,
 )
 
 router = APIRouter(
@@ -187,41 +184,59 @@ def update_security_settings(
     "/chatbots/knowledge-base",
     status_code=status.HTTP_200_OK,
     response_model=SettingsUpdateSuccessResponse,
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "multipart/form-data": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "chatbot_id": {
+                                "type": "integer",
+                                "description": "Chatbot ID",
+                            },
+                            "delete_document_ids": {
+                                "type": "array",
+                                "items": {"type": "integer"},
+                                "description": "Document IDs to delete (optional)",
+                            },
+                            "files": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "format": "binary",
+                                },
+                                "description": (
+                                    "Knowledge base files (PDF, DOC, DOCX, TXT, CSV, MD)"
+                                ),
+                            },
+                            "urls": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Website URLs to scrape",
+                            },
+                        },
+                        "required": ["chatbot_id"],
+                    },
+                },
+            },
+        },
+    },
 )
 async def update_knowledge_base(
-    chatbot_id: Annotated[int, Form(description="Chatbot ID")],
-    delete_document_ids: Annotated[
-        list[int],
-        Form(description="Delete Document IDs (optional)"),
-    ] = [],
-    files: Annotated[
-        list[SwaggerUploadFile] | None,
-        File(
-            description=(
-                "Choose Files — PDF, DOC, DOCX, TXT, CSV, MD (multiple allowed)"
-            ),
-        ),
-    ] = None,
-    urls: Annotated[
-        list[str],
-        Form(description="New URLs (optional)"),
-    ] = [],
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_authenticated_user),
 ):
     """Update chatbot knowledge base by deleting old sources and uploading new ones."""
-    file_payloads: list[UploadedFilePayload] = []
-    for upload_file in files or []:
-        if not upload_file.filename:
-            continue
-        content = await upload_file.read()
-        if not content:
-            continue
-        file_payloads.append(
-            UploadedFilePayload(
-                filename=upload_file.filename,
-                content=content,
-            )
+    try:
+        chatbot_id, delete_document_ids, file_payloads, urls = (
+            await parse_knowledge_base_settings_form(request)
+        )
+    except ValueError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": str(exc) or "chatbot_id is required"},
         )
 
     try:

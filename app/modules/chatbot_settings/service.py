@@ -322,6 +322,14 @@ async def update_knowledge_base(
     normalized_urls = [url.strip() for url in urls if url and url.strip()]
     delete_ids = list(dict.fromkeys(delete_document_ids))
 
+    logger.info(
+        "Knowledge base update plan chatbot_id=%s delete_ids=%s new_files=%s new_urls=%s",
+        chatbot_id,
+        delete_ids,
+        len(files),
+        normalized_urls,
+    )
+
     existing_count = db.execute(
         select(func.count(KnowledgebaseDocument.id)).where(
             KnowledgebaseDocument.chatbot_id == chatbot_id
