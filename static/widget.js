@@ -685,8 +685,73 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
     }
 
     .saas-widget-message.typing {
-      font-style: italic;
-      color: #b0b0c0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 28px;
+      color: #888888;
+      font-style: normal;
+    }
+
+    .saas-widget-typing-label {
+      font-size: 13px;
+      color: #888888;
+    }
+
+    .saas-widget-typing-dots {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      height: 16px;
+    }
+
+    .saas-widget-typing-dots span {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: ${config.primary_color};
+      opacity: 0.35;
+      animation: saas-widget-typing-bounce 1.4s infinite ease-in-out both;
+    }
+
+    .saas-widget-typing-dots span:nth-child(1) {
+      animation-delay: 0s;
+    }
+
+    .saas-widget-typing-dots span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .saas-widget-typing-dots span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes saas-widget-typing-bounce {
+      0%, 60%, 100% {
+        transform: translateY(0);
+        opacity: 0.35;
+      }
+      30% {
+        transform: translateY(-5px);
+        opacity: 1;
+      }
+    }
+
+    .saas-widget-message.bot.typing-answer::after {
+      content: "";
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      margin-left: 2px;
+      vertical-align: text-bottom;
+      background: ${config.primary_color};
+      opacity: 0.7;
+      animation: saas-widget-cursor-blink 0.8s step-end infinite;
+    }
+
+    @keyframes saas-widget-cursor-blink {
+      0%, 100% { opacity: 0.7; }
+      50% { opacity: 0; }
     }
 
     .saas-widget-footer {
@@ -960,10 +1025,67 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
     return wrap;
   }
 
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function getTypewriterChunkSize(textLength) {
+    if (textLength > 1500) {
+      return 6;
+    }
+    if (textLength > 600) {
+      return 4;
+    }
+    if (textLength > 200) {
+      return 2;
+    }
+    return 1;
+  }
+
+  function getTypewriterDelay(textLength) {
+    if (textLength > 1500) {
+      return 6;
+    }
+    if (textLength > 600) {
+      return 10;
+    }
+    if (textLength > 200) {
+      return 14;
+    }
+    return 18;
+  }
+
+  async function typeBotMessage(message) {
+    const { wrap, bubble } = createMessageWrap("AI", "bot");
+    bubble.classList.add("typing-answer");
+    messages.appendChild(wrap);
+
+    const text = String(message || "");
+    const chunkSize = getTypewriterChunkSize(text.length);
+    const delayMs = getTypewriterDelay(text.length);
+    let displayedLength = 0;
+
+    while (displayedLength < text.length) {
+      displayedLength = Math.min(displayedLength + chunkSize, text.length);
+      bubble.textContent = text.slice(0, displayedLength);
+      scrollToBottom();
+      if (displayedLength < text.length) {
+        await sleep(delayMs);
+      }
+    }
+
+    bubble.classList.remove("typing-answer");
+    return wrap;
+  }
+
   function showTypingIndicator() {
     const { wrap, bubble } = createMessageWrap("AI", "bot");
     bubble.classList.add("typing");
-    bubble.textContent = "Typing...";
+    bubble.innerHTML =
+      '<span class="saas-widget-typing-label">Typing</span>' +
+      '<span class="saas-widget-typing-dots" aria-hidden="true">' +
+      "<span></span><span></span><span></span>" +
+      "</span>";
     messages.appendChild(wrap);
     scrollToBottom();
     return wrap;
@@ -1309,7 +1431,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
         return;
       }
 
-      addBotMessage(data.answer);
+      await typeBotMessage(data.answer);
       hasAiResponse = true;
       updateEndChatVisibility();
     } catch (error) {
