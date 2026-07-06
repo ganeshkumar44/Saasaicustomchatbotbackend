@@ -302,7 +302,7 @@ def _get_documents_for_deletion(
     return documents
 
 
-def update_knowledge_base(
+async def update_knowledge_base(
     db: Session,
     user: User,
     chatbot_id: int,
@@ -346,7 +346,7 @@ def update_knowledge_base(
         _save_chunks_for_document(db, chatbot_id, document)
 
     for url in normalized_urls:
-        document = _process_url_source(db, chatbot_id, url)
+        document = await _process_url_source(db, chatbot_id, url)
         _save_chunks_for_document(db, chatbot_id, document)
 
     final_count = db.execute(

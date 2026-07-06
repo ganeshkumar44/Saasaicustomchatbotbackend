@@ -1,6 +1,4 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -14,8 +12,8 @@ from app.modules.chatbot.service import (
 )
 from app.modules.chatbot.utils import get_authenticated_user
 from app.modules.knowledgebase import service
+from app.modules.knowledgebase.form_parser import parse_knowledgebase_multipart_form
 from app.modules.knowledgebase.schema import KnowledgebaseUploadSuccessResponse
-from app.modules.knowledgebase.service import UploadedFilePayload
 
 router = APIRouter(
     prefix="/v1",
@@ -58,31 +56,15 @@ router = APIRouter(
 )
 async def upload_knowledgebase(
     chatbot_id: int,
-    files: Annotated[
-        list[UploadFile] | None,
-        File(description="Knowledge base files (PDF, DOC, DOCX, TXT, CSV, MD)"),
-    ] = None,
-    urls: Annotated[list[str], Form(description="Website URLs to scrape")] = [],
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_authenticated_user),
 ):
     """Upload knowledge base files and website URLs for a chatbot."""
-    file_payloads: list[UploadedFilePayload] = []
-    for upload_file in files or []:
-        if not upload_file.filename:
-            continue
-        content = await upload_file.read()
-        if not content:
-            continue
-        file_payloads.append(
-            UploadedFilePayload(
-                filename=upload_file.filename,
-                content=content,
-            )
-        )
+    file_payloads, urls = await parse_knowledgebase_multipart_form(request)
 
     try:
-        return service.upload_knowledgebase(
+        return await service.upload_knowledgebase(
             db,
             current_user,
             chatbot_id,

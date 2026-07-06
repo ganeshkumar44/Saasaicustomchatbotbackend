@@ -109,6 +109,21 @@ class Settings:
             os.getenv("OLLAMA_REQUEST_TIMEOUT_SECONDS", "120")
         )
 
+        # Website URL ingestion (Playwright crawler)
+        self.URL_CRAWL_MAX_PAGES: int = int(os.getenv("URL_CRAWL_MAX_PAGES", "20"))
+        self.URL_CRAWL_TIMEOUT_SECONDS: int = int(
+            os.getenv("URL_CRAWL_TIMEOUT_SECONDS", "60")
+        )
+        self.URL_CRAWL_POST_RENDER_WAIT_MS: int = int(
+            os.getenv("URL_CRAWL_POST_RENDER_WAIT_MS", "3000")
+        )
+        self.URL_FETCH_TIMEOUT_SECONDS: int = int(
+            os.getenv("URL_FETCH_TIMEOUT_SECONDS", "30")
+        )
+        self.URL_PLAYWRIGHT_HEADLESS: bool = os.getenv(
+            "URL_PLAYWRIGHT_HEADLESS", "true"
+        ).strip().lower() in {"1", "true", "yes", "on"}
+
     @property
     def database_url(self) -> str:
         """Build the SQLAlchemy PostgreSQL connection URL."""

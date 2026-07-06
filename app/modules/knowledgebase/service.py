@@ -128,7 +128,7 @@ def _process_file_source(
     return document
 
 
-def _process_url_source(db: Session, chatbot_id: int, url: str) -> KnowledgebaseDocument:
+async def _process_url_source(db: Session, chatbot_id: int, url: str) -> KnowledgebaseDocument:
     """Create a DB record for a URL and extract its text."""
     normalized_url = url.strip()
     document = KnowledgebaseDocument(
@@ -151,7 +151,7 @@ def _process_url_source(db: Session, chatbot_id: int, url: str) -> Knowledgebase
         document.updated_at = datetime.now(timezone.utc)
         db.commit()
 
-        extracted_text = extract_url_text(normalized_url)
+        extracted_text = await extract_url_text(normalized_url)
         document.extracted_text = extracted_text
         document.processing_status = STATUS_COMPLETED
     except Exception:
@@ -231,7 +231,7 @@ def _save_chunks_for_document(
     return chunk_count
 
 
-def upload_knowledgebase(
+async def upload_knowledgebase(
     db: Session,
     user: User,
     chatbot_id: int,
@@ -254,7 +254,7 @@ def upload_knowledgebase(
         normalized_url = url.strip()
         if not normalized_url:
             continue
-        document = _process_url_source(db, chatbot_id, normalized_url)
+        document = await _process_url_source(db, chatbot_id, normalized_url)
         documents.append(document)
         total_chunks += _save_chunks_for_document(db, chatbot_id, document)
 

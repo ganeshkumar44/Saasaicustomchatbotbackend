@@ -7,8 +7,6 @@ import re
 import uuid
 from pathlib import Path
 
-import requests
-from bs4 import BeautifulSoup
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
@@ -34,8 +32,6 @@ ALLOWED_FILE_EXTENSIONS = {
 DEFAULT_CHUNK_SIZE = 1000
 DEFAULT_CHUNK_OVERLAP = 200
 KNOWLEDGEBASE_UPLOAD_DIR = PROJECT_ROOT / "uploads" / "knowledgebase"
-URL_FETCH_TIMEOUT_SECONDS = 30
-MIN_STATIC_TEXT_LENGTH = 200
 
 
 def apply_knowledgebase_migrations(db_engine: Engine) -> None:
@@ -281,56 +277,13 @@ def extract_file_text(file_path: Path, file_type: str) -> str:
     return extract_structured_file_text(file_path, file_type)
 
 
-def _extract_visible_text_from_html(html_content: str) -> str:
-    """Extract visible text content from HTML."""
-    soup = BeautifulSoup(html_content, "html.parser")
-    for element in soup(["script", "style", "noscript", "header", "footer", "nav"]):
-        element.decompose()
-    text = soup.get_text(separator="\n")
-    return normalize_extracted_text(text)
-
-
-def extract_static_url_text(url: str) -> str:
-    """Fetch and extract text from a static website URL."""
-    response = requests.get(
-        url,
-        timeout=URL_FETCH_TIMEOUT_SECONDS,
-        headers={"User-Agent": "Mozilla/5.0 (compatible; SaaSChatbotBot/1.0)"},
-    )
-    response.raise_for_status()
-    return _extract_visible_text_from_html(response.text)
-
-
-def extract_dynamic_url_text(url: str) -> str:
-    """Extract text from JavaScript-rendered websites using Playwright."""
-    from playwright.sync_api import sync_playwright
-
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True)
-        try:
-            page = browser.new_page()
-            page.goto(url, wait_until="networkidle", timeout=60000)
-            html_content = page.content()
-        finally:
-            browser.close()
-    return _extract_visible_text_from_html(html_content)
-
-
-def extract_url_text(url: str) -> str:
+async def extract_url_text(url: str) -> str:
     """
     Extract readable text from a website URL.
 
-    Uses static HTML parsing first, then Playwright for dynamic pages.
+    Uses Playwright to render JavaScript-heavy pages, crawls same-domain
+    internal links, and merges cleaned content for semantic chunking.
     """
-    static_text = extract_static_url_text(url)
-    if len(static_text) >= MIN_STATIC_TEXT_LENGTH:
-        return static_text
+    from app.modules.knowledgebase.url_ingestion.service import extract_url_text as ingest_url
 
-    try:
-        dynamic_text = extract_dynamic_url_text(url)
-        if dynamic_text:
-            return dynamic_text
-    except Exception:
-        logger.exception("Dynamic URL extraction failed for %s", url)
-
-    return static_text
+    return await ingest_url(url)

@@ -225,7 +225,7 @@ async def update_knowledge_base(
         )
 
     try:
-        return service.update_knowledge_base(
+        return await service.update_knowledge_base(
             db,
             current_user,
             chatbot_id,
