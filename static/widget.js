@@ -1305,7 +1305,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
           showUnavailableState(data.message || CHATBOT_UNAVAILABLE_MESSAGE);
           return;
         }
-        addBotMessage("Sorry, something went wrong.");
+        addBotMessage(data.message || "Sorry, something went wrong.");
         return;
       }
 

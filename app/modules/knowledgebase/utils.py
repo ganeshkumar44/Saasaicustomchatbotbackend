@@ -4,15 +4,11 @@ Knowledge base helper utilities for storage and text extraction.
 
 import logging
 import re
-import subprocess
 import uuid
 from pathlib import Path
 
-import fitz
-import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from docx import Document
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
@@ -21,7 +17,20 @@ from app.core.config import PROJECT_ROOT
 logger = logging.getLogger(__name__)
 
 MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
-ALLOWED_FILE_EXTENSIONS = {".pdf", ".doc", ".docx", ".txt", ".csv", ".md"}
+ALLOWED_FILE_EXTENSIONS = {
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".txt",
+    ".csv",
+    ".md",
+    ".ppt",
+    ".pptx",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+}
 DEFAULT_CHUNK_SIZE = 1000
 DEFAULT_CHUNK_OVERLAP = 200
 KNOWLEDGEBASE_UPLOAD_DIR = PROJECT_ROOT / "uploads" / "knowledgebase"
@@ -54,16 +63,103 @@ def apply_knowledgebase_migrations(db_engine: Engine) -> None:
             connection.execute(text(statement))
 
 
+def _is_table_block(text: str) -> bool:
+    """Return True when a text block appears to be a Markdown table."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) < 2:
+        return False
+    pipe_lines = sum(1 for line in lines if "|" in line)
+    return pipe_lines >= 2 and lines[1].replace("|", "").replace("-", "").strip() == ""
+
+
+def _is_atomic_block(text: str) -> bool:
+    """Return True when a block should never be split during chunking."""
+    stripped = text.strip()
+    if not stripped:
+        return False
+    if stripped.startswith("[Image Description:") and stripped.endswith("]"):
+        return True
+    if stripped.startswith("[OCR Text]"):
+        return True
+    if stripped.startswith("[Caption:"):
+        return True
+    if stripped.startswith("[Speaker Notes]"):
+        return True
+    if stripped.startswith("--- Page ") or stripped.startswith("--- Slide "):
+        return True
+    if _is_table_block(stripped):
+        return True
+    if stripped.startswith("# ") or stripped.startswith("## "):
+        return True
+    return False
+
+
+def _split_into_atomic_blocks(text: str) -> list[str]:
+    """Split merged structured text into atomic blocks for semantic chunking."""
+    raw_blocks = re.split(r"\n\n+", text.strip())
+    atomic_blocks: list[str] = []
+    buffer: list[str] = []
+
+    def flush_buffer() -> None:
+        if not buffer:
+            return
+        combined = "\n\n".join(buffer).strip()
+        if combined:
+            atomic_blocks.append(combined)
+        buffer.clear()
+
+    for block in raw_blocks:
+        stripped = block.strip()
+        if not stripped:
+            continue
+        if _is_atomic_block(stripped):
+            flush_buffer()
+            atomic_blocks.append(stripped)
+            continue
+        buffer.append(stripped)
+
+    flush_buffer()
+    return atomic_blocks
+
+
+def _split_character_chunks(
+    text: str,
+    chunk_size: int,
+    overlap: int,
+) -> list[dict[str, int | str]]:
+    """Split text using the original fixed-size overlapping window."""
+    chunks: list[dict[str, int | str]] = []
+    step = chunk_size - overlap
+    start = 0
+    chunk_index = 1
+
+    while start < len(text):
+        chunk_text = text[start : start + chunk_size]
+        chunks.append(
+            {
+                "chunk_index": chunk_index,
+                "chunk_text": chunk_text,
+                "character_count": len(chunk_text),
+            }
+        )
+        if start + chunk_size >= len(text):
+            break
+        chunk_index += 1
+        start += step
+
+    return chunks
+
+
 def split_text_into_chunks(
     text: str,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
     overlap: int = DEFAULT_CHUNK_OVERLAP,
 ) -> list[dict[str, int | str]]:
     """
-    Split large extracted text into smaller overlapping chunks.
+    Split extracted text into overlapping semantic chunks.
 
-    Each chunk overlaps the previous chunk by the configured number of characters
-    to preserve context for future embedding generation and vector search.
+    Keeps tables, headings, image descriptions, and page markers intact whenever
+    possible. Falls back to character-based chunking for unstructured content.
     """
     cleaned_text = text.strip()
     if not cleaned_text:
@@ -76,13 +172,34 @@ def split_text_into_chunks(
     if overlap >= chunk_size:
         raise ValueError("overlap must be less than chunk_size")
 
-    chunks: list[dict[str, int | str]] = []
-    step = chunk_size - overlap
-    start = 0
-    chunk_index = 1
+    atomic_blocks = _split_into_atomic_blocks(cleaned_text)
+    if len(atomic_blocks) <= 1:
+        return _split_character_chunks(cleaned_text, chunk_size, overlap)
 
-    while start < len(cleaned_text):
-        chunk_text = cleaned_text[start : start + chunk_size]
+    chunks: list[dict[str, int | str]] = []
+    current_parts: list[str] = []
+    current_length = 0
+    chunk_index = 1
+    previous_chunk_text = ""
+
+    def flush_chunk() -> None:
+        nonlocal chunk_index, current_parts, current_length, previous_chunk_text
+        if not current_parts:
+            return
+        chunk_text = "\n\n".join(current_parts).strip()
+        if overlap > 0 and previous_chunk_text and chunks:
+            prefix = previous_chunk_text[-overlap:]
+            if prefix and not chunk_text.startswith(prefix):
+                chunk_text = f"{prefix}{chunk_text}"
+        if len(chunk_text) > chunk_size and len(current_parts) == 1:
+            sub_chunks = _split_character_chunks(chunk_text, chunk_size, overlap)
+            chunks.extend(sub_chunks)
+            if sub_chunks:
+                previous_chunk_text = sub_chunks[-1]["chunk_text"]
+            current_parts = []
+            current_length = 0
+            chunk_index = len(chunks) + 1
+            return
         chunks.append(
             {
                 "chunk_index": chunk_index,
@@ -90,10 +207,34 @@ def split_text_into_chunks(
                 "character_count": len(chunk_text),
             }
         )
-        if start + chunk_size >= len(cleaned_text):
-            break
+        previous_chunk_text = chunk_text
         chunk_index += 1
-        start += step
+        current_parts = []
+        current_length = 0
+
+    for block in atomic_blocks:
+        block_length = len(block)
+        separator_length = 2 if current_parts else 0
+        projected_length = current_length + separator_length + block_length
+
+        if current_parts and projected_length > chunk_size:
+            flush_chunk()
+
+        if not current_parts and overlap > 0 and previous_chunk_text and chunks:
+            prefix = previous_chunk_text[-overlap:]
+            if prefix and not block.startswith(prefix):
+                block = f"{prefix}{block}"
+
+        current_parts.append(block)
+        current_length = len("\n\n".join(current_parts))
+
+    flush_chunk()
+
+    if not chunks:
+        return _split_character_chunks(cleaned_text, chunk_size, overlap)
+
+    for index, chunk in enumerate(chunks, start=1):
+        chunk["chunk_index"] = index
 
     return chunks
 
@@ -133,74 +274,11 @@ def save_uploaded_file(chatbot_id: int, filename: str, content: bytes) -> Path:
     return file_path
 
 
-def extract_pdf_text(file_path: Path) -> str:
-    """Extract readable text from a PDF file."""
-    text_parts: list[str] = []
-    with fitz.open(file_path) as pdf_document:
-        for page in pdf_document:
-            text_parts.append(page.get_text("text"))
-    return normalize_extracted_text("\n".join(text_parts))
-
-
-def extract_docx_text(file_path: Path) -> str:
-    """Extract readable text from a DOCX file."""
-    document = Document(file_path)
-    paragraphs = [paragraph.text for paragraph in document.paragraphs if paragraph.text.strip()]
-    return normalize_extracted_text("\n".join(paragraphs))
-
-
-def extract_doc_text(file_path: Path) -> str:
-    """Extract readable text from a legacy DOC file."""
-    try:
-        result = subprocess.run(
-            ["antiword", str(file_path)],
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=True,
-        )
-        return normalize_extracted_text(result.stdout)
-    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        logger.warning(
-            "DOC extraction fallback used for %s; install antiword for better results.",
-            file_path,
-        )
-        raw_bytes = file_path.read_bytes()
-        decoded = raw_bytes.decode("utf-8", errors="ignore")
-        ascii_text = re.sub(r"[^\x20-\x7E\n]", " ", decoded)
-        return normalize_extracted_text(ascii_text)
-
-
-def extract_txt_text(file_path: Path) -> str:
-    """Extract readable text from a plain text file."""
-    return normalize_extracted_text(file_path.read_text(encoding="utf-8", errors="ignore"))
-
-
-def extract_md_text(file_path: Path) -> str:
-    """Extract readable text from a Markdown file."""
-    return extract_txt_text(file_path)
-
-
-def extract_csv_text(file_path: Path) -> str:
-    """Extract readable text from a CSV file."""
-    dataframe = pd.read_csv(file_path)
-    return normalize_extracted_text(dataframe.to_csv(index=False))
-
-
 def extract_file_text(file_path: Path, file_type: str) -> str:
-    """Extract text from a supported file type."""
-    extractors = {
-        ".pdf": extract_pdf_text,
-        ".doc": extract_doc_text,
-        ".docx": extract_docx_text,
-        ".txt": extract_txt_text,
-        ".csv": extract_csv_text,
-        ".md": extract_md_text,
-    }
-    extractor = extractors.get(file_type)
-    if not extractor:
-        raise ValueError(f"Unsupported file type: {file_type}")
-    return extractor(file_path)
+    """Extract structured searchable text from a supported file type."""
+    from app.modules.knowledgebase.extraction.registry import extract_structured_file_text
+
+    return extract_structured_file_text(file_path, file_type)
 
 
 def _extract_visible_text_from_html(html_content: str) -> str:

@@ -80,6 +80,34 @@ class Settings:
         # Gemini AI settings
         self.GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
         self.GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        self.GEMINI_VISION_MODEL: str = os.getenv(
+            "GEMINI_VISION_MODEL",
+            os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+        )
+        self.GEMINI_VISION_ENABLED: bool = os.getenv(
+            "GEMINI_VISION_ENABLED", "true"
+        ).strip().lower() in {"1", "true", "yes", "on"}
+        self.GEMINI_VISION_MAX_IMAGES_PER_DOCUMENT: int = int(
+            os.getenv("GEMINI_VISION_MAX_IMAGES_PER_DOCUMENT", "5")
+        )
+        self.GEMINI_VISION_MIN_IMAGE_BYTES: int = int(
+            os.getenv("GEMINI_VISION_MIN_IMAGE_BYTES", "4096")
+        )
+        self.GEMINI_VISION_MIN_IMAGE_DIMENSION: int = int(
+            os.getenv("GEMINI_VISION_MIN_IMAGE_DIMENSION", "80")
+        )
+        self.GEMINI_VISION_REQUEST_INTERVAL_SECONDS: float = float(
+            os.getenv("GEMINI_VISION_REQUEST_INTERVAL_SECONDS", "13")
+        )
+
+        # Ollama local AI settings
+        self.OLLAMA_BASE_URL: str = os.getenv(
+            "OLLAMA_BASE_URL", "http://localhost:11434"
+        )
+        self.OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+        self.OLLAMA_REQUEST_TIMEOUT_SECONDS: int = int(
+            os.getenv("OLLAMA_REQUEST_TIMEOUT_SECONDS", "120")
+        )
 
     @property
     def database_url(self) -> str:

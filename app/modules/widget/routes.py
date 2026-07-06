@@ -4,7 +4,14 @@ from sqlalchemy.orm import Session
 
 from app.core import messages
 from app.core.database import get_db
-from app.modules.ai.utils import GeminiAPIError, GeminiAPIKeyMissingError
+from app.modules.ai.exceptions import (
+    GeminiAPIError,
+    GeminiAPIKeyMissingError,
+    GeminiQuotaExceededError,
+    OllamaModelUnavailableError,
+    OllamaNotRunningError,
+    OllamaProviderError,
+)
 from app.modules.widget import service
 from app.modules.widget.schema import (
     ChatHistoryResponse,
@@ -116,6 +123,42 @@ def public_chat(
             content={
                 "success": False,
                 "message": "Gemini API key is not configured",
+            },
+        )
+    except GeminiQuotaExceededError:
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={
+                "success": False,
+                "error_code": "AI_QUOTA_EXCEEDED",
+                "message": messages.AI_QUOTA_EXCEEDED,
+            },
+        )
+    except OllamaNotRunningError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "success": False,
+                "error_code": "OLLAMA_NOT_RUNNING",
+                "message": exc.message,
+            },
+        )
+    except OllamaModelUnavailableError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "success": False,
+                "error_code": "OLLAMA_MODEL_UNAVAILABLE",
+                "message": exc.message,
+            },
+        )
+    except OllamaProviderError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            content={
+                "success": False,
+                "error_code": "OLLAMA_PROVIDER_ERROR",
+                "message": exc.message,
             },
         )
     except GeminiAPIError:
