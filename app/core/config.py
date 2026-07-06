@@ -124,6 +124,24 @@ class Settings:
             "URL_PLAYWRIGHT_HEADLESS", "true"
         ).strip().lower() in {"1", "true", "yes", "on"}
 
+        # RAG retrieval and AI response quality settings
+        self.RAG_INITIAL_TOP_K: int = int(os.getenv("RAG_INITIAL_TOP_K", "10"))
+        self.RAG_FINAL_TOP_K: int = int(os.getenv("RAG_FINAL_TOP_K", "5"))
+        self.RAG_CONVERSATION_MEMORY_MESSAGES: int = int(
+            os.getenv("RAG_CONVERSATION_MEMORY_MESSAGES", "5")
+        )
+        self.RAG_VECTOR_SEARCH_WEIGHT: float = float(
+            os.getenv("RAG_VECTOR_SEARCH_WEIGHT", "0.7")
+        )
+        self.RAG_BM25_SEARCH_WEIGHT: float = float(
+            os.getenv("RAG_BM25_SEARCH_WEIGHT", "0.3")
+        )
+        self.RAG_BM25_MAX_CHUNKS: int = int(os.getenv("RAG_BM25_MAX_CHUNKS", "2000"))
+        self.RAG_HYBRID_WEIGHT: float = float(os.getenv("RAG_HYBRID_WEIGHT", "0.7"))
+        self.RAG_KEYWORD_OVERLAP_WEIGHT: float = float(
+            os.getenv("RAG_KEYWORD_OVERLAP_WEIGHT", "0.3")
+        )
+
     @property
     def database_url(self) -> str:
         """Build the SQLAlchemy PostgreSQL connection URL."""

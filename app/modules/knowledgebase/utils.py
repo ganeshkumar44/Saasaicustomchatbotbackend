@@ -87,12 +87,37 @@ def _is_atomic_block(text: str) -> bool:
         return True
     if stripped.startswith("# ") or stripped.startswith("## "):
         return True
+    if stripped.startswith("```"):
+        return True
+    if stripped.startswith("| ") and "|" in stripped:
+        return True
     return False
+
+
+def _split_code_blocks(text: str) -> list[str]:
+    """Keep fenced code blocks intact during semantic chunking."""
+    pattern = re.compile(r"```[\s\S]*?```", re.MULTILINE)
+    parts: list[str] = []
+    last_end = 0
+    for match in pattern.finditer(text):
+        if match.start() > last_end:
+            parts.append(text[last_end : match.start()])
+        parts.append(match.group(0))
+        last_end = match.end()
+    if last_end < len(text):
+        parts.append(text[last_end:])
+    return [part.strip() for part in parts if part.strip()]
 
 
 def _split_into_atomic_blocks(text: str) -> list[str]:
     """Split merged structured text into atomic blocks for semantic chunking."""
-    raw_blocks = re.split(r"\n\n+", text.strip())
+    segments: list[str] = []
+    for segment in re.split(r"\n\n+", text.strip()):
+        if "```" in segment:
+            segments.extend(_split_code_blocks(segment))
+        else:
+            segments.append(segment)
+
     atomic_blocks: list[str] = []
     buffer: list[str] = []
 
@@ -104,7 +129,7 @@ def _split_into_atomic_blocks(text: str) -> list[str]:
             atomic_blocks.append(combined)
         buffer.clear()
 
-    for block in raw_blocks:
+    for block in segments:
         stripped = block.strip()
         if not stripped:
             continue

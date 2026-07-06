@@ -10,6 +10,9 @@ class RAGSearchResultItem(BaseModel):
     document_id: int
     chunk_index: int
     similarity_score: float
+    source_name: str | None = None
+    source_url: str | None = None
+    source_type: str | None = None
 
 
 class RAGTestSearchRequest(BaseModel):

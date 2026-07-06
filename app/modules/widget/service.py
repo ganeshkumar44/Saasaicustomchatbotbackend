@@ -344,7 +344,12 @@ def process_public_chat(
     )
 
     start_time = time.perf_counter()
-    ai_response = generate_ai_answer(db, chatbot.id, user_message)
+    ai_response = generate_ai_answer(
+        db,
+        chatbot.id,
+        user_message,
+        chat_session_id=session.id,
+    )
     response_time = Decimal(str(round(time.perf_counter() - start_time, 3)))
     answer = ai_response.answer
 
