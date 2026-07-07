@@ -11,10 +11,12 @@ from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
 from app.core.config import PROJECT_ROOT
+from app.core import messages
 
 logger = logging.getLogger(__name__)
 
 MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
+MAX_KNOWLEDGE_BASE_FILE_SIZE_BYTES = 4 * 1024 * 1024
 ALLOWED_FILE_EXTENSIONS = {
     ".pdf",
     ".doc",
@@ -32,6 +34,13 @@ ALLOWED_FILE_EXTENSIONS = {
 DEFAULT_CHUNK_SIZE = 1000
 DEFAULT_CHUNK_OVERLAP = 200
 KNOWLEDGEBASE_UPLOAD_DIR = PROJECT_ROOT / "uploads" / "knowledgebase"
+
+
+def validate_knowledgebase_file_size(file_size: int) -> str | None:
+    """Return an error message when a knowledge base file exceeds the per-file limit."""
+    if file_size > MAX_KNOWLEDGE_BASE_FILE_SIZE_BYTES:
+        return messages.KNOWLEDGE_BASE_FILE_SIZE_EXCEEDED
+    return None
 
 
 def apply_knowledgebase_migrations(db_engine: Engine) -> None:

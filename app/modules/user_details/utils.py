@@ -44,7 +44,7 @@ ADMIN_PRIVILEGED_ROLES = frozenset({USER_ROLE_SUPERADMIN, USER_ROLE_ADMIN})
 ALL_USER_ROLES = frozenset({USER_ROLE_SUPERADMIN, USER_ROLE_ADMIN, USER_ROLE_USER})
 ASSIGNABLE_USER_ROLES = frozenset({USER_ROLE_ADMIN, USER_ROLE_USER})
 PROFILE_IMAGE_PREFIX = "profile-images/"
-MAX_PROFILE_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
+MAX_PROFILE_IMAGE_SIZE_BYTES = 1 * 1024 * 1024
 ALLOWED_PROFILE_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 ALLOWED_PROFILE_IMAGE_CONTENT_TYPES = {
     "image/jpeg",
@@ -396,6 +396,15 @@ def get_s3_client():
     )
 
 
+def validate_profile_image_size(file_size: int) -> str | None:
+    """Return an error message when a profile image exceeds the allowed size."""
+    if file_size <= 0:
+        return messages.INVALID_IMAGE_TYPE
+    if file_size > MAX_PROFILE_IMAGE_SIZE_BYTES:
+        return messages.IMAGE_SIZE_EXCEEDED
+    return None
+
+
 def validate_profile_image_upload(
     *,
     filename: str | None,
@@ -410,11 +419,9 @@ def validate_profile_image_upload(
     if extension not in ALLOWED_PROFILE_IMAGE_EXTENSIONS:
         return messages.INVALID_IMAGE_TYPE
 
-    if file_size <= 0:
-        return messages.INVALID_IMAGE_TYPE
-
-    if file_size > MAX_PROFILE_IMAGE_SIZE_BYTES:
-        return messages.IMAGE_SIZE_EXCEEDED
+    size_error = validate_profile_image_size(file_size)
+    if size_error:
+        return size_error
 
     if content_type:
         normalized_content_type = content_type.split(";", 1)[0].strip().lower()

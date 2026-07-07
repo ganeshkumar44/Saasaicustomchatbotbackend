@@ -5,6 +5,8 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from app.core import messages
+
 logger = logging.getLogger(__name__)
 
 from app.modules.auth.model import User
@@ -36,6 +38,7 @@ from app.modules.knowledgebase.utils import (
     is_allowed_file_type,
     save_uploaded_file,
     split_text_into_chunks,
+    validate_knowledgebase_file_size,
 )
 from app.vectorstore.chroma_service import store_chunks_in_chromadb
 
@@ -46,6 +49,14 @@ class UnsupportedFileTypeError(Exception):
 
 class FileSizeExceededError(Exception):
     """Raised when the total upload size exceeds the allowed limit."""
+
+
+class KnowledgeBaseFileSizeExceededError(Exception):
+    """Raised when an individual knowledge base file exceeds the allowed size."""
+
+    def __init__(self, message: str | None = None) -> None:
+        self.message = message or messages.KNOWLEDGE_BASE_FILE_SIZE_EXCEEDED
+        super().__init__(self.message)
 
 
 class NoKnowledgeSourcesError(Exception):
@@ -71,13 +82,16 @@ def _validate_upload_payload(
     if not files and not urls:
         raise NoKnowledgeSourcesError()
 
-    total_size = sum(len(file.content) for file in files)
-    if total_size > MAX_UPLOAD_SIZE_BYTES:
-        raise FileSizeExceededError()
-
     for file in files:
         if not is_allowed_file_type(file.filename):
             raise UnsupportedFileTypeError()
+        file_size_error = validate_knowledgebase_file_size(len(file.content))
+        if file_size_error:
+            raise KnowledgeBaseFileSizeExceededError(file_size_error)
+
+    total_size = sum(len(file.content) for file in files)
+    if total_size > MAX_UPLOAD_SIZE_BYTES:
+        raise FileSizeExceededError()
 
 
 def _process_file_source(
