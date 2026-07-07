@@ -678,6 +678,127 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
       border-bottom-left-radius: 0px;
     }
 
+    .saas-widget-message.bot.saas-widget-markdown {
+      color: #1f2937;
+      padding: 10px 14px;
+    }
+
+    .saas-widget-message.bot.saas-widget-markdown h1,
+    .saas-widget-message.bot.saas-widget-markdown h2,
+    .saas-widget-message.bot.saas-widget-markdown h3,
+    .saas-widget-message.bot.saas-widget-markdown h4 {
+      color: #111827;
+      font-weight: 700;
+      line-height: 1.35;
+      margin: 0.75em 0 0.35em;
+    }
+
+    .saas-widget-message.bot.saas-widget-markdown h1 { font-size: 1.15em; }
+    .saas-widget-message.bot.saas-widget-markdown h2 { font-size: 1.05em; }
+    .saas-widget-message.bot.saas-widget-markdown h3,
+    .saas-widget-message.bot.saas-widget-markdown h4 { font-size: 0.95em; }
+
+    .saas-widget-message.bot.saas-widget-markdown p {
+      margin: 0 0 0.65em;
+      line-height: 1.55;
+    }
+
+    .saas-widget-message.bot.saas-widget-markdown p:last-child {
+      margin-bottom: 0;
+    }
+
+    .saas-widget-message.bot.saas-widget-markdown ul,
+    .saas-widget-message.bot.saas-widget-markdown ol {
+      margin: 0.35em 0 0.75em;
+      padding-left: 1.25em;
+    }
+
+    .saas-widget-message.bot.saas-widget-markdown li {
+      margin: 0.25em 0;
+      line-height: 1.5;
+    }
+
+    .saas-widget-message.bot.saas-widget-markdown ul {
+      list-style: disc;
+    }
+
+    .saas-widget-message.bot.saas-widget-markdown ol {
+      list-style: decimal;
+    }
+
+    .saas-widget-message.bot.saas-widget-markdown blockquote {
+      margin: 0.5em 0;
+      padding: 0.35em 0 0.35em 0.75em;
+      border-left: 3px solid ${config.primary_color};
+      color: #4b5563;
+    }
+
+    .saas-widget-message.bot.saas-widget-markdown hr {
+      border: none;
+      border-top: 1px solid #d1d5db;
+      margin: 0.75em 0;
+    }
+
+    .saas-widget-message.bot.saas-widget-markdown a {
+      color: ${config.primary_color};
+      text-decoration: underline;
+      word-break: break-word;
+    }
+
+    .saas-widget-message.bot.saas-widget-markdown code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.85em;
+      background: rgba(17, 24, 39, 0.08);
+      border-radius: 4px;
+      padding: 0.1em 0.35em;
+    }
+
+    .saas-widget-message.bot.saas-widget-markdown pre {
+      margin: 0.5em 0;
+      padding: 0.75em;
+      border-radius: 8px;
+      background: #111827;
+      color: #f9fafb;
+      overflow-x: auto;
+      max-width: 100%;
+    }
+
+    .saas-widget-message.bot.saas-widget-markdown pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+      font-size: 0.8em;
+      white-space: pre;
+    }
+
+    .saas-widget-message.bot.saas-widget-markdown table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.5em 0;
+      font-size: 0.85em;
+      display: block;
+      overflow-x: auto;
+      max-width: 100%;
+    }
+
+    .saas-widget-message.bot.saas-widget-markdown th,
+    .saas-widget-message.bot.saas-widget-markdown td {
+      border: 1px solid #d1d5db;
+      padding: 0.4em 0.55em;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .saas-widget-message.bot.saas-widget-markdown th {
+      background: rgba(17, 24, 39, 0.06);
+      font-weight: 600;
+    }
+
+    .saas-widget-message.bot.saas-widget-markdown input[type="checkbox"] {
+      margin-right: 0.35em;
+      vertical-align: middle;
+    }
+
     .saas-widget-message.user {
       background: ${config.primary_color};
       color: ${config.text_color};
@@ -1017,11 +1138,73 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
     scrollToBottom();
   }
 
+  let markdownLibsPromise = null;
+
+  function loadMarkdownLibs() {
+    if (window.marked && window.DOMPurify) {
+      return Promise.resolve();
+    }
+    if (markdownLibsPromise) {
+      return markdownLibsPromise;
+    }
+
+    markdownLibsPromise = new Promise((resolve, reject) => {
+      const markedScript = document.createElement("script");
+      markedScript.src =
+        "https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js";
+      markedScript.async = true;
+      markedScript.onload = () => {
+        const purifyScript = document.createElement("script");
+        purifyScript.src =
+          "https://cdn.jsdelivr.net/npm/dompurify@3.2.6/purify.min.js";
+        purifyScript.async = true;
+        purifyScript.onload = () => resolve();
+        purifyScript.onerror = () =>
+          reject(new Error("Failed to load DOMPurify"));
+        document.head.appendChild(purifyScript);
+      };
+      markedScript.onerror = () =>
+        reject(new Error("Failed to load marked"));
+      document.head.appendChild(markedScript);
+    });
+
+    return markdownLibsPromise;
+  }
+
+  async function renderBotMarkdown(bubble, markdownText) {
+    const text = String(markdownText || "").trim();
+    bubble.classList.add("saas-widget-markdown");
+
+    if (!text) {
+      bubble.textContent = "";
+      return;
+    }
+
+    try {
+      await loadMarkdownLibs();
+      window.marked.setOptions({
+        gfm: true,
+        breaks: true,
+      });
+      const rawHtml = window.marked.parse(text);
+      const safeHtml = window.DOMPurify.sanitize(rawHtml, {
+        USE_PROFILES: { html: true },
+      });
+      bubble.innerHTML = safeHtml;
+      bubble.querySelectorAll("a[href]").forEach((link) => {
+        link.setAttribute("target", "_blank");
+        link.setAttribute("rel", "noopener noreferrer");
+      });
+    } catch (error) {
+      console.error("Widget markdown render failed:", error);
+      bubble.textContent = text;
+    }
+  }
+
   function addBotMessage(message) {
     const { wrap, bubble } = createMessageWrap("AI", "bot");
-    bubble.textContent = message;
     messages.appendChild(wrap);
-    scrollToBottom();
+    void renderBotMarkdown(bubble, message).then(() => scrollToBottom());
     return wrap;
   }
 
@@ -1075,6 +1258,8 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
     }
 
     bubble.classList.remove("typing-answer");
+    await renderBotMarkdown(bubble, text);
+    scrollToBottom();
     return wrap;
   }
 
