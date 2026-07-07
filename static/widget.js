@@ -678,74 +678,89 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
       border-bottom-left-radius: 0px;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown {
+    .saas-widget-message.bot.markdown-message {
       color: #1f2937;
       padding: 10px 14px;
+      display: block;
+      white-space: normal;
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown h1,
-    .saas-widget-message.bot.saas-widget-markdown h2,
-    .saas-widget-message.bot.saas-widget-markdown h3,
-    .saas-widget-message.bot.saas-widget-markdown h4 {
+    .saas-widget-message.bot.markdown-message > :first-child {
+      margin-top: 0;
+    }
+
+    .saas-widget-message.bot.markdown-message > :last-child {
+      margin-bottom: 0;
+    }
+
+    .saas-widget-message.bot.markdown-message h1,
+    .saas-widget-message.bot.markdown-message h2,
+    .saas-widget-message.bot.markdown-message h3,
+    .saas-widget-message.bot.markdown-message h4 {
       color: #111827;
       font-weight: 700;
       line-height: 1.35;
       margin: 0.75em 0 0.35em;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown h1 { font-size: 1.15em; }
-    .saas-widget-message.bot.saas-widget-markdown h2 { font-size: 1.05em; }
-    .saas-widget-message.bot.saas-widget-markdown h3,
-    .saas-widget-message.bot.saas-widget-markdown h4 { font-size: 0.95em; }
+    .saas-widget-message.bot.markdown-message h1 { font-size: 1.125rem; }
+    .saas-widget-message.bot.markdown-message h2 { font-size: 1rem; }
+    .saas-widget-message.bot.markdown-message h3,
+    .saas-widget-message.bot.markdown-message h4 { font-size: 0.875rem; }
 
-    .saas-widget-message.bot.saas-widget-markdown p {
+    .saas-widget-message.bot.markdown-message p {
       margin: 0 0 0.65em;
       line-height: 1.55;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown p:last-child {
+    .saas-widget-message.bot.markdown-message p:last-child {
       margin-bottom: 0;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown ul,
-    .saas-widget-message.bot.saas-widget-markdown ol {
+    .saas-widget-message.bot.markdown-message ul,
+    .saas-widget-message.bot.markdown-message ol {
       margin: 0.35em 0 0.75em;
       padding-left: 1.25em;
+      display: block;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown li {
+    .saas-widget-message.bot.markdown-message li {
       margin: 0.25em 0;
       line-height: 1.5;
+      display: list-item;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown ul {
+    .saas-widget-message.bot.markdown-message ul {
       list-style: disc;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown ol {
+    .saas-widget-message.bot.markdown-message ol {
       list-style: decimal;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown blockquote {
+    .saas-widget-message.bot.markdown-message blockquote {
       margin: 0.5em 0;
       padding: 0.35em 0 0.35em 0.75em;
       border-left: 3px solid ${config.primary_color};
       color: #4b5563;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown hr {
+    .saas-widget-message.bot.markdown-message hr {
       border: none;
       border-top: 1px solid #d1d5db;
       margin: 0.75em 0;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown a {
+    .saas-widget-message.bot.markdown-message a {
       color: ${config.primary_color};
       text-decoration: underline;
+      text-underline-offset: 2px;
       word-break: break-word;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown code {
+    .saas-widget-message.bot.markdown-message code {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-size: 0.85em;
       background: rgba(17, 24, 39, 0.08);
@@ -753,7 +768,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
       padding: 0.1em 0.35em;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown pre {
+    .saas-widget-message.bot.markdown-message pre {
       margin: 0.5em 0;
       padding: 0.75em;
       border-radius: 8px;
@@ -761,9 +776,11 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
       color: #f9fafb;
       overflow-x: auto;
       max-width: 100%;
+      display: block;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown pre code {
+    .saas-widget-message.bot.markdown-message pre code {
+      display: block;
       background: transparent;
       padding: 0;
       color: inherit;
@@ -771,30 +788,41 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
       white-space: pre;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown table {
-      width: 100%;
-      border-collapse: collapse;
+    .saas-widget-message.bot.markdown-message .markdown-table-wrap {
       margin: 0.5em 0;
-      font-size: 0.85em;
-      display: block;
       overflow-x: auto;
       max-width: 100%;
+      display: block;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown th,
-    .saas-widget-message.bot.saas-widget-markdown td {
+    .saas-widget-message.bot.markdown-message table {
+      width: 100%;
+      min-width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85em;
+    }
+
+    .saas-widget-message.bot.markdown-message th,
+    .saas-widget-message.bot.markdown-message td {
       border: 1px solid #d1d5db;
       padding: 0.4em 0.55em;
       text-align: left;
       vertical-align: top;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown th {
+    .saas-widget-message.bot.markdown-message th {
       background: rgba(17, 24, 39, 0.06);
       font-weight: 600;
     }
 
-    .saas-widget-message.bot.saas-widget-markdown input[type="checkbox"] {
+    .saas-widget-message.bot.markdown-message img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 6px;
+      margin: 0.5em 0;
+    }
+
+    .saas-widget-message.bot.markdown-message input[type="checkbox"] {
       margin-right: 0.35em;
       vertical-align: middle;
     }
@@ -1139,41 +1167,99 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
   }
 
   let markdownLibsPromise = null;
+  let markdownLibsReady = false;
+
+  function getMarkedParse() {
+    const markedRef = window.marked;
+    if (!markedRef) {
+      return null;
+    }
+    if (typeof markedRef.parse === "function") {
+      return markedRef.parse.bind(markedRef);
+    }
+    if (typeof markedRef === "function") {
+      return markedRef;
+    }
+    return null;
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const existing = document.querySelector(`script[data-saas-widget-src="${src}"]`);
+      if (existing) {
+        if (existing.getAttribute("data-loaded") === "true") {
+          resolve();
+          return;
+        }
+        existing.addEventListener("load", () => resolve(), { once: true });
+        existing.addEventListener("error", () => reject(new Error(`Failed to load ${src}`)), {
+          once: true,
+        });
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = src;
+      script.async = true;
+      script.setAttribute("data-saas-widget-src", src);
+      script.onload = () => {
+        script.setAttribute("data-loaded", "true");
+        resolve();
+      };
+      script.onerror = () => reject(new Error(`Failed to load ${src}`));
+      document.head.appendChild(script);
+    });
+  }
 
   function loadMarkdownLibs() {
-    if (window.marked && window.DOMPurify) {
+    if (markdownLibsReady && window.marked && window.DOMPurify && getMarkedParse()) {
       return Promise.resolve();
     }
     if (markdownLibsPromise) {
       return markdownLibsPromise;
     }
 
-    markdownLibsPromise = new Promise((resolve, reject) => {
-      const markedScript = document.createElement("script");
-      markedScript.src =
-        "https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js";
-      markedScript.async = true;
-      markedScript.onload = () => {
-        const purifyScript = document.createElement("script");
-        purifyScript.src =
-          "https://cdn.jsdelivr.net/npm/dompurify@3.2.6/purify.min.js";
-        purifyScript.async = true;
-        purifyScript.onload = () => resolve();
-        purifyScript.onerror = () =>
-          reject(new Error("Failed to load DOMPurify"));
-        document.head.appendChild(purifyScript);
-      };
-      markedScript.onerror = () =>
-        reject(new Error("Failed to load marked"));
-      document.head.appendChild(markedScript);
-    });
+    const vendorBase = `${API_BASE_URL}/static/vendor`;
+    const markedSrc = `${vendorBase}/marked.umd.js`;
+    const purifySrc = `${vendorBase}/purify.min.js`;
+
+    markdownLibsPromise = loadScript(markedSrc)
+      .then(() => loadScript(purifySrc))
+      .then(() => {
+        if (!getMarkedParse() || !window.DOMPurify) {
+          throw new Error("Markdown libraries loaded but globals are unavailable");
+        }
+        const markedRef = window.marked;
+        if (typeof markedRef.use === "function") {
+          markedRef.use({ gfm: true, breaks: true });
+        } else if (typeof markedRef.setOptions === "function") {
+          markedRef.setOptions({ gfm: true, breaks: true });
+        }
+        markdownLibsReady = true;
+      })
+      .catch((error) => {
+        markdownLibsPromise = null;
+        throw error;
+      });
 
     return markdownLibsPromise;
   }
 
+  function wrapMarkdownTables(container) {
+    container.querySelectorAll("table").forEach((table) => {
+      if (table.parentElement?.classList.contains("markdown-table-wrap")) {
+        return;
+      }
+      const wrap = document.createElement("div");
+      wrap.className = "markdown-table-wrap";
+      table.parentNode.insertBefore(wrap, table);
+      wrap.appendChild(table);
+    });
+  }
+
   async function renderBotMarkdown(bubble, markdownText) {
     const text = String(markdownText || "").trim();
-    bubble.classList.add("saas-widget-markdown");
+    bubble.classList.add("markdown-message");
 
     if (!text) {
       bubble.textContent = "";
@@ -1182,15 +1268,18 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
 
     try {
       await loadMarkdownLibs();
-      window.marked.setOptions({
-        gfm: true,
-        breaks: true,
-      });
-      const rawHtml = window.marked.parse(text);
+      const markedParse = getMarkedParse();
+      if (!markedParse || !window.DOMPurify) {
+        throw new Error("Markdown parser is unavailable");
+      }
+
+      const rawHtml = markedParse(text);
       const safeHtml = window.DOMPurify.sanitize(rawHtml, {
         USE_PROFILES: { html: true },
+        ADD_ATTR: ["target", "rel"],
       });
       bubble.innerHTML = safeHtml;
+      wrapMarkdownTables(bubble);
       bubble.querySelectorAll("a[href]").forEach((link) => {
         link.setAttribute("target", "_blank");
         link.setAttribute("rel", "noopener noreferrer");
@@ -1204,8 +1293,10 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
   function addBotMessage(message) {
     const { wrap, bubble } = createMessageWrap("AI", "bot");
     messages.appendChild(wrap);
-    void renderBotMarkdown(bubble, message).then(() => scrollToBottom());
-    return wrap;
+    return renderBotMarkdown(bubble, message).then(() => {
+      scrollToBottom();
+      return wrap;
+    });
   }
 
   function sleep(ms) {
@@ -1630,29 +1721,38 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
     }
   }
 
-  if (chatbotUnavailable) {
-    showUnavailableState(unavailableMessage);
-  } else if (onboardingComplete) {
-    addBotMessage(config.welcome_message);
-
-    historyMessages.forEach((item) => {
-      addUserMessage(item.user_message);
-      addBotMessage(item.bot_response);
-    });
-  } else {
-    applyOnboardingState(
-      visitorStep,
-      historyData.question,
-      canSkip,
-      onboardingComplete
-    );
-    addBotMessage(config.welcome_message);
-    if (historyData.question) {
-      addBotMessage(historyData.question);
+  async function initializeWidgetMessages() {
+    if (chatbotUnavailable) {
+      showUnavailableState(unavailableMessage);
+      return;
     }
-  }
 
-  if (!chatbotUnavailable) {
+    try {
+      await loadMarkdownLibs();
+    } catch (error) {
+      console.error("Widget: failed to load markdown libraries", error);
+    }
+
+    if (onboardingComplete) {
+      addBotMessage(config.welcome_message);
+
+      for (const item of historyMessages) {
+        addUserMessage(item.user_message);
+        await addBotMessage(item.bot_response);
+      }
+    } else {
+      applyOnboardingState(
+        visitorStep,
+        historyData.question,
+        canSkip,
+        onboardingComplete
+      );
+      addBotMessage(config.welcome_message);
+      if (historyData.question) {
+        await addBotMessage(historyData.question);
+      }
+    }
+
     updateEndChatVisibility();
 
     if (chatClosed) {
@@ -1665,6 +1765,8 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
       showFeedbackModal();
     }
   }
+
+  void initializeWidgetMessages();
 
   button.addEventListener("click", () => {
     isOpen = !isOpen;
