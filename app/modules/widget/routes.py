@@ -11,6 +11,13 @@ from app.modules.ai.exceptions import (
     OllamaModelUnavailableError,
     OllamaNotRunningError,
     OllamaProviderError,
+    OpenAIAPIKeyMissingError,
+    OpenAIAuthenticationError,
+    OpenAINetworkError,
+    OpenAIProviderError,
+    OpenAIRateLimitError,
+    OpenAIServiceUnavailableError,
+    OpenAITimeoutError,
 )
 from app.modules.widget import service
 from app.modules.widget.schema import (
@@ -158,6 +165,68 @@ def public_chat(
             content={
                 "success": False,
                 "error_code": "OLLAMA_PROVIDER_ERROR",
+                "message": exc.message,
+            },
+        )
+    except OpenAIAPIKeyMissingError:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "success": False,
+                "message": "OpenAI API key is not configured",
+            },
+        )
+    except OpenAIAuthenticationError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={
+                "success": False,
+                "error_code": "OPENAI_AUTHENTICATION_FAILED",
+                "message": exc.message,
+            },
+        )
+    except OpenAIRateLimitError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={
+                "success": False,
+                "error_code": "OPENAI_RATE_LIMIT_EXCEEDED",
+                "message": exc.message,
+            },
+        )
+    except OpenAITimeoutError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            content={
+                "success": False,
+                "error_code": "OPENAI_REQUEST_TIMEOUT",
+                "message": exc.message,
+            },
+        )
+    except OpenAINetworkError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            content={
+                "success": False,
+                "error_code": "OPENAI_NETWORK_ERROR",
+                "message": exc.message,
+            },
+        )
+    except OpenAIServiceUnavailableError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "success": False,
+                "error_code": "OPENAI_SERVICE_UNAVAILABLE",
+                "message": exc.message,
+            },
+        )
+    except OpenAIProviderError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            content={
+                "success": False,
+                "error_code": "OPENAI_PROVIDER_ERROR",
                 "message": exc.message,
             },
         )

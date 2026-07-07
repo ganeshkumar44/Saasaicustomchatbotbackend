@@ -45,7 +45,7 @@ def generate_ai_answer(
     1. Hybrid retrieval with re-ranking
     2. Clean and merge context
     3. Include recent conversation when useful
-    4. Route to Gemini or Ollama based on chatbot.ai_model
+    4. Route to Gemini, Ollama, or OpenAI based on chatbot.ai_model
     """
     normalized_question = normalize_question(question)
     if not normalized_question:

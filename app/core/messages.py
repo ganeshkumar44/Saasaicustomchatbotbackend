@@ -134,7 +134,7 @@ KNOWLEDGE_DOCUMENT_NOT_FOUND = "One or more knowledge base documents were not fo
 INVALID_WIDGET_POSITION = "Invalid widget position. Allowed values are bottom-right and bottom-left."
 INVALID_COLOR = "Invalid color. Please provide a valid HEX color code."
 INVALID_DOMAIN = "Invalid domain URL provided."
-INVALID_AI_MODEL = "Invalid AI model."
+INVALID_AI_MODEL = "Unsupported AI model selected."
 AI_QUOTA_EXCEEDED = (
     "The AI service has reached its request limit. Please try again later."
 )
@@ -148,6 +148,16 @@ OLLAMA_INSUFFICIENT_MEMORY = (
 OLLAMA_REQUEST_TIMEOUT = "Ollama request timed out. Please try again."
 OLLAMA_REQUEST_FAILED = "Failed to generate an answer using Ollama."
 OLLAMA_EMPTY_RESPONSE = "Ollama returned an empty response."
+
+OPENAI_AUTHENTICATION_FAILED = "OpenAI API key is invalid or unauthorized."
+OPENAI_RATE_LIMIT_EXCEEDED = (
+    "The OpenAI service has reached its request limit. Please try again later."
+)
+OPENAI_REQUEST_TIMEOUT = "OpenAI request timed out. Please try again."
+OPENAI_NETWORK_ERROR = "Unable to reach the OpenAI service. Please try again."
+OPENAI_SERVICE_UNAVAILABLE = "The OpenAI service is temporarily unavailable."
+OPENAI_REQUEST_FAILED = "Failed to generate an answer using OpenAI."
+OPENAI_EMPTY_RESPONSE = "OpenAI returned an empty response."
 
 CHATBOT_NAME_REQUIRED = "Chatbot name is required."
 CHATBOT_NAME_TOO_LONG = "Chatbot name must not exceed 100 characters."

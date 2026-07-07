@@ -1,9 +1,5 @@
-# =============================================================================
-# SaaS AI Custom Chatbot — Backend Python dependencies
-# Generated from project import analysis + working venv (excluding GPU-only CUDA
-# wheels that vary by machine). After install, run Playwright browser setup:
-#   ./scripts/install_playwright.sh
-# =============================================================================
+# --- OpenAI ---
+openai>=1.0.0
 
 # --- Web framework & ASGI server ---
 annotated-doc==0.0.4

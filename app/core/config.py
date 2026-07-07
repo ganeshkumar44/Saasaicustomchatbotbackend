@@ -109,6 +109,13 @@ class Settings:
             os.getenv("OLLAMA_REQUEST_TIMEOUT_SECONDS", "120")
         )
 
+        # OpenAI settings
+        self.OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+        self.OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+        self.OPENAI_REQUEST_TIMEOUT_SECONDS: int = int(
+            os.getenv("OPENAI_REQUEST_TIMEOUT_SECONDS", "120")
+        )
+
         # Website URL ingestion (Playwright crawler)
         self.URL_CRAWL_MAX_PAGES: int = int(os.getenv("URL_CRAWL_MAX_PAGES", "20"))
         self.URL_CRAWL_TIMEOUT_SECONDS: int = int(
