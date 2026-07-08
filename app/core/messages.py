@@ -132,6 +132,15 @@ KNOWLEDGE_BASE_REQUIRED = "Please upload at least one knowledge base file or URL
 KNOWLEDGE_BASE_FILE_SIZE_EXCEEDED = (
     "Each knowledge base file must not exceed 4 MB."
 )
+KNOWLEDGE_BASE_UPLOAD_FAILED = (
+    "Failed to upload knowledge base file. Please try again."
+)
+KNOWLEDGE_BASE_DELETE_FAILED = (
+    "Failed to delete knowledge base file. Please try again."
+)
+KNOWLEDGE_BASE_DOWNLOAD_FAILED = (
+    "Failed to process knowledge base file from storage. Please try again."
+)
 KNOWLEDGE_DOCUMENT_NOT_FOUND = "One or more knowledge base documents were not found."
 
 INVALID_WIDGET_POSITION = "Invalid widget position. Allowed values are bottom-right and bottom-left."

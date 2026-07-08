@@ -46,19 +46,30 @@ def validate_knowledgebase_file_size(file_size: int) -> str | None:
 def apply_knowledgebase_migrations(db_engine: Engine) -> None:
     """Align existing knowledge base tables with the current ORM schema."""
     inspector = inspect(db_engine)
-    if "knowledge_chunks" not in inspector.get_table_names():
-        return
-
-    columns = {
-        column["name"] for column in inspector.get_columns("knowledge_chunks")
-    }
+    table_names = inspector.get_table_names()
     statements: list[str] = []
 
-    if "character_count" not in columns:
-        statements.append(
-            "ALTER TABLE knowledge_chunks ADD COLUMN character_count INTEGER "
-            "NOT NULL DEFAULT 0"
-        )
+    if "knowledge_chunks" in table_names:
+        columns = {
+            column["name"] for column in inspector.get_columns("knowledge_chunks")
+        }
+        if "character_count" not in columns:
+            statements.append(
+                "ALTER TABLE knowledge_chunks ADD COLUMN character_count INTEGER "
+                "NOT NULL DEFAULT 0"
+            )
+
+    if "knowledgebase_documents" in table_names:
+        for column in inspector.get_columns("knowledgebase_documents"):
+            if column["name"] != "file_path":
+                continue
+            column_type = str(column.get("type", "")).lower()
+            if "varchar(1000)" in column_type or "character varying(1000)" in column_type:
+                statements.append(
+                    "ALTER TABLE knowledgebase_documents "
+                    "ALTER COLUMN file_path TYPE VARCHAR(2000)"
+                )
+            break
 
     if not statements:
         return
@@ -309,6 +320,33 @@ def extract_file_text(file_path: Path, file_type: str) -> str:
     from app.modules.knowledgebase.extraction.registry import extract_structured_file_text
 
     return extract_structured_file_text(file_path, file_type)
+
+
+def extract_file_text_from_storage(
+    *,
+    file_path: str,
+    file_type: str,
+) -> str:
+    """
+    Extract text from a knowledge base file stored on S3 or legacy local disk.
+
+    S3 files are downloaded to a temporary path for processing and removed
+    automatically after extraction completes.
+    """
+    from app.modules.knowledgebase.s3_storage import (
+        download_knowledgebase_file_to_temp,
+        is_knowledgebase_s3_url,
+    )
+
+    if is_knowledgebase_s3_url(file_path):
+        with download_knowledgebase_file_to_temp(file_path, suffix=file_type) as temp_path:
+            return extract_file_text(temp_path, file_type)
+
+    local_path = Path(file_path)
+    if local_path.exists():
+        return extract_file_text(local_path, file_type)
+
+    raise FileNotFoundError(f"Knowledge base file not found: {file_path}")
 
 
 async def extract_url_text(url: str) -> str:

@@ -20,6 +20,7 @@ from app.modules.chatbot_settings.schema import (
 )
 from app.modules.chatbot_settings.utils import ChatbotSettingsNotFoundError
 from app.modules.knowledgebase.form_parser import parse_knowledge_base_settings_form
+from app.modules.knowledgebase.exceptions import KnowledgeBaseStorageError
 from app.modules.knowledgebase.service import (
     FileSizeExceededError,
     KnowledgeBaseFileSizeExceededError,
@@ -275,6 +276,11 @@ async def update_knowledge_base(
     except KnowledgeBaseFileSizeExceededError as exc:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "message": exc.message},
+        )
+    except KnowledgeBaseStorageError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"success": False, "message": exc.message},
         )
     except (ChatbotNotFoundError, ChatbotPermissionError, SuperAdminChatbotProtectedError, ChatbotSettingsNotFoundError) as exc:

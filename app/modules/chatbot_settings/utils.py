@@ -34,7 +34,13 @@ from app.modules.knowledgebase.model import (
     SOURCE_TYPE_URL,
     KnowledgebaseDocument,
 )
+from app.modules.knowledgebase.exceptions import KnowledgeBaseStorageError
 from app.modules.knowledgebase.utils import KNOWLEDGEBASE_UPLOAD_DIR
+from app.modules.knowledgebase.s3_storage import (
+    delete_knowledgebase_file_from_s3_strict,
+    extract_knowledgebase_object_key,
+    is_knowledgebase_s3_url,
+)
 from app.modules.knowledge_chunks.utils import get_chunks_by_document_id
 from app.modules.user_details.utils import is_admin, is_superadmin
 from app.modules.chat_analysis.service import ensure_chat_analysis_for_chatbot
@@ -597,12 +603,18 @@ def delete_knowledgebase_document(
     delete_chromadb_vectors_for_document(document.id)
 
     if document.file_path:
-        file_path = Path(document.file_path)
-        if file_path.exists():
+        if is_knowledgebase_s3_url(document.file_path):
             try:
-                file_path.unlink()
-            except OSError:
-                logger.exception("Failed to delete knowledge base file %s", file_path)
+                delete_knowledgebase_file_from_s3_strict(document.file_path)
+            except RuntimeError as exc:
+                raise KnowledgeBaseStorageError(str(exc)) from exc
+        else:
+            file_path = Path(document.file_path)
+            if file_path.exists():
+                try:
+                    file_path.unlink()
+                except OSError:
+                    logger.exception("Failed to delete knowledge base file %s", file_path)
 
     db.delete(document)
 
@@ -648,7 +660,11 @@ def build_knowledgebase_document_item(
     if document.source_type == SOURCE_TYPE_FILE:
         original_file_name = document.original_name
         if document.file_path:
-            stored_file_name = Path(document.file_path).name
+            if is_knowledgebase_s3_url(document.file_path):
+                object_key = extract_knowledgebase_object_key(document.file_path)
+                stored_file_name = Path(object_key).name if object_key else None
+            else:
+                stored_file_name = Path(document.file_path).name
         if document.file_type:
             file_extension = document.file_type.lstrip(".")
     elif document.source_type == SOURCE_TYPE_URL:

@@ -29,15 +29,21 @@ from app.modules.knowledgebase.schema import (
     KnowledgebaseUploadSuccessResponse,
 )
 from app.embeddings.embedding_service import generate_embeddings_for_chunks
+from app.modules.knowledgebase.exceptions import KnowledgeBaseStorageError
+from app.modules.knowledgebase.s3_storage import (
+    build_knowledgebase_object_key,
+    delete_knowledgebase_file_from_s3,
+    resolve_knowledgebase_content_type,
+    upload_knowledgebase_file_to_s3,
+)
 from app.modules.knowledgebase.utils import (
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_CHUNK_SIZE,
     MAX_UPLOAD_SIZE_BYTES,
-    extract_file_text,
+    extract_file_text_from_storage,
     extract_url_text,
     get_file_extension,
     is_allowed_file_type,
-    save_uploaded_file,
     split_text_into_chunks,
     validate_knowledgebase_file_size,
 )
@@ -100,36 +106,55 @@ def _process_file_source(
     chatbot_id: int,
     file_payload: UploadedFilePayload,
 ) -> KnowledgebaseDocument:
-    """Save a file, create a DB record, and extract its text."""
+    """Upload a file to S3, create a DB record, and extract its text."""
     file_type = get_file_extension(file_payload.filename)
+    object_key = build_knowledgebase_object_key(chatbot_id, file_payload.filename)
+    s3_url: str | None = None
+
+    try:
+        s3_url = upload_knowledgebase_file_to_s3(
+            content=file_payload.content,
+            object_key=object_key,
+            content_type=resolve_knowledgebase_content_type(file_type),
+        )
+    except RuntimeError as exc:
+        raise KnowledgeBaseStorageError(str(exc)) from exc
+
     document = KnowledgebaseDocument(
         chatbot_id=chatbot_id,
         source_type=SOURCE_TYPE_FILE,
         original_name=Path(file_payload.filename).name,
         source_url=None,
-        file_path=None,
+        file_path=s3_url,
         file_type=file_type.lstrip("."),
         file_size=len(file_payload.content),
         extracted_text=None,
         processing_status=STATUS_PENDING,
     )
     db.add(document)
-    db.commit()
-    db.refresh(document)
+
+    try:
+        db.commit()
+        db.refresh(document)
+    except Exception:
+        db.rollback()
+        delete_knowledgebase_file_from_s3(s3_url)
+        logger.exception(
+            "Failed to persist knowledge base document after S3 upload file=%s",
+            file_payload.filename,
+        )
+        raise
 
     try:
         document.processing_status = STATUS_PROCESSING
         document.updated_at = datetime.now(timezone.utc)
         db.commit()
 
-        saved_path = save_uploaded_file(
-            chatbot_id,
-            file_payload.filename,
-            file_payload.content,
+        extracted_text = extract_file_text_from_storage(
+            file_path=s3_url,
+            file_type=file_type,
         )
-        extracted_text = extract_file_text(saved_path, file_type)
 
-        document.file_path = str(saved_path)
         document.extracted_text = extracted_text
         document.processing_status = STATUS_COMPLETED
     except Exception:
@@ -273,19 +298,16 @@ async def upload_knowledgebase(
         documents.append(document)
         total_chunks += _save_chunks_for_document(db, chatbot_id, document)
 
-    total_sources = len(documents)
-    processed_sources = sum(
-        1 for document in documents if document.processing_status == STATUS_COMPLETED
-    )
-
     trigger_chatbot_updated_notification(db, chatbot, user)
 
     return KnowledgebaseUploadSuccessResponse(
         message="Knowledge base uploaded successfully",
         data=KnowledgebaseUploadData(
             chatbot_id=chatbot_id,
-            total_sources=total_sources,
-            processed_sources=processed_sources,
+            total_sources=len(documents),
+            processed_sources=sum(
+                1 for document in documents if document.processing_status == STATUS_COMPLETED
+            ),
             total_chunks=total_chunks,
         ),
     )

@@ -33,7 +33,7 @@ class KnowledgebaseDocument(Base):
     source_type: Mapped[str] = mapped_column(String(20), nullable=False)
     original_name: Mapped[str] = mapped_column(String(500), nullable=False)
     source_url: Mapped[str | None] = mapped_column(String(2000), nullable=True)
-    file_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    file_path: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     file_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
     extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
