@@ -33,6 +33,10 @@ from app.modules.chatbot.utils import (
     get_default_allowed_domains,
 )
 from app.modules.chat_analysis.service import ensure_chat_analysis_for_chatbot
+from app.modules.notification.service import (
+    trigger_chatbot_updated_notification,
+    trigger_new_chatbot_created_notification,
+)
 from app.modules.chatbot.schema import (
     AIModelEnum,
     CreateChatbotDraftData,
@@ -163,6 +167,8 @@ def update_basic_info(
     db.commit()
     db.refresh(chatbot)
 
+    trigger_chatbot_updated_notification(db, chatbot, user)
+
     return UpdateBasicInfoSuccessResponse(
         message="Basic information updated successfully",
         data=UpdateBasicInfoData(
@@ -215,6 +221,8 @@ def update_behaviour(
 
     db.commit()
     db.refresh(chatbot)
+
+    trigger_chatbot_updated_notification(db, chatbot, user)
 
     return UpdateBehaviourSuccessResponse(
         message="Behaviour updated successfully",
@@ -358,6 +366,8 @@ def publish_chatbot(
     db.commit()
     db.refresh(chatbot)
     db.refresh(settings)
+
+    trigger_new_chatbot_created_notification(db, chatbot)
 
     return PublishChatbotSuccessResponse(
         message="Chatbot published successfully",

@@ -13,6 +13,7 @@ from app.modules.auth.model import User
 from app.modules.chatbot.model import Chatbot
 from app.modules.chatbot.service import ChatbotNotFoundError, ChatbotPermissionError
 from app.modules.chatbot_settings.utils import get_owned_chatbot
+from app.modules.notification.service import trigger_chatbot_updated_notification
 from app.modules.knowledgebase.model import (
     SOURCE_TYPE_FILE,
     SOURCE_TYPE_URL,
@@ -253,7 +254,7 @@ async def upload_knowledgebase(
     urls: list[str],
 ) -> KnowledgebaseUploadSuccessResponse:
     """Upload files and URLs, extract text, and store knowledge base records."""
-    _get_owned_chatbot(db, user, chatbot_id)
+    chatbot = get_owned_chatbot(db, user, chatbot_id)
     _validate_upload_payload(files, urls)
 
     documents: list[KnowledgebaseDocument] = []
@@ -276,6 +277,8 @@ async def upload_knowledgebase(
     processed_sources = sum(
         1 for document in documents if document.processing_status == STATUS_COMPLETED
     )
+
+    trigger_chatbot_updated_notification(db, chatbot, user)
 
     return KnowledgebaseUploadSuccessResponse(
         message="Knowledge base uploaded successfully",

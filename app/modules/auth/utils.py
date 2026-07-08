@@ -13,6 +13,10 @@ from sqlalchemy.orm import Session
 
 from app.core import messages
 from app.core.config import get_settings
+from app.core.email_templates import (
+    build_forgot_password_email,
+    build_signup_verification_email,
+)
 from app.core.dependencies import get_auth_context, get_current_user
 from app.core.security import (
     InvalidTokenError,
@@ -137,8 +141,13 @@ def is_code_expired(expires_at: datetime | None) -> bool:
     return expires_at < datetime.now(timezone.utc)
 
 
-def _send_email(to_email: str, subject: str, body: str) -> None:
-    """Send a plain-text email using the configured SMTP settings."""
+def _send_email(
+    to_email: str,
+    subject: str,
+    plain_body: str,
+    html_body: str | None = None,
+) -> None:
+    """Send a plain-text or multipart HTML email using configured SMTP settings."""
     smtp = _get_smtp_settings()
     smtp_user = str(smtp["user"])
     smtp_password = str(smtp["password"])
@@ -149,11 +158,13 @@ def _send_email(to_email: str, subject: str, body: str) -> None:
 
     from_email = str(smtp["from_email"])
 
-    message = MIMEMultipart()
+    message = MIMEMultipart("alternative" if html_body else "mixed")
     message["From"] = from_email
     message["To"] = to_email
     message["Subject"] = subject
-    message.attach(MIMEText(body, "plain"))
+    message.attach(MIMEText(plain_body, "plain"))
+    if html_body:
+        message.attach(MIMEText(html_body, "html"))
 
     try:
         with smtplib.SMTP(str(smtp["host"]), int(smtp["port"]), timeout=30) as server:
@@ -167,32 +178,21 @@ def _send_email(to_email: str, subject: str, body: str) -> None:
 
 def send_verification_email(first_name: str, to_email: str, verification_code: str) -> None:
     """Send the email verification OTP to the registered user."""
-    subject = "Verify Your Email Address"
-    body = (
-        f"Hello {first_name},\n\n"
-        "Thank you for registering.\n\n"
-        "Your verification code is:\n\n"
-        f"{verification_code}\n\n"
-        f"This code will expire in {OTP_EXPIRY_MINUTES} minutes.\n\n"
-        "Regards,\n"
-        "SaaS AI Custom Chatbot Team"
+    subject, plain_body, html_body = build_signup_verification_email(
+        first_name=first_name,
+        verification_code=verification_code,
+        expiry_minutes=OTP_EXPIRY_MINUTES,
     )
-    _send_email(to_email, subject, body)
+    _send_email(to_email, subject, plain_body, html_body)
 
 
 def send_forgot_password_email(to_email: str, verification_code: str) -> None:
     """Send the forgot-password verification code to the user's email."""
-    subject = "Forgot Password Verification Code"
-    body = (
-        "Hello,\n\n"
-        "Your password reset verification code is:\n\n"
-        f"{verification_code}\n\n"
-        f"This code will expire in {OTP_EXPIRY_MINUTES} minutes.\n\n"
-        "If you did not request a password reset, please ignore this email.\n\n"
-        "Regards,\n"
-        "SaaS AI Custom Chatbot Team"
+    subject, plain_body, html_body = build_forgot_password_email(
+        verification_code=verification_code,
+        expiry_minutes=OTP_EXPIRY_MINUTES,
     )
-    _send_email(to_email, subject, body)
+    _send_email(to_email, subject, plain_body, html_body)
 
 
 def _is_blank(value: str | None) -> bool:

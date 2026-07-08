@@ -236,6 +236,38 @@ INVALID_THEME = "Invalid theme. Allowed values are dark and light."
 THEME_NOT_FOUND = "Theme preference not found."
 
 # ---------------------------------------------------------------------------
+# Notification Settings
+# ---------------------------------------------------------------------------
+
+NOTIFICATION_SETTINGS_RETRIEVED_SUCCESS = (
+    "Notification settings retrieved successfully."
+)
+NOTIFICATION_SETTINGS_UPDATED_SUCCESS = (
+    "Notification settings updated successfully."
+)
+
+NOTIFICATION_NEW_CHATBOT_EMAIL_SUBJECT = "New Chatbot Created"
+NOTIFICATION_NEW_CHATBOT_EMAIL_HEADER = "New Chatbot Created"
+NOTIFICATION_NEW_CHATBOT_EMAIL_INTRO = (
+    "A new chatbot has been created on your account:"
+)
+NOTIFICATION_NEW_CHATBOT_EMAIL_DETAIL = (
+    "You can review and manage your chatbot from your dashboard."
+)
+NOTIFICATION_NEW_CHATBOT_EMAIL_SECURITY_NOTE = (
+    "If you did not create this chatbot, please review your account security."
+)
+
+NOTIFICATION_CHATBOT_UPDATED_EMAIL_SUBJECT = "Chatbot Updated - Review Changes"
+NOTIFICATION_CHATBOT_UPDATED_EMAIL_HEADER = "Chatbot Updated"
+NOTIFICATION_CHATBOT_UPDATED_EMAIL_INTRO = (
+    "Your chatbot was recently updated. Please review the changes:"
+)
+NOTIFICATION_CHATBOT_UPDATED_EMAIL_SECURITY_NOTE = (
+    "If you did not authorize these changes, please review your account security."
+)
+
+# ---------------------------------------------------------------------------
 # User Details
 # ---------------------------------------------------------------------------
 

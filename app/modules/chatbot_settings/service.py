@@ -53,6 +53,10 @@ from app.modules.chatbot_settings.utils import (
     validate_messages_settings,
 )
 from app.modules.chat_analysis.service import ensure_chat_analysis_for_chatbot
+from app.modules.notification.service import (
+    notify_chatbot_deleted,
+    trigger_chatbot_updated_notification,
+)
 from app.modules.user_details.utils import is_admin
 from app.modules.knowledgebase.service import (
     FileSizeExceededError,
@@ -175,6 +179,8 @@ def update_general_settings(
 
     db.commit()
 
+    trigger_chatbot_updated_notification(db, chatbot, user)
+
     logger.info("General settings updated for chatbot_id=%s", payload.chatbot_id)
     return SettingsUpdateSuccessResponse(message=messages.GENERAL_SETTINGS_UPDATED)
 
@@ -205,6 +211,10 @@ def update_appearance_settings(
     settings.updated_at = datetime.now(timezone.utc)
 
     db.commit()
+
+    chatbot = db.get(Chatbot, payload.chatbot_id)
+    if chatbot is not None:
+        trigger_chatbot_updated_notification(db, chatbot, user)
 
     logger.info("Appearance settings updated for chatbot_id=%s", payload.chatbot_id)
     return SettingsUpdateSuccessResponse(message=messages.APPEARANCE_UPDATED)
@@ -237,6 +247,10 @@ def update_messages_settings(
     settings.updated_at = datetime.now(timezone.utc)
 
     db.commit()
+
+    chatbot = db.get(Chatbot, payload.chatbot_id)
+    if chatbot is not None:
+        trigger_chatbot_updated_notification(db, chatbot, user)
 
     logger.info("Message settings updated for chatbot_id=%s", payload.chatbot_id)
     return SettingsUpdateSuccessResponse(message=messages.MESSAGES_UPDATED)
@@ -273,6 +287,8 @@ def update_security_settings(
     settings.updated_at = now
 
     db.commit()
+
+    trigger_chatbot_updated_notification(db, chatbot, user)
 
     logger.info("Security settings updated for chatbot_id=%s", payload.chatbot_id)
     return SettingsUpdateSuccessResponse(message=messages.SECURITY_SETTINGS_UPDATED)
@@ -317,7 +333,7 @@ async def update_knowledge_base(
         user.id,
     )
 
-    get_owned_chatbot_with_settings(db, user, chatbot_id)
+    chatbot, _settings = get_owned_chatbot_with_settings(db, user, chatbot_id)
 
     normalized_urls = [url.strip() for url in urls if url and url.strip()]
     delete_ids = list(dict.fromkeys(delete_document_ids))
@@ -364,6 +380,8 @@ async def update_knowledge_base(
     ).scalar_one()
     if int(final_count) < 1:
         raise KnowledgeBaseRequiredError()
+
+    trigger_chatbot_updated_notification(db, chatbot, user)
 
     logger.info("Knowledge base updated for chatbot_id=%s", chatbot_id)
     return SettingsUpdateSuccessResponse(message=messages.KNOWLEDGE_BASE_UPDATED)
@@ -415,6 +433,8 @@ def delete_chatbot(
 
     success_message = messages.CHATBOT_DELETED_SUCCESS
     deleted_status = chatbot.status
+    owner_user_id = chatbot.user_id
+    deleted_chatbot_id = chatbot.id
 
     try:
         if is_hard_delete:
@@ -443,6 +463,13 @@ def delete_chatbot(
         chatbot_id,
         user.id,
         is_hard_delete,
+    )
+
+    notify_chatbot_deleted(
+        db,
+        owner_user_id=owner_user_id,
+        chatbot_id=deleted_chatbot_id,
+        deleted_by_user_id=user.id,
     )
 
     return DeleteChatbotSuccessResponse(
