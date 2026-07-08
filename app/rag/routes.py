@@ -64,7 +64,7 @@ def test_rag_search(
     summary="Temporary RAG context builder test endpoint",
     description=(
         "Development-only endpoint for testing merged RAG context before "
-        "Llama integration. This endpoint is temporary."
+        "AI answer generation. This endpoint is temporary."
     ),
 )
 def test_rag_context(

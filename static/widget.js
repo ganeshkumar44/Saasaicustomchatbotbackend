@@ -1358,7 +1358,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
     const { wrap, bubble } = createMessageWrap("AI", "bot");
     bubble.classList.add("typing");
     bubble.innerHTML =
-      '<span class="saas-widget-typing-label">Typing</span>' +
+      '<span class="saas-widget-typing-label">Thinking</span>' +
       '<span class="saas-widget-typing-dots" aria-hidden="true">' +
       "<span></span><span></span><span></span>" +
       "</span>";

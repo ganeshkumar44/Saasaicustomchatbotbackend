@@ -21,18 +21,6 @@ class AIProviderError(Exception):
         super().__init__(message)
 
 
-class OllamaNotRunningError(AIProviderError):
-    """Raised when the Ollama server is unreachable."""
-
-
-class OllamaModelUnavailableError(AIProviderError):
-    """Raised when the configured Ollama model is not available."""
-
-
-class OllamaProviderError(AIProviderError):
-    """Raised for other Ollama provider failures."""
-
-
 class OpenAIAPIKeyMissingError(Exception):
     """Raised when the OpenAI API key is not configured."""
 

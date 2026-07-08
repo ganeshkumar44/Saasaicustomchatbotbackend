@@ -100,15 +100,6 @@ class Settings:
             os.getenv("GEMINI_VISION_REQUEST_INTERVAL_SECONDS", "13")
         )
 
-        # Ollama local AI settings
-        self.OLLAMA_BASE_URL: str = os.getenv(
-            "OLLAMA_BASE_URL", "http://localhost:11434"
-        )
-        self.OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
-        self.OLLAMA_REQUEST_TIMEOUT_SECONDS: int = int(
-            os.getenv("OLLAMA_REQUEST_TIMEOUT_SECONDS", "120")
-        )
-
         # OpenAI settings
         self.OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
         self.OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")

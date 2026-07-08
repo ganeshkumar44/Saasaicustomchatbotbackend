@@ -78,7 +78,7 @@ def build_context(
     """
     Build merged context from the top relevant knowledge base chunks.
 
-    Used by the AI service before sending context to Gemini or Ollama.
+    Used by the AI service before sending context to Gemini or OpenAI.
     """
     normalized_query = normalize_query(query)
     if not normalized_query:

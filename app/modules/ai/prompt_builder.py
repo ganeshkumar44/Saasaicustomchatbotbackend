@@ -36,7 +36,7 @@ def build_ai_prompt(
     conversation_history: str | None = None,
 ) -> str:
     """
-    Build the full prompt sent to Gemini or Ollama.
+    Build the full prompt sent to Gemini or OpenAI.
 
     Both providers receive the same structure so response quality stays consistent.
     """

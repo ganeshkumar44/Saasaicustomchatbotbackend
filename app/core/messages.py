@@ -141,16 +141,6 @@ INVALID_AI_MODEL = "Unsupported AI model selected."
 AI_QUOTA_EXCEEDED = (
     "The AI service has reached its request limit. Please try again later."
 )
-OLLAMA_NOT_RUNNING = "Ollama server is not running."
-OLLAMA_MODEL_UNAVAILABLE = "Selected AI model is unavailable."
-OLLAMA_MODEL_NOT_DOWNLOADED = "Ollama model has not been downloaded."
-OLLAMA_INSUFFICIENT_MEMORY = (
-    "Not enough system memory to run the selected Ollama model. "
-    "Try a smaller model (e.g. llama3.2:3b) or free up RAM."
-)
-OLLAMA_REQUEST_TIMEOUT = "Ollama request timed out. Please try again."
-OLLAMA_REQUEST_FAILED = "Failed to generate an answer using Ollama."
-OLLAMA_EMPTY_RESPONSE = "Ollama returned an empty response."
 
 OPENAI_AUTHENTICATION_FAILED = "OpenAI API key is invalid or unauthorized."
 OPENAI_RATE_LIMIT_EXCEEDED = (

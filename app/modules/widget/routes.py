@@ -8,9 +8,6 @@ from app.modules.ai.exceptions import (
     GeminiAPIError,
     GeminiAPIKeyMissingError,
     GeminiQuotaExceededError,
-    OllamaModelUnavailableError,
-    OllamaNotRunningError,
-    OllamaProviderError,
     OpenAIAPIKeyMissingError,
     OpenAIAuthenticationError,
     OpenAINetworkError,
@@ -139,33 +136,6 @@ def public_chat(
                 "success": False,
                 "error_code": "AI_QUOTA_EXCEEDED",
                 "message": messages.AI_QUOTA_EXCEEDED,
-            },
-        )
-    except OllamaNotRunningError as exc:
-        return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={
-                "success": False,
-                "error_code": "OLLAMA_NOT_RUNNING",
-                "message": exc.message,
-            },
-        )
-    except OllamaModelUnavailableError as exc:
-        return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={
-                "success": False,
-                "error_code": "OLLAMA_MODEL_UNAVAILABLE",
-                "message": exc.message,
-            },
-        )
-    except OllamaProviderError as exc:
-        return JSONResponse(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            content={
-                "success": False,
-                "error_code": "OLLAMA_PROVIDER_ERROR",
-                "message": exc.message,
             },
         )
     except OpenAIAPIKeyMissingError:

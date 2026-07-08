@@ -11,7 +11,6 @@ class PersonalityEnum(str, Enum):
 
 class AIModelEnum(str, Enum):
     GEMINI_2_5_FLASH = "Gemini 2.5 Flash"
-    LLAMA_3_1 = "Llama 3.1"
     GPT_4_1_MINI = "GPT-4.1 Mini"
 
 
