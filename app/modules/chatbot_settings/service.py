@@ -47,6 +47,7 @@ from app.modules.chatbot_settings.utils import (
     restore_chromadb_vectors_for_chatbot,
     soft_delete_chatbot_record,
     validate_ai_model,
+    validate_allowed_domains,
     validate_and_normalize_allowed_domains,
     validate_appearance_settings,
     validate_general_settings,
@@ -75,8 +76,13 @@ logger = logging.getLogger(__name__)
 class ChatbotSettingsValidationError(Exception):
     """Raised when chatbot settings payload fails validation."""
 
-    def __init__(self, message: str) -> None:
+    def __init__(
+        self,
+        message: str,
+        conflicting_domains: list[str] | None = None,
+    ) -> None:
         self.message = message
+        self.conflicting_domains = conflicting_domains or []
         super().__init__(message)
 
 
@@ -279,6 +285,18 @@ def update_security_settings(
         raise ChatbotSettingsValidationError(domain_error)
 
     chatbot, settings = get_owned_chatbot_with_settings(db, user, payload.chatbot_id)
+
+    domain_conflict_error, conflicting_domains = validate_allowed_domains(
+        db,
+        chatbot_id=payload.chatbot_id,
+        domains=payload.allowed_domains,
+    )
+    if domain_conflict_error:
+        raise ChatbotSettingsValidationError(
+            domain_conflict_error,
+            conflicting_domains=conflicting_domains,
+        )
+
     now = datetime.now(timezone.utc)
 
     chatbot.ai_model = payload.ai_model.strip()

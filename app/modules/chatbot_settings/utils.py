@@ -289,8 +289,105 @@ def validate_ai_model(ai_model: str | None) -> str | None:
 
 
 def normalize_domain(domain: str) -> str:
-    """Normalize a domain URL for storage and comparison."""
+    """Normalize a domain URL for storage (trim and remove trailing slash)."""
     return domain.strip().rstrip("/")
+
+
+def normalize_domain_key(domain: str) -> str:
+    """
+    Normalize a domain for duplicate comparison.
+
+    Strips protocol, www prefix, trailing slashes, and lowercases the host.
+    """
+    trimmed = domain.strip().rstrip("/")
+    if not trimmed or trimmed == "*":
+        return trimmed
+
+    candidate = trimmed if "://" in trimmed else f"https://{trimmed}"
+    parsed = urlparse(candidate)
+    host = parsed.netloc or parsed.path.split("/")[0]
+    host = host.split(":")[0].lower()
+
+    if host.startswith("www."):
+        host = host[4:]
+
+    return host
+
+
+def _parse_allowed_domains_list(allowed_domains: str) -> list[str]:
+    """Split a comma-separated allowed domains string into trimmed values."""
+    return [
+        domain.strip()
+        for domain in allowed_domains.split(",")
+        if domain and domain.strip()
+    ]
+
+
+def _collect_domain_keys(allowed_domains: str) -> set[str]:
+    """Return normalized domain keys from a stored allowed_domains value."""
+    keys: set[str] = set()
+    for domain in _parse_allowed_domains_list(allowed_domains):
+        if domain == "*":
+            continue
+        key = normalize_domain_key(domain)
+        if key:
+            keys.add(key)
+    return keys
+
+
+def validate_allowed_domains(
+    db: Session,
+    *,
+    chatbot_id: int,
+    domains: list[str],
+) -> tuple[str | None, list[str]]:
+    """
+    Ensure submitted domains are not already assigned to another chatbot.
+
+    Returns (error_message, conflicting_domain_keys).
+    """
+    submitted_keys: list[str] = []
+    seen_submitted: set[str] = set()
+
+    for domain in domains:
+        trimmed = domain.strip()
+        if not trimmed:
+            continue
+
+        domain_key = normalize_domain_key(trimmed)
+        if not domain_key or domain_key == "*":
+            continue
+        if domain_key in seen_submitted:
+            continue
+
+        seen_submitted.add(domain_key)
+        submitted_keys.append(domain_key)
+
+    if not submitted_keys:
+        return None, []
+
+    other_settings = db.execute(
+        select(ChatbotSettings.allowed_domains).where(
+            ChatbotSettings.chatbot_id != chatbot_id
+        )
+    ).scalars().all()
+
+    assigned_keys: set[str] = set()
+    for allowed_domains in other_settings:
+        if not allowed_domains:
+            continue
+        assigned_keys.update(_collect_domain_keys(allowed_domains))
+
+    conflicting = sorted(key for key in submitted_keys if key in assigned_keys)
+    if not conflicting:
+        return None, []
+
+    message = (
+        messages.ALLOWED_DOMAINS_CONFLICT_DETAIL
+        if conflicting
+        else messages.ALLOWED_DOMAINS_ALREADY_ASSIGNED
+    )
+    return message, conflicting
 
 
 def _is_valid_domain_url(value: str) -> bool:
@@ -326,11 +423,11 @@ def validate_and_normalize_allowed_domains(domains: list[str]) -> tuple[str | No
         if not _is_valid_domain_url(trimmed):
             return messages.INVALID_DOMAIN, ""
 
-        normalized = normalize_domain(trimmed).lower()
-        if normalized in seen:
+        domain_key = normalize_domain_key(trimmed)
+        if domain_key in seen:
             continue
 
-        seen.add(normalized)
+        seen.add(domain_key)
         normalized_domains.append(normalize_domain(trimmed))
 
     if not normalized_domains:

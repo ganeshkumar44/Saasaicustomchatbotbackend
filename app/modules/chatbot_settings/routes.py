@@ -170,9 +170,12 @@ def update_security_settings(
             content={"success": False, "message": messages.INVALID_AI_MODEL},
         )
     except service.ChatbotSettingsValidationError as exc:
+        content: dict = {"success": False, "message": exc.message}
+        if exc.conflicting_domains:
+            content["conflicting_domains"] = exc.conflicting_domains
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"success": False, "message": exc.message},
+            content=content,
         )
     except (ChatbotNotFoundError, ChatbotPermissionError, SuperAdminChatbotProtectedError, ChatbotSettingsNotFoundError) as exc:
         response = _chatbot_access_error_response(exc)

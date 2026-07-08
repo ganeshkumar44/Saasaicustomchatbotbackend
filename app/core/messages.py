@@ -163,6 +163,12 @@ WELCOME_MESSAGE_TOO_LONG = "Welcome message must not exceed 1000 characters."
 INPUT_PLACEHOLDER_REQUIRED = "Input placeholder is required."
 INPUT_PLACEHOLDER_TOO_LONG = "Input placeholder must not exceed 150 characters."
 ALLOWED_DOMAINS_REQUIRED = "At least one allowed domain is required."
+ALLOWED_DOMAINS_ALREADY_ASSIGNED = (
+    "One or more allowed domains are already assigned to another chatbot."
+)
+ALLOWED_DOMAINS_CONFLICT_DETAIL = (
+    "The following domains are already assigned to another chatbot."
+)
 
 # ---------------------------------------------------------------------------
 # Chatbot Builder
