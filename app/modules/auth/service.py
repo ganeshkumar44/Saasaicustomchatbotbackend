@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core import messages
+from app.core.security import get_jti_from_access_token
 from app.modules.auth.model import User
 from app.modules.auth.schema import (
     ForgotPasswordEmailRequest,
@@ -48,6 +49,12 @@ from app.modules.auth.utils import (
     validate_verification_code,
     verify_password,
 )
+from app.modules.login_history.service import (
+    create_failed_login_history,
+    create_success_login_history,
+    update_logout_history,
+)
+from app.modules.login_history.utils import LoginClientInfo
 from app.modules.user_details.utils import ensure_user_details_exists
 from app.modules.theme.utils import ensure_user_theme_exists
 
@@ -504,7 +511,11 @@ def reset_forgot_password(
     return ForgotPasswordResetSuccessResponse(message="Password reset successfully")
 
 
-def login_user(db: Session, payload: LoginRequest) -> LoginSuccessResponse:
+def login_user(
+    db: Session,
+    payload: LoginRequest,
+    client_info: LoginClientInfo | None = None,
+) -> LoginSuccessResponse:
     """Authenticate a user and return a JWT access token."""
     normalized_email = _validate_signin_payload(payload)
 
@@ -514,22 +525,27 @@ def login_user(db: Session, payload: LoginRequest) -> LoginSuccessResponse:
 
     if not user:
         logger.info("Login failed for unknown email: %s", normalized_email)
+        create_failed_login_history(db, email=normalized_email, client_info=client_info)
         raise LoginUserNotFoundError()
 
     if not verify_password(payload.password, user.password_hash):
         logger.info("Login failed due to invalid password for: %s", normalized_email)
+        create_failed_login_history(db, email=normalized_email, client_info=client_info)
         raise LoginInvalidPasswordError()
 
     if not user.is_email_verified:
         logger.info("Login failed; account not verified: %s", normalized_email)
+        create_failed_login_history(db, email=normalized_email, client_info=client_info)
         raise EmailNotVerifiedForLoginError()
 
     if user.is_deleted:
         logger.info("Login failed; account deleted: %s", normalized_email)
+        create_failed_login_history(db, email=normalized_email, client_info=client_info)
         raise LoginUserNotFoundError()
 
     if not user.is_active:
         logger.info("Login failed; account deactivated: %s", normalized_email)
+        create_failed_login_history(db, email=normalized_email, client_info=client_info)
         raise AccountDisabledError(messages.ACCOUNT_DEACTIVATED)
 
     user.last_login = datetime.now(timezone.utc)
@@ -540,6 +556,14 @@ def login_user(db: Session, payload: LoginRequest) -> LoginSuccessResponse:
         user_id=user.id,
         email=user.email,
         role=user.role,
+    )
+    jwt_id = get_jti_from_access_token(access_token)
+    create_success_login_history(
+        db,
+        user_id=user.id,
+        email=user.email,
+        jwt_id=jwt_id,
+        client_info=client_info,
     )
 
     logger.info("Login successful for: %s", normalized_email)
@@ -597,6 +621,8 @@ def signout_user(
             jti,
         )
         raise SignoutError() from None
+
+    update_logout_history(db, user_id=user.id, jwt_id=jti)
 
     logger.info("Sign-out successful for user_id=%s jti=%s", user.id, jti)
     return SignOutSuccessResponse(message=messages.SIGNOUT_SUCCESS)

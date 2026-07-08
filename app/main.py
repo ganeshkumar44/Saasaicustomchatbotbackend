@@ -44,6 +44,7 @@ import app.modules.user_details.model  # noqa: F401
 import app.modules.widget.model  # noqa: F401
 import app.modules.chat_analysis.model  # noqa: F401
 import app.modules.theme.model  # noqa: F401
+import app.modules.login_history.model  # noqa: F401
 
 
 @asynccontextmanager

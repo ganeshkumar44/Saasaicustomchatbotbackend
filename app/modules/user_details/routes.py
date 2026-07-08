@@ -4,7 +4,10 @@ from sqlalchemy.orm import Session
 
 from app.core import messages
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, get_auth_context, AuthContext
+from app.modules.auth.utils import get_token_identifier
+from app.modules.login_history import service as login_history_service
+from app.modules.login_history.schema import UserLoginHistorySuccessResponse
 from app.modules.auth.model import User
 from app.modules.user_details import service
 from app.modules.user_details.schema import (
@@ -92,6 +95,24 @@ def get_user_details(
 ):
     """Return the complete profile of the currently logged-in user."""
     return service.get_user_details(db, current_user)
+
+
+@router.get(
+    "/user-details/login-history",
+    status_code=status.HTTP_200_OK,
+    response_model=UserLoginHistorySuccessResponse,
+)
+def get_user_login_history(
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(get_auth_context),
+):
+    """Return the authenticated user's login history for the last five days."""
+    current_jwt_id = get_token_identifier(auth.payload, auth.token)
+    return login_history_service.get_user_login_history(
+        db,
+        auth.user,
+        current_jwt_id=current_jwt_id,
+    )
 
 
 @router.put(

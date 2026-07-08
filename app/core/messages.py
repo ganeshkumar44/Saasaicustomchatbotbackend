@@ -251,6 +251,9 @@ PROFILE_PICTURE_NOT_FOUND = "Profile picture does not exist."
 USER_PROFILE_NOT_FOUND = "User profile not found."
 PROFILE_IMAGE_DELETE_FAILED = "Failed to remove profile picture. Please try again."
 
+LOGIN_HISTORY_RETRIEVED_SUCCESS = "Login history retrieved successfully."
+LOGIN_HISTORY_NOT_FOUND = "No login history found."
+
 CURRENT_PASSWORD_REQUIRED = "Current password is required."
 CURRENT_PASSWORD_INVALID = "Current password is incorrect."
 NEW_PASSWORD_REQUIRED = "New password is required."

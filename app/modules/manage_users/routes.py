@@ -2,6 +2,8 @@
 Manage Users module API routes.
 """
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -21,6 +23,9 @@ from app.modules.manage_users.schema import (
     UpdateUserStatusSuccessResponse,
 )
 from app.modules.manage_users.utils import DEFAULT_PAGE, DEFAULT_PER_PAGE
+from app.modules.login_history import service as login_history_service
+from app.modules.login_history.schema import ManageLoginHistorySuccessResponse
+from app.modules.login_history.utils import normalize_login_status_filter
 from app.modules.user_details.utils import require_admin_user, require_superadmin
 
 router = APIRouter(
@@ -103,6 +108,36 @@ def get_manage_users(
         page=page,
         per_page=per_page,
         search=search,
+    )
+
+
+@router.get(
+    "/manage-users/login-history",
+    status_code=status.HTTP_200_OK,
+    response_model=ManageLoginHistorySuccessResponse,
+)
+def get_manage_users_login_history(
+    page: int = Query(default=DEFAULT_PAGE, ge=1),
+    per_page: int = Query(default=DEFAULT_PER_PAGE, ge=1),
+    search: str | None = Query(default=None),
+    role: str | None = Query(default=None),
+    login_status: str | None = Query(default=None),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin_user),
+):
+    """Return paginated login history for all users (administrator only)."""
+    return login_history_service.get_manage_login_history(
+        db,
+        current_user,
+        page=page,
+        per_page=per_page,
+        search=search,
+        role=role,
+        login_status=normalize_login_status_filter(login_status),
+        date_from=date_from,
+        date_to=date_to,
     )
 
 

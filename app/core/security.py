@@ -82,6 +82,17 @@ def create_access_token(user_id: int, email: str, role: str) -> str:
     )
 
 
+def get_jti_from_access_token(token: str) -> str | None:
+    """Return the JWT identifier from a freshly issued access token."""
+    try:
+        payload = _decode_jwt_payload(token)
+    except InvalidTokenError:
+        return None
+
+    jti = payload.get("jti")
+    return str(jti) if jti else None
+
+
 def _decode_jwt_payload(token: str) -> dict[str, Any]:
     """Decode and validate a JWT access token without blacklist checks."""
     jwt_settings = _get_jwt_settings()

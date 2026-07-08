@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -24,6 +24,7 @@ from app.modules.auth.schema import (
     VerifyEmailSuccessResponse,
 )
 from app.core.dependencies import AuthContext, get_auth_context, get_current_user
+from app.modules.login_history.utils import build_login_client_info
 
 router = APIRouter(
     prefix="/auth",
@@ -254,9 +255,17 @@ def forgot_password(payload: ForgotPasswordResetRequest, db: Session = Depends(g
     status_code=status.HTTP_200_OK,
     response_model=LoginSuccessResponse,
 )
-def signin(payload: LoginRequest, db: Session = Depends(get_db)):
+def signin(
+    payload: LoginRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     try:
-        return service.login_user(db, payload)
+        return service.login_user(
+            db,
+            payload,
+            client_info=build_login_client_info(request),
+        )
     except service.SigninValidationError as exc:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
