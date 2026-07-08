@@ -1,4 +1,4 @@
-# SaaS AI Custom Chatbot — Backend
+# NexGenAI Chatbot — Backend
 
 ## Setup
 

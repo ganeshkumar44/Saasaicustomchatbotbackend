@@ -69,8 +69,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Saas AI Custom Chatbot API",
-    description="API for the Saas AICustom Chatbot",
+    title="NexGenAI Chatbot API",
+    description="API for the NexGenAI Chatbot",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
