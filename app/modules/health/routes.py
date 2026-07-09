@@ -6,5 +6,5 @@ router = APIRouter()
 def welcome():
     return {
         "status": True,
-        "message": "Welcome to NexGenAI Chatbot 🚀"
+        "message": "Welcome to NexGenChat Chatbot 🚀"
     }

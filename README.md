@@ -1,4 +1,4 @@
-# NexGenAI Chatbot — Backend
+# NexGenChat Chatbot — Backend
 
 ## Setup
 

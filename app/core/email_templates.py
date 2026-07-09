@@ -6,7 +6,7 @@ import html
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-COMPANY_NAME = "NexGenAI Chatbot"
+COMPANY_NAME = "NexGenChat"
 PRIMARY_COLOR = "#6C5CE7"
 PRIMARY_DARK = "#5A4BD1"
 TEXT_COLOR = "#374151"
