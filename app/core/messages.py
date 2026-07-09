@@ -369,6 +369,11 @@ CHAT_FEEDBACK_QUESTION = "Are you satisfied with our AI responses?"
 THANK_YOU_FEEDBACK = "Your chat has ended. Thank you for your feedback."
 START_NEW_CHAT = "Start New Chat"
 
+CHATBOT_CREATION_LIMIT_REACHED = (
+    "You have reached your chatbot creation limit for the {plan_name} plan. "
+    "Please upgrade your subscription to create more chatbots."
+)
+
 # ---------------------------------------------------------------------------
 # Widget visitor onboarding
 # ---------------------------------------------------------------------------

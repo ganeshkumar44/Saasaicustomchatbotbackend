@@ -33,7 +33,16 @@ def create_chatbot_draft(
     current_user: User = Depends(get_authenticated_user),
 ):
     """Create a blank chatbot draft for the authenticated user."""
-    return service.create_chatbot_draft(db, current_user)
+    try:
+        return service.create_chatbot_draft(db, current_user)
+    except service.ChatbotCreationLimitExceededError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": exc.message,
+            },
+        )
 
 
 @router.put(

@@ -58,6 +58,7 @@ from app.modules.login_history.utils import LoginClientInfo
 from app.modules.user_details.utils import ensure_user_details_exists
 from app.modules.theme.utils import ensure_user_theme_exists
 from app.modules.notification.utils import ensure_user_notification_settings_exists
+from app.modules.user_plan.service import create_default_user_plan
 
 logger = logging.getLogger(__name__)
 
@@ -313,6 +314,7 @@ def register_user(db: Session, payload: SignupRequest) -> SignupSuccessResponse:
         ensure_user_details_exists(db, existing_user.id)
         ensure_user_theme_exists(db, existing_user.id)
         ensure_user_notification_settings_exists(db, existing_user.id)
+        create_default_user_plan(db, existing_user.id)
         send_verification_email(
             existing_user.first_name,
             existing_user.email,
@@ -348,6 +350,7 @@ def register_user(db: Session, payload: SignupRequest) -> SignupSuccessResponse:
     ensure_user_details_exists(db, user.id)
     ensure_user_theme_exists(db, user.id)
     ensure_user_notification_settings_exists(db, user.id)
+    create_default_user_plan(db, user.id)
     send_verification_email(user.first_name, user.email, verification_code)
 
     logger.info(

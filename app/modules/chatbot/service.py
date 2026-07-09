@@ -37,6 +37,11 @@ from app.modules.notification.service import (
     trigger_chatbot_updated_notification,
     trigger_new_chatbot_created_notification,
 )
+from app.modules.user_plan.service import (
+    ChatbotCreationLimitExceededError,
+    increment_created_chatbot_count,
+    validate_chatbot_creation_limit,
+)
 from app.modules.chatbot.schema import (
     AIModelEnum,
     CreateChatbotDraftData,
@@ -117,6 +122,8 @@ def create_chatbot_draft(db: Session, user: User) -> CreateChatbotDraftSuccessRe
             ),
         )
 
+    validate_chatbot_creation_limit(db, user)
+
     chatbot = Chatbot(
         user_id=user.id,
         chatbot_name=None,
@@ -128,6 +135,7 @@ def create_chatbot_draft(db: Session, user: User) -> CreateChatbotDraftSuccessRe
     )
 
     db.add(chatbot)
+    increment_created_chatbot_count(db, user.id)
     db.commit()
     db.refresh(chatbot)
 
