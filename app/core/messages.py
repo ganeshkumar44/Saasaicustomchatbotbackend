@@ -130,7 +130,7 @@ KNOWLEDGE_BASE_UPDATED = "Knowledge base updated successfully."
 SECURITY_SETTINGS_UPDATED = "Security settings updated successfully."
 KNOWLEDGE_BASE_REQUIRED = "Please upload at least one knowledge base file or URL."
 KNOWLEDGE_BASE_FILE_SIZE_EXCEEDED = (
-    "Each knowledge base file must not exceed 4 MB."
+    "Each knowledge base file must not exceed 2 MB."
 )
 KNOWLEDGE_BASE_UPLOAD_FAILED = (
     "Failed to upload knowledge base file. Please try again."
@@ -280,7 +280,7 @@ USER_DETAILS_FETCH_SUCCESS = "User details retrieved successfully."
 USER_DETAILS_CREATED = "User details created successfully."
 USER_DETAILS_UPDATED = "User details updated successfully."
 INVALID_IMAGE_TYPE = "Invalid image type. Allowed formats are JPG, JPEG, PNG, and WEBP."
-IMAGE_SIZE_EXCEEDED = "Profile image size must not exceed 1 MB."
+IMAGE_SIZE_EXCEEDED = "Profile image size must not exceed 500 KB."
 PROFILE_IMAGE_UPLOAD_FAILED = "Failed to upload profile image. Please try again."
 PROFILE_IMAGE_UPDATED = "Profile image updated successfully."
 PROFILE_PICTURE_REMOVED_SUCCESS = "Profile picture removed successfully."

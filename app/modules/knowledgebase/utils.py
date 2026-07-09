@@ -16,7 +16,7 @@ from app.core import messages
 logger = logging.getLogger(__name__)
 
 MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
-MAX_KNOWLEDGE_BASE_FILE_SIZE_BYTES = 4 * 1024 * 1024
+MAX_KNOWLEDGE_BASE_FILE_SIZE_BYTES = 2 * 1024 * 1024
 ALLOWED_FILE_EXTENSIONS = {
     ".pdf",
     ".doc",
