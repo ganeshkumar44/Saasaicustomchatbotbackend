@@ -313,8 +313,11 @@ def signin(
     status_code=status.HTTP_200_OK,
     response_model=MeSuccessResponse,
 )
-def get_me(current_user=Depends(get_current_user)):
-    return service.get_current_user_profile(current_user)
+def get_me(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return service.get_current_user_profile(db, current_user)
 
 
 @signup_router.post(

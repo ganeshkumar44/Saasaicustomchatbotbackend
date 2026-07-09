@@ -58,7 +58,8 @@ from app.modules.login_history.utils import LoginClientInfo
 from app.modules.user_details.utils import ensure_user_details_exists
 from app.modules.theme.utils import ensure_user_theme_exists
 from app.modules.notification.utils import ensure_user_notification_settings_exists
-from app.modules.user_plan.service import create_default_user_plan
+from app.modules.user_plan.service import create_default_user_plan, get_user_plan
+from app.modules.user_plan.utils import serialize_user_plan_summary
 
 logger = logging.getLogger(__name__)
 
@@ -588,8 +589,10 @@ def login_user(
     )
 
 
-def get_current_user_profile(user: User) -> MeSuccessResponse:
-    """Return the authenticated user's basic profile."""
+def get_current_user_profile(db: Session, user: User) -> MeSuccessResponse:
+    """Return the authenticated user's basic profile and subscription plan."""
+    user_plan = get_user_plan(db, user.id)
+
     return MeSuccessResponse(
         data=MeUserData(
             id=user.id,
@@ -597,6 +600,7 @@ def get_current_user_profile(user: User) -> MeSuccessResponse:
             last_name=user.last_name or None,
             email=user.email,
             role=user.role,
+            plan=serialize_user_plan_summary(user_plan),
         ),
     )
 

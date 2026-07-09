@@ -14,6 +14,7 @@ from app.modules.auth.model import User
 from app.modules.auth.utils import USER_ROLE_ADMIN, USER_ROLE_SUPERADMIN
 from app.modules.chatbot.model import Chatbot
 from app.modules.user_plan.model import PLAN_STATUS_ACTIVE, UserPlan
+from app.modules.user_plan.schema import UserPlanSummaryData
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,18 @@ def count_user_chatbots_ever_created(db: Session, user_id: int) -> int:
         db.execute(
             select(func.count(Chatbot.id)).where(Chatbot.user_id == user_id)
         ).scalar_one()
+    )
+
+
+def serialize_user_plan_summary(user_plan: UserPlan) -> UserPlanSummaryData:
+    """Serialize a user plan record for API responses."""
+    return UserPlanSummaryData(
+        plan_name=user_plan.plan_name,
+        chatbot_limit=user_plan.chatbot_limit,
+        created_chatbots_count=user_plan.created_chatbots_count,
+        status=user_plan.status,
+        start_date=user_plan.start_date,
+        end_date=user_plan.end_date,
     )
 
 

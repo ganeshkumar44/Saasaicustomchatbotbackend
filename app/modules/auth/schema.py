@@ -2,6 +2,8 @@ from typing import Any
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
+from app.modules.user_plan.schema import UserPlanSummaryData
+
 
 class AuthResponse(BaseModel):
     status: bool
@@ -178,6 +180,7 @@ class MeUserData(BaseModel):
     last_name: str | None
     email: str
     role: str
+    plan: UserPlanSummaryData
 
 
 class MeSuccessResponse(BaseModel):
