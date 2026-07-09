@@ -10,6 +10,8 @@ from app.modules.login_history import service as login_history_service
 from app.modules.login_history.schema import UserLoginHistorySuccessResponse
 from app.modules.auth.model import User
 from app.modules.user_details import service
+from app.modules.user_plan.schema import UserPlanBillingSuccessResponse
+from app.modules.user_plan.service import UserPlanNotFoundError, get_user_plan_details
 from app.modules.user_details.schema import (
     ActivateAccountRequest,
     ActivateAccountSuccessResponse,
@@ -95,6 +97,31 @@ def get_user_details(
 ):
     """Return the complete profile of the currently logged-in user."""
     return service.get_user_details(db, current_user)
+
+
+@router.get(
+    "/user/plans",
+    status_code=status.HTTP_200_OK,
+    response_model=UserPlanBillingSuccessResponse,
+)
+def get_user_subscription_plan(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the authenticated user's current subscription billing details."""
+    try:
+        return UserPlanBillingSuccessResponse(
+            message=messages.USER_SUBSCRIPTION_DETAILS_RETRIEVED_SUCCESS,
+            data=get_user_plan_details(db, current_user.id),
+        )
+    except UserPlanNotFoundError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "success": False,
+                "message": exc.message,
+            },
+        )
 
 
 @router.get(

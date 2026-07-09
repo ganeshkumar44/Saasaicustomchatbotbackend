@@ -34,7 +34,7 @@ from app.modules.user_details.utils import apply_user_account_migrations, sync_e
 from app.modules.chat_analysis.utils import sync_existing_chat_analysis
 from app.modules.theme.utils import sync_existing_user_themes
 from app.modules.notification.utils import sync_existing_notification_settings
-from app.modules.user_plan.utils import sync_existing_user_plans
+from app.modules.user_plan.utils import apply_user_plan_migrations, sync_existing_user_plans
 
 # Import all ORM models so they register with Base.metadata before create_all().
 import app.modules.auth.model  # noqa: F401
@@ -63,6 +63,7 @@ async def lifespan(app: FastAPI):
     apply_chat_session_migrations(engine)
     apply_chat_message_migrations(engine)
     apply_knowledgebase_migrations(engine)
+    apply_user_plan_migrations(engine)
     sync_existing_user_details(engine)
     sync_existing_chat_analysis(engine)
     sync_existing_user_themes(engine)

@@ -279,6 +279,10 @@ NOTIFICATION_CHATBOT_UPDATED_EMAIL_SECURITY_NOTE = (
 USER_DETAILS_FETCH_SUCCESS = "User details retrieved successfully."
 USER_DETAILS_CREATED = "User details created successfully."
 USER_DETAILS_UPDATED = "User details updated successfully."
+USER_SUBSCRIPTION_DETAILS_RETRIEVED_SUCCESS = (
+    "User subscription details retrieved successfully."
+)
+USER_SUBSCRIPTION_DETAILS_NOT_FOUND = "User subscription details not found."
 INVALID_IMAGE_TYPE = "Invalid image type. Allowed formats are JPG, JPEG, PNG, and WEBP."
 IMAGE_SIZE_EXCEEDED = "Profile image size must not exceed 500 KB."
 PROFILE_IMAGE_UPLOAD_FAILED = "Failed to upload profile image. Please try again."
