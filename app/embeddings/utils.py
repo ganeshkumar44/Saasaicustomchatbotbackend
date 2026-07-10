@@ -2,6 +2,15 @@
 Embedding helper utilities.
 """
 
+from app.core.config import get_settings
+
+
+def get_default_embedding_model_name() -> str:
+    """Return the configured embedding model name."""
+    return get_settings().EMBEDDING_MODEL_NAME
+
+
+# Kept for backward compatibility with any imports of this constant.
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 

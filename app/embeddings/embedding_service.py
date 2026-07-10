@@ -5,14 +5,22 @@ Embedding generation service.
 import logging
 from typing import Any
 
-from app.embeddings.embedding_client import get_embedding_model
+from app.embeddings.embedding_client import (
+    EmbeddingModelLoadError,
+    get_embedding_model,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def generate_embedding(text: str) -> list[float]:
     """Generate a vector embedding for a single text input."""
-    model = get_embedding_model()
+    try:
+        model = get_embedding_model()
+    except EmbeddingModelLoadError:
+        logger.exception("Embedding model is unavailable locally")
+        raise
+
     embedding = model.encode(text.strip(), convert_to_numpy=True)
     return embedding.tolist()
 

@@ -71,11 +71,19 @@ class Settings:
             str(PROJECT_ROOT / "chroma_db"),
         )
 
-        # Sentence Transformers embedding model
+        # Sentence Transformers embedding model (loaded from local cache only by default)
         self.EMBEDDING_MODEL_NAME: str = os.getenv(
             "EMBEDDING_MODEL_NAME",
             "sentence-transformers/all-MiniLM-L6-v2",
         )
+        # Prevent HuggingFace Hub downloads on live servers (avoids network errors)
+        self.EMBEDDING_LOCAL_FILES_ONLY: bool = os.getenv(
+            "EMBEDDING_LOCAL_FILES_ONLY", "true"
+        ).strip().lower() in {"1", "true", "yes", "on"}
+        self.EMBEDDING_CACHE_FOLDER: str = os.getenv(
+            "EMBEDDING_CACHE_FOLDER",
+            "",
+        ).strip()
 
         # Gemini AI settings
         self.GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
