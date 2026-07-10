@@ -102,6 +102,7 @@ class UpdateSecuritySettingsRequest(BaseModel):
 class SettingsUpdateSuccessResponse(BaseModel):
     success: bool = True
     message: str
+    status: str | None = None
 
 
 class DeleteChatbotData(BaseModel):

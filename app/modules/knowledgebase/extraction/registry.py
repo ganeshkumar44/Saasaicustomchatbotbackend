@@ -90,15 +90,19 @@ def extract_structured_document(file_path: Path, file_type: str) -> StructuredDo
     """Extract structured content for a supported file type."""
     reset_vision_session()
 
-    if file_type == ".pdf":
+    normalized_type = file_type.strip().lower()
+    if normalized_type and not normalized_type.startswith("."):
+        normalized_type = f".{normalized_type}"
+
+    if normalized_type == ".pdf":
         return extract_pdf_structured(file_path)
-    if file_type == ".docx":
+    if normalized_type == ".docx":
         try:
             return extract_docx_structured(file_path)
         except Exception:
             logger.exception("Structured DOCX extraction failed; using fallback file=%s", file_path)
             return _extract_docx_fallback(file_path)
-    if file_type in {".ppt", ".pptx"}:
+    if normalized_type in {".ppt", ".pptx"}:
         try:
             from app.modules.knowledgebase.extraction.ppt_extractor import (
                 extract_pptx_structured,
@@ -113,15 +117,15 @@ def extract_structured_document(file_path: Path, file_type: str) -> StructuredDo
                 "Presentation uploaded, but structured slide extraction failed for this file.",
             )
             return document
-    if file_type in {".png", ".jpg", ".jpeg", ".webp"}:
-        return extract_image_structured(file_path, file_type)
-    if file_type == ".doc":
+    if normalized_type in {".png", ".jpg", ".jpeg", ".webp"}:
+        return extract_image_structured(file_path, normalized_type)
+    if normalized_type == ".doc":
         document = StructuredDocument()
         document.add("paragraph", _extract_legacy_doc_text(file_path))
         return document
-    if file_type in {".txt", ".md"}:
+    if normalized_type in {".txt", ".md"}:
         return _extract_plain_text(file_path)
-    if file_type == ".csv":
+    if normalized_type == ".csv":
         return _extract_csv_structured(file_path)
 
     raise ValueError(f"Unsupported file type: {file_type}")
@@ -133,8 +137,12 @@ def extract_structured_file_text(file_path: Path, file_type: str) -> str:
 
     Falls back gracefully for unsupported structured types.
     """
+    normalized_type = file_type.strip().lower()
+    if normalized_type and not normalized_type.startswith("."):
+        normalized_type = f".{normalized_type}"
+
     try:
-        structured = extract_structured_document(file_path, file_type)
+        structured = extract_structured_document(file_path, normalized_type)
         merged = structured.merge_to_text()
         if merged:
             return normalize_extracted_text(merged)
@@ -142,9 +150,9 @@ def extract_structured_file_text(file_path: Path, file_type: str) -> str:
         logger.exception(
             "Structured extraction failed file=%s type=%s",
             file_path,
-            file_type,
+            normalized_type,
         )
 
-    if file_type == ".docx":
+    if normalized_type == ".docx":
         return normalize_extracted_text(_extract_docx_fallback(file_path).merge_to_text())
     raise ValueError(f"Unsupported file type: {file_type}")

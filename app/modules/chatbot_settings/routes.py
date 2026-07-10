@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -230,6 +230,7 @@ def update_security_settings(
 )
 async def update_knowledge_base(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_authenticated_user),
 ):
@@ -252,6 +253,7 @@ async def update_knowledge_base(
             delete_document_ids,
             file_payloads,
             urls,
+            background_tasks,
         )
     except service.KnowledgeBaseRequiredError:
         return JSONResponse(

@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from fastapi import BackgroundTasks
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core import messages
@@ -25,6 +27,7 @@ from app.modules.knowledgebase.model import (
     KnowledgebaseDocument,
 )
 from app.modules.knowledgebase.schema import (
+    KnowledgebaseProcessingStatusResponse,
     KnowledgebaseUploadData,
     KnowledgebaseUploadSuccessResponse,
 )
@@ -40,8 +43,6 @@ from app.modules.knowledgebase.utils import (
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_CHUNK_SIZE,
     MAX_UPLOAD_SIZE_BYTES,
-    extract_file_text_from_storage,
-    extract_url_text,
     get_file_extension,
     is_allowed_file_type,
     split_text_into_chunks,
@@ -68,6 +69,9 @@ class KnowledgeBaseFileSizeExceededError(Exception):
 
 class NoKnowledgeSourcesError(Exception):
     """Raised when no files or URLs are provided."""
+
+
+ACTIVE_PROCESSING_STATUSES = {STATUS_PENDING, STATUS_PROCESSING}
 
 
 @dataclass
@@ -101,15 +105,16 @@ def _validate_upload_payload(
         raise FileSizeExceededError()
 
 
-def _process_file_source(
+def _create_file_document(
     db: Session,
     chatbot_id: int,
     file_payload: UploadedFilePayload,
 ) -> KnowledgebaseDocument:
-    """Upload a file to S3, create a DB record, and extract its text."""
+    """Upload a file to S3 and create a pending knowledge base document record."""
     file_type = get_file_extension(file_payload.filename)
     object_key = build_knowledgebase_object_key(chatbot_id, file_payload.filename)
     s3_url: str | None = None
+    now = datetime.now(timezone.utc)
 
     try:
         s3_url = upload_knowledgebase_file_to_s3(
@@ -129,7 +134,10 @@ def _process_file_source(
         file_type=file_type.lstrip("."),
         file_size=len(file_payload.content),
         extracted_text=None,
-        processing_status=STATUS_PENDING,
+        processing_status=STATUS_PROCESSING,
+        processing_started_at=now,
+        processing_completed_at=None,
+        processing_error=None,
     )
     db.add(document)
 
@@ -145,32 +153,13 @@ def _process_file_source(
         )
         raise
 
-    try:
-        document.processing_status = STATUS_PROCESSING
-        document.updated_at = datetime.now(timezone.utc)
-        db.commit()
-
-        extracted_text = extract_file_text_from_storage(
-            file_path=s3_url,
-            file_type=file_type,
-        )
-
-        document.extracted_text = extracted_text
-        document.processing_status = STATUS_COMPLETED
-    except Exception:
-        logger.exception("Failed to extract text from file %s", file_payload.filename)
-        document.processing_status = STATUS_FAILED
-    finally:
-        document.updated_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(document)
-
     return document
 
 
-async def _process_url_source(db: Session, chatbot_id: int, url: str) -> KnowledgebaseDocument:
-    """Create a DB record for a URL and extract its text."""
+def _create_url_document(db: Session, chatbot_id: int, url: str) -> KnowledgebaseDocument:
+    """Create a pending knowledge base document record for a website URL."""
     normalized_url = url.strip()
+    now = datetime.now(timezone.utc)
     document = KnowledgebaseDocument(
         chatbot_id=chatbot_id,
         source_type=SOURCE_TYPE_URL,
@@ -180,29 +169,39 @@ async def _process_url_source(db: Session, chatbot_id: int, url: str) -> Knowled
         file_type="url",
         file_size=None,
         extracted_text=None,
-        processing_status=STATUS_PENDING,
+        processing_status=STATUS_PROCESSING,
+        processing_started_at=now,
+        processing_completed_at=None,
+        processing_error=None,
     )
     db.add(document)
     db.commit()
     db.refresh(document)
-
-    try:
-        document.processing_status = STATUS_PROCESSING
-        document.updated_at = datetime.now(timezone.utc)
-        db.commit()
-
-        extracted_text = await extract_url_text(normalized_url)
-        document.extracted_text = extracted_text
-        document.processing_status = STATUS_COMPLETED
-    except Exception:
-        logger.exception("Failed to extract text from URL %s", normalized_url)
-        document.processing_status = STATUS_FAILED
-    finally:
-        document.updated_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(document)
-
     return document
+
+
+def schedule_knowledgebase_processing(
+    background_tasks: BackgroundTasks,
+    chatbot_id: int,
+    document_ids: list[int],
+) -> None:
+    """
+    Enqueue background processing for uploaded knowledge base documents.
+
+    Uses the synchronous entry point so FastAPI/Starlette runs it in a
+    threadpool. That keeps heavy PDF/OCR/embedding work off the event loop
+    and prevents other API requests from timing out while processing.
+    """
+    from app.modules.knowledgebase.background_processor import (
+        process_knowledgebase_document_sync,
+    )
+
+    for document_id in document_ids:
+        background_tasks.add_task(
+            process_knowledgebase_document_sync,
+            document_id,
+            chatbot_id,
+        )
 
 
 def generate_chunks_from_text(
@@ -245,7 +244,7 @@ def save_document_chunks(
     return len(chunk_records), chunks_data
 
 
-def _save_chunks_for_document(
+def save_chunks_for_document(
     db: Session,
     chatbot_id: int,
     document: KnowledgebaseDocument,
@@ -271,43 +270,98 @@ def _save_chunks_for_document(
     return chunk_count
 
 
+def _get_chatbot_documents(db: Session, chatbot_id: int) -> list[KnowledgebaseDocument]:
+    return list(
+        db.execute(
+            select(KnowledgebaseDocument)
+            .where(KnowledgebaseDocument.chatbot_id == chatbot_id)
+            .order_by(KnowledgebaseDocument.id.asc())
+        ).scalars().all()
+    )
+
+
+def resolve_knowledgebase_processing_status(
+    documents: list[KnowledgebaseDocument],
+) -> tuple[str, str | None]:
+    """Resolve aggregate processing status and optional error message."""
+    if not documents:
+        return STATUS_COMPLETED, None
+
+    statuses = {document.processing_status for document in documents}
+    if statuses & ACTIVE_PROCESSING_STATUSES:
+        return STATUS_PROCESSING, None
+
+    failed_documents = [
+        document for document in documents if document.processing_status == STATUS_FAILED
+    ]
+    if failed_documents:
+        latest_failed = max(
+            failed_documents,
+            key=lambda document: document.updated_at,
+        )
+        return STATUS_FAILED, latest_failed.processing_error
+
+    if statuses == {STATUS_COMPLETED}:
+        return STATUS_COMPLETED, None
+
+    return STATUS_PROCESSING, None
+
+
+def get_knowledgebase_processing_status(
+    db: Session,
+    user: User,
+    chatbot_id: int,
+) -> KnowledgebaseProcessingStatusResponse:
+    """Return aggregate knowledge base processing status for a chatbot."""
+    _get_owned_chatbot(db, user, chatbot_id)
+    documents = _get_chatbot_documents(db, chatbot_id)
+    status, error = resolve_knowledgebase_processing_status(documents)
+
+    return KnowledgebaseProcessingStatusResponse(
+        success=True,
+        status=status,
+        error=error,
+    )
+
+
 async def upload_knowledgebase(
     db: Session,
     user: User,
     chatbot_id: int,
     files: list[UploadedFilePayload],
     urls: list[str],
+    background_tasks: BackgroundTasks,
 ) -> KnowledgebaseUploadSuccessResponse:
-    """Upload files and URLs, extract text, and store knowledge base records."""
+    """Upload files and URLs, then process knowledge base records in the background."""
     chatbot = get_owned_chatbot(db, user, chatbot_id)
     _validate_upload_payload(files, urls)
 
     documents: list[KnowledgebaseDocument] = []
-    total_chunks = 0
+    document_ids: list[int] = []
 
     for file_payload in files:
-        document = _process_file_source(db, chatbot_id, file_payload)
+        document = _create_file_document(db, chatbot_id, file_payload)
         documents.append(document)
-        total_chunks += _save_chunks_for_document(db, chatbot_id, document)
+        document_ids.append(document.id)
 
     for url in urls:
         normalized_url = url.strip()
         if not normalized_url:
             continue
-        document = await _process_url_source(db, chatbot_id, normalized_url)
+        document = _create_url_document(db, chatbot_id, normalized_url)
         documents.append(document)
-        total_chunks += _save_chunks_for_document(db, chatbot_id, document)
+        document_ids.append(document.id)
 
+    schedule_knowledgebase_processing(background_tasks, chatbot_id, document_ids)
     trigger_chatbot_updated_notification(db, chatbot, user)
 
     return KnowledgebaseUploadSuccessResponse(
-        message="Knowledge base uploaded successfully",
+        message=messages.KNOWLEDGE_BASE_UPLOAD_STARTED,
+        status=STATUS_PROCESSING,
         data=KnowledgebaseUploadData(
             chatbot_id=chatbot_id,
             total_sources=len(documents),
-            processed_sources=sum(
-                1 for document in documents if document.processing_status == STATUS_COMPLETED
-            ),
-            total_chunks=total_chunks,
+            processed_sources=0,
+            total_chunks=0,
         ),
     )

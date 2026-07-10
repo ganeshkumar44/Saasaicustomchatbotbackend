@@ -5,6 +5,8 @@ Chatbot Settings module business logic.
 import logging
 from datetime import datetime, timezone
 
+from fastapi import BackgroundTasks
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -63,12 +65,12 @@ from app.modules.knowledgebase.service import (
     FileSizeExceededError,
     UnsupportedFileTypeError,
     UploadedFilePayload,
-    _process_file_source,
-    _process_url_source,
-    _save_chunks_for_document,
+    _create_file_document,
+    _create_url_document,
     _validate_upload_payload,
+    schedule_knowledgebase_processing,
 )
-from app.modules.knowledgebase.model import KnowledgebaseDocument
+from app.modules.knowledgebase.model import STATUS_PROCESSING, KnowledgebaseDocument
 
 logger = logging.getLogger(__name__)
 
@@ -343,8 +345,9 @@ async def update_knowledge_base(
     delete_document_ids: list[int],
     files: list[UploadedFilePayload],
     urls: list[str],
+    background_tasks: BackgroundTasks,
 ) -> SettingsUpdateSuccessResponse:
-    """Replace knowledge base sources, regenerating chunks and vector embeddings."""
+    """Replace knowledge base sources and process new uploads in the background."""
     logger.info(
         "Updating knowledge base for chatbot_id=%s user_id=%s",
         chatbot_id,
@@ -383,13 +386,18 @@ async def update_knowledge_base(
 
     db.commit()
 
+    document_ids: list[int] = []
+
     for file_payload in files:
-        document = _process_file_source(db, chatbot_id, file_payload)
-        _save_chunks_for_document(db, chatbot_id, document)
+        document = _create_file_document(db, chatbot_id, file_payload)
+        document_ids.append(document.id)
 
     for url in normalized_urls:
-        document = await _process_url_source(db, chatbot_id, url)
-        _save_chunks_for_document(db, chatbot_id, document)
+        document = _create_url_document(db, chatbot_id, url)
+        document_ids.append(document.id)
+
+    if document_ids:
+        schedule_knowledgebase_processing(background_tasks, chatbot_id, document_ids)
 
     final_count = db.execute(
         select(func.count(KnowledgebaseDocument.id)).where(
@@ -401,7 +409,13 @@ async def update_knowledge_base(
 
     trigger_chatbot_updated_notification(db, chatbot, user)
 
-    logger.info("Knowledge base updated for chatbot_id=%s", chatbot_id)
+    logger.info("Knowledge base update accepted for chatbot_id=%s", chatbot_id)
+    if document_ids:
+        return SettingsUpdateSuccessResponse(
+            message=messages.KNOWLEDGE_BASE_UPDATE_STARTED,
+            status=STATUS_PROCESSING,
+        )
+
     return SettingsUpdateSuccessResponse(message=messages.KNOWLEDGE_BASE_UPDATED)
 
 

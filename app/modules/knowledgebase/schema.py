@@ -11,4 +11,11 @@ class KnowledgebaseUploadData(BaseModel):
 class KnowledgebaseUploadSuccessResponse(BaseModel):
     success: bool = True
     message: str
+    status: str
     data: KnowledgebaseUploadData
+
+
+class KnowledgebaseProcessingStatusResponse(BaseModel):
+    success: bool = True
+    status: str
+    error: str | None = None

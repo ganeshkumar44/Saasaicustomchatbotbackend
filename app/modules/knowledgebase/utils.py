@@ -60,6 +60,25 @@ def apply_knowledgebase_migrations(db_engine: Engine) -> None:
             )
 
     if "knowledgebase_documents" in table_names:
+        document_columns = {
+            column["name"] for column in inspector.get_columns("knowledgebase_documents")
+        }
+        if "processing_started_at" not in document_columns:
+            statements.append(
+                "ALTER TABLE knowledgebase_documents "
+                "ADD COLUMN processing_started_at TIMESTAMPTZ"
+            )
+        if "processing_completed_at" not in document_columns:
+            statements.append(
+                "ALTER TABLE knowledgebase_documents "
+                "ADD COLUMN processing_completed_at TIMESTAMPTZ"
+            )
+        if "processing_error" not in document_columns:
+            statements.append(
+                "ALTER TABLE knowledgebase_documents "
+                "ADD COLUMN processing_error TEXT"
+            )
+
         for column in inspector.get_columns("knowledgebase_documents"):
             if column["name"] != "file_path":
                 continue
@@ -293,6 +312,22 @@ def get_file_extension(filename: str) -> str:
     return Path(filename).suffix.lower()
 
 
+def normalize_file_type(file_type: str | None) -> str:
+    """
+    Normalize a stored or incoming file type to a lowercase extension with a leading dot.
+
+    Database rows store extensions without a leading dot (e.g. ``pdf``), while
+    extractors expect dotted values (e.g. ``.pdf``).
+    """
+    if not file_type:
+        return ""
+
+    normalized = file_type.strip().lower()
+    if not normalized:
+        return ""
+    return normalized if normalized.startswith(".") else f".{normalized}"
+
+
 def is_allowed_file_type(filename: str) -> bool:
     """Return True when the uploaded file has a supported extension."""
     return get_file_extension(filename) in ALLOWED_FILE_EXTENSIONS
@@ -319,7 +354,7 @@ def extract_file_text(file_path: Path, file_type: str) -> str:
     """Extract structured searchable text from a supported file type."""
     from app.modules.knowledgebase.extraction.registry import extract_structured_file_text
 
-    return extract_structured_file_text(file_path, file_type)
+    return extract_structured_file_text(file_path, normalize_file_type(file_type))
 
 
 def extract_file_text_from_storage(
@@ -338,13 +373,18 @@ def extract_file_text_from_storage(
         is_knowledgebase_s3_url,
     )
 
+    normalized_file_type = normalize_file_type(file_type)
+
     if is_knowledgebase_s3_url(file_path):
-        with download_knowledgebase_file_to_temp(file_path, suffix=file_type) as temp_path:
-            return extract_file_text(temp_path, file_type)
+        with download_knowledgebase_file_to_temp(
+            file_path,
+            suffix=normalized_file_type,
+        ) as temp_path:
+            return extract_file_text(temp_path, normalized_file_type)
 
     local_path = Path(file_path)
     if local_path.exists():
-        return extract_file_text(local_path, file_type)
+        return extract_file_text(local_path, normalized_file_type)
 
     raise FileNotFoundError(f"Knowledge base file not found: {file_path}")
 
