@@ -56,6 +56,7 @@ def get_chatbot_list(db: Session, user: User) -> ChatbotListSuccessResponse:
                 row.owner_first_name,
                 row.owner_last_name,
             ),
+            owner_role=row.owner_role if is_admin(user) else None,
         )
         for row in rows
     ]

@@ -592,7 +592,9 @@ def login_user(
 def get_current_user_profile(db: Session, user: User) -> MeSuccessResponse:
     """Return the authenticated user's basic profile and subscription plan."""
     from app.modules.chatbot.service import get_existing_draft_chatbot
+    from app.modules.user_plan.service import reconcile_created_chatbot_count
 
+    reconcile_created_chatbot_count(db, user.id)
     user_plan = get_user_plan(db, user.id)
     existing_draft = get_existing_draft_chatbot(db, user.id)
 

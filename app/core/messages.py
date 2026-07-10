@@ -345,6 +345,17 @@ ONLY_SUPERADMIN_CAN_ASSIGN_ADMIN = (
 )
 CANNOT_MANAGE_SUPERADMIN = "You cannot manage SuperAdmin accounts."
 
+# ---------------------------------------------------------------------------
+# Manage Chatbot
+# ---------------------------------------------------------------------------
+
+MANAGE_CHATBOT_PERMANENTLY_DELETED_SUCCESS = (
+    "Chatbot permanently deleted successfully."
+)
+MANAGE_CHATBOT_PERMANENT_DELETE_FORBIDDEN = (
+    "You do not have permission to permanently delete this chatbot."
+)
+
 COMPANY_TOO_LONG = "Company name must not exceed 150 characters."
 BIO_TOO_LONG = "Bio must not exceed 1000 characters."
 

@@ -19,6 +19,7 @@ class ChatbotListItem(BaseModel):
     created_at: datetime
     updated_at: datetime
     owner_name: str | None = None
+    owner_role: str | None = None
 
 
 class ChatbotListSuccessResponse(BaseModel):

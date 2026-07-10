@@ -153,6 +153,7 @@ def get_chatbot_details(
             documents,
             is_editable=can_manage_chatbot(user, chatbot, owner)
             and not bool(getattr(chatbot, "is_deleted", False)),
+            owner_role=owner.role,
         ),
     )
 

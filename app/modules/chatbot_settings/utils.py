@@ -697,6 +697,7 @@ def build_chatbot_details_data(
     knowledgebase_documents: list[KnowledgebaseDocument] | None = None,
     *,
     is_editable: bool | None = None,
+    owner_role: str | None = None,
 ) -> ChatbotDetailsData:
     """Merge chatbot and settings records into a single response payload."""
     resolved_editable = (
@@ -707,6 +708,7 @@ def build_chatbot_details_data(
     return ChatbotDetailsData(
         id=chatbot.id,
         user_id=chatbot.user_id,
+        owner_role=owner_role,
         chatbot_name=chatbot.chatbot_name,
         description=chatbot.description,
         personality=chatbot.personality,

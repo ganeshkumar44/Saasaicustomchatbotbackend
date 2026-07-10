@@ -97,6 +97,7 @@ def build_chatbot_list_query(user: User) -> Select:
             ChatbotSettings.public_key,
             User.first_name.label("owner_first_name"),
             User.last_name.label("owner_last_name"),
+            User.role.label("owner_role"),
             func.coalesce(session_counts.c.total_conversations, 0).label(
                 "total_conversations"
             ),

@@ -35,6 +35,7 @@ class ChatbotDetailsData(BaseModel):
     # chatbots table
     id: int
     user_id: int
+    owner_role: str | None = None
     chatbot_name: str | None
     description: str | None
     personality: str | None

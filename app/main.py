@@ -30,6 +30,7 @@ from app.modules.chat_history.routes import router as chat_history_router
 from app.modules.theme.routes import router as theme_router
 from app.modules.notification.routes import router as notification_router
 from app.modules.manage_users.routes import router as manage_users_router
+from app.modules.manage_chatbot.routes import router as manage_chatbot_router
 from app.modules.user_details.utils import apply_user_account_migrations, sync_existing_user_details
 from app.modules.chat_analysis.utils import sync_existing_chat_analysis
 from app.modules.theme.utils import sync_existing_user_themes
@@ -103,6 +104,7 @@ app.include_router(chat_history_router)
 app.include_router(theme_router)
 app.include_router(notification_router)
 app.include_router(manage_users_router)
+app.include_router(manage_chatbot_router)
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
