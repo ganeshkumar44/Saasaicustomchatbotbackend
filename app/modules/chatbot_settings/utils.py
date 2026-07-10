@@ -506,7 +506,10 @@ def hard_delete_chatbot_record(db: Session, chatbot: Chatbot) -> None:
     if chatbot.status != CHATBOT_STATUS_DRAFT:
         raise ValueError(messages.ONLY_DRAFT_CAN_BE_HARD_DELETED)
 
+    from app.modules.user_plan.service import decrement_created_chatbot_count
+
     chatbot_id = chatbot.id
+    owner_user_id = chatbot.user_id
     documents = get_knowledgebase_documents(db, chatbot_id)
     for document in documents:
         delete_knowledgebase_document(db, document)
@@ -525,6 +528,7 @@ def hard_delete_chatbot_record(db: Session, chatbot: Chatbot) -> None:
             )
 
     db.delete(chatbot)
+    decrement_created_chatbot_count(db, owner_user_id)
     logger.info("Hard-deleted draft chatbot_id=%s", chatbot_id)
 
 

@@ -32,7 +32,12 @@ def create_chatbot_draft(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_authenticated_user),
 ):
-    """Create a blank chatbot draft for the authenticated user."""
+    """
+    Create a blank chatbot draft, or resume the user's existing draft.
+
+    When the plan limit is reached and a draft already exists, the draft is
+    returned instead of a limit error.
+    """
     try:
         return service.create_chatbot_draft(db, current_user)
     except service.ChatbotCreationLimitExceededError as exc:

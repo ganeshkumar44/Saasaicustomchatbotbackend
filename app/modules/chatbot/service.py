@@ -40,6 +40,7 @@ from app.modules.notification.service import (
 from app.modules.user_plan.service import (
     ChatbotCreationLimitExceededError,
     increment_created_chatbot_count,
+    reconcile_created_chatbot_count,
     validate_chatbot_creation_limit,
 )
 from app.modules.chatbot.schema import (
@@ -100,28 +101,47 @@ class ChatbotIncompleteConfigError(Exception):
         super().__init__()
 
 
+CHATBOT_ACTION_RESUME_DRAFT = "resume_draft"
+CHATBOT_ACTION_CREATE_DRAFT = "create_draft"
+
+
+def get_existing_draft_chatbot(db: Session, user_id: int) -> Chatbot | None:
+    """Return the user's active draft chatbot, if one exists."""
+    return find_draft_for_user(db, user_id)
+
+
+def resume_draft_chatbot(draft: Chatbot) -> CreateChatbotDraftSuccessResponse:
+    """Build the API response for resuming an existing draft chatbot."""
+    return CreateChatbotDraftSuccessResponse(
+        message=messages.DRAFT_CHATBOT_EXISTS,
+        action=CHATBOT_ACTION_RESUME_DRAFT,
+        is_existing_draft=True,
+        data=CreateChatbotDraftData(
+            chatbot_id=draft.id,
+            status=draft.status,
+        ),
+    )
+
+
 def create_chatbot_draft(db: Session, user: User) -> CreateChatbotDraftSuccessResponse:
     """
     Return an existing draft or create a new blank chatbot draft.
 
     At most one draft chatbot exists per user at any time.
+    When the plan limit is reached, an existing draft is resumed instead of
+    returning a limit error.
     """
-    existing_draft = find_draft_for_user(db, user.id)
+    existing_draft = get_existing_draft_chatbot(db, user.id)
     if existing_draft is not None:
         logger.info(
             "Returning existing draft chatbot_id=%s user_id=%s",
             existing_draft.id,
             user.id,
         )
-        return CreateChatbotDraftSuccessResponse(
-            message=messages.DRAFT_CHATBOT_EXISTS,
-            is_existing_draft=True,
-            data=CreateChatbotDraftData(
-                chatbot_id=existing_draft.id,
-                status=existing_draft.status,
-            ),
-        )
+        return resume_draft_chatbot(existing_draft)
 
+    # Keep the plan counter aligned with chatbot rows that still exist.
+    reconcile_created_chatbot_count(db, user.id)
     validate_chatbot_creation_limit(db, user)
 
     chatbot = Chatbot(
@@ -143,6 +163,7 @@ def create_chatbot_draft(db: Session, user: User) -> CreateChatbotDraftSuccessRe
 
     return CreateChatbotDraftSuccessResponse(
         message=messages.DRAFT_CHATBOT_CREATED,
+        action=CHATBOT_ACTION_CREATE_DRAFT,
         is_existing_draft=False,
         data=CreateChatbotDraftData(
             chatbot_id=chatbot.id,

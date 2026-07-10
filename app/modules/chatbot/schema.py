@@ -26,6 +26,7 @@ class CreateChatbotDraftData(BaseModel):
 class CreateChatbotDraftSuccessResponse(BaseModel):
     success: bool = True
     message: str
+    action: str
     is_existing_draft: bool
     data: CreateChatbotDraftData
 

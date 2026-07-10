@@ -137,7 +137,12 @@ def count_user_chatbots_ever_created(db: Session, user_id: int) -> int:
     )
 
 
-def serialize_user_plan_summary(user_plan: UserPlan) -> UserPlanSummaryData:
+def serialize_user_plan_summary(
+    user_plan: UserPlan,
+    *,
+    has_draft: bool = False,
+    draft_chatbot_id: int | None = None,
+) -> UserPlanSummaryData:
     """Serialize a user plan record for API responses."""
     return UserPlanSummaryData(
         plan_name=user_plan.plan_name,
@@ -146,6 +151,8 @@ def serialize_user_plan_summary(user_plan: UserPlan) -> UserPlanSummaryData:
         status=user_plan.status,
         start_date=user_plan.start_date,
         end_date=user_plan.end_date,
+        has_draft=has_draft,
+        draft_chatbot_id=draft_chatbot_id,
     )
 
 

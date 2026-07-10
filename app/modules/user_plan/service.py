@@ -12,6 +12,7 @@ from app.modules.auth.model import User
 from app.modules.user_plan.schema import UserPlanBillingData
 from app.modules.user_plan.utils import (
     build_chatbot_creation_limit_message,
+    count_user_chatbots_ever_created,
     ensure_user_plan_exists,
     get_user_plan_by_user_id,
     has_unlimited_chatbot_creation,
@@ -80,3 +81,43 @@ def increment_created_chatbot_count(db: Session, user_id: int) -> None:
 
     user_plan.created_chatbots_count += 1
     user_plan.updated_at = datetime.now(timezone.utc)
+
+
+def decrement_created_chatbot_count(db: Session, user_id: int) -> None:
+    """
+    Decrement the chatbot creation counter when a draft is permanently deleted.
+
+    Soft-deleted published chatbots still count toward the plan limit.
+    """
+    user_plan = get_user_plan_by_user_id(db, user_id)
+    if user_plan is None:
+        return
+
+    if user_plan.created_chatbots_count > 0:
+        user_plan.created_chatbots_count -= 1
+        user_plan.updated_at = datetime.now(timezone.utc)
+
+
+def reconcile_created_chatbot_count(db: Session, user_id: int) -> int:
+    """
+    Align created_chatbots_count with chatbot rows that still exist.
+
+    Hard-deleted drafts no longer occupy a plan slot. Soft-deleted published
+    chatbots still count because their rows remain in the database.
+    """
+    user_plan = get_user_plan(db, user_id)
+    actual_count = count_user_chatbots_ever_created(db, user_id)
+
+    if user_plan.created_chatbots_count != actual_count:
+        logger.info(
+            "Reconciling created_chatbots_count user_id=%s stored=%s actual=%s",
+            user_id,
+            user_plan.created_chatbots_count,
+            actual_count,
+        )
+        user_plan.created_chatbots_count = actual_count
+        user_plan.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(user_plan)
+
+    return user_plan.created_chatbots_count

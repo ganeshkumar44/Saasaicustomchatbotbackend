@@ -14,6 +14,8 @@ class UserPlanSummaryData(BaseModel):
     status: str
     start_date: datetime
     end_date: datetime | None = None
+    has_draft: bool = False
+    draft_chatbot_id: int | None = None
 
 
 class BillingPlanCatalogItem(BaseModel):

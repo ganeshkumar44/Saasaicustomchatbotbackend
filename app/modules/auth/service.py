@@ -591,7 +591,10 @@ def login_user(
 
 def get_current_user_profile(db: Session, user: User) -> MeSuccessResponse:
     """Return the authenticated user's basic profile and subscription plan."""
+    from app.modules.chatbot.service import get_existing_draft_chatbot
+
     user_plan = get_user_plan(db, user.id)
+    existing_draft = get_existing_draft_chatbot(db, user.id)
 
     return MeSuccessResponse(
         data=MeUserData(
@@ -600,7 +603,11 @@ def get_current_user_profile(db: Session, user: User) -> MeSuccessResponse:
             last_name=user.last_name or None,
             email=user.email,
             role=user.role,
-            plan=serialize_user_plan_summary(user_plan),
+            plan=serialize_user_plan_summary(
+                user_plan,
+                has_draft=existing_draft is not None,
+                draft_chatbot_id=existing_draft.id if existing_draft is not None else None,
+            ),
         ),
     )
 
