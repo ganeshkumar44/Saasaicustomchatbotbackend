@@ -15,7 +15,9 @@ from app.core import messages
 from app.core.config import get_settings
 from app.core.email_templates import (
     build_forgot_password_email,
+    build_password_reset_success_email,
     build_signup_verification_email,
+    build_welcome_email,
 )
 from app.core.dependencies import get_auth_context, get_current_user
 from app.core.security import (
@@ -79,7 +81,9 @@ __all__ = [
     "normalize_verification_code",
     "resolve_initial_signup_role",
     "send_forgot_password_email",
+    "send_password_reset_success_email",
     "send_verification_email",
+    "send_welcome_email",
     "validate_email",
     "validate_name",
     "validate_mobile",
@@ -193,6 +197,45 @@ def send_forgot_password_email(to_email: str, verification_code: str) -> None:
         expiry_minutes=OTP_EXPIRY_MINUTES,
     )
     _send_email(to_email, subject, plain_body, html_body)
+
+
+def send_welcome_email(user_name: str, to_email: str) -> None:
+    """
+    Send a welcome email after successful account verification.
+
+    Email failures are logged and never raised to the caller so verification
+    remains successful even when SMTP delivery fails.
+    """
+    try:
+        settings = get_settings()
+        subject, plain_body, html_body = build_welcome_email(
+            user_name=user_name,
+            frontend_login_url=settings.frontend_login_url,
+        )
+        _send_email(to_email, subject, plain_body, html_body)
+    except Exception:
+        logger.exception("Failed to send welcome email to %s", to_email)
+
+
+def send_password_reset_success_email(user_name: str, to_email: str) -> None:
+    """
+    Send a password-reset confirmation email after the password is updated.
+
+    Email failures are logged and never raised to the caller so password reset
+    remains successful even when SMTP delivery fails.
+    """
+    try:
+        settings = get_settings()
+        subject, plain_body, html_body = build_password_reset_success_email(
+            user_name=user_name,
+            frontend_login_url=settings.frontend_login_url,
+        )
+        _send_email(to_email, subject, plain_body, html_body)
+    except Exception:
+        logger.exception(
+            "Failed to send password reset confirmation email to %s",
+            to_email,
+        )
 
 
 def _is_blank(value: str | None) -> bool:

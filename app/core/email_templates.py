@@ -5,6 +5,9 @@ from __future__ import annotations
 import html
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 COMPANY_NAME = "NexGenChat"
 PRIMARY_COLOR = "#6C5CE7"
@@ -488,3 +491,108 @@ def build_chatbot_updated_email(
     )
     plain_body, html_body = build_notification_email_bodies(content)
     return content.subject, plain_body, html_body
+
+
+# ---------------------------------------------------------------------------
+# File-based transactional email templates (welcome / password reset success)
+# ---------------------------------------------------------------------------
+
+_EMAIL_TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "templates"
+_email_template_env: Environment | None = None
+
+
+def _get_email_template_env() -> Environment:
+    """Return a cached Jinja2 environment for HTML email templates."""
+    global _email_template_env
+    if _email_template_env is None:
+        _email_template_env = Environment(
+            loader=FileSystemLoader(str(_EMAIL_TEMPLATES_DIR)),
+            autoescape=select_autoescape(["html", "xml"]),
+        )
+    return _email_template_env
+
+
+def _render_email_template(template_name: str, **context: object) -> str:
+    """Render an HTML email template from app/templates."""
+    return _get_email_template_env().get_template(template_name).render(**context)
+
+
+def _display_user_name(user_name: str | None) -> str:
+    """Return a safe display name for email greetings."""
+    if user_name and user_name.strip():
+        return user_name.strip()
+    return "there"
+
+
+def build_welcome_email(
+    *,
+    user_name: str,
+    frontend_login_url: str,
+) -> tuple[str, str, str]:
+    """Build subject, plain body, and HTML body for the post-verification welcome email."""
+    from app.core import messages
+
+    display_name = _display_user_name(user_name)
+    subject = messages.WELCOME_EMAIL_SUBJECT
+    plain_body = (
+        f"Hello {display_name},\n\n"
+        f"{messages.WELCOME_EMAIL_CONGRATULATIONS}\n\n"
+        f"{messages.WELCOME_EMAIL_INTRO}\n\n"
+        f"{messages.WELCOME_EMAIL_BODY}\n\n"
+        f"{messages.WELCOME_EMAIL_LOGIN_LABEL}\n\n"
+        f"{frontend_login_url}\n\n"
+        f"{messages.WELCOME_EMAIL_SECURITY_NOTE}\n\n"
+        f"{messages.WELCOME_EMAIL_CLOSING}\n\n"
+        f"{messages.WELCOME_EMAIL_SIGN_OFF}"
+    )
+    html_body = _render_email_template(
+        "welcome_email.html",
+        subject=subject,
+        header_title=messages.WELCOME_EMAIL_HEADER,
+        user_name=display_name,
+        congratulations=messages.WELCOME_EMAIL_CONGRATULATIONS,
+        intro_text=messages.WELCOME_EMAIL_INTRO,
+        body_text=messages.WELCOME_EMAIL_BODY,
+        login_label=messages.WELCOME_EMAIL_LOGIN_LABEL,
+        frontend_login_url=frontend_login_url,
+        security_note=messages.WELCOME_EMAIL_SECURITY_NOTE,
+        closing_text=messages.WELCOME_EMAIL_CLOSING,
+        sign_off=messages.WELCOME_EMAIL_SIGN_OFF,
+        year=datetime.now(timezone.utc).year,
+    )
+    return subject, plain_body, html_body
+
+
+def build_password_reset_success_email(
+    *,
+    user_name: str,
+    frontend_login_url: str,
+) -> tuple[str, str, str]:
+    """Build subject, plain body, and HTML body for password-reset confirmation."""
+    from app.core import messages
+
+    display_name = _display_user_name(user_name)
+    subject = messages.PASSWORD_RESET_SUCCESS_EMAIL_SUBJECT
+    plain_body = (
+        f"Hello {display_name},\n\n"
+        f"{messages.PASSWORD_RESET_SUCCESS_EMAIL_INTRO}\n\n"
+        f"{messages.PASSWORD_RESET_SUCCESS_EMAIL_BODY}\n\n"
+        f"{messages.PASSWORD_RESET_SUCCESS_EMAIL_LOGIN_LABEL}\n\n"
+        f"{frontend_login_url}\n\n"
+        f"{messages.PASSWORD_RESET_SUCCESS_EMAIL_SECURITY_NOTE}\n\n"
+        f"{messages.PASSWORD_RESET_SUCCESS_EMAIL_SIGN_OFF}"
+    )
+    html_body = _render_email_template(
+        "password_reset_success.html",
+        subject=subject,
+        header_title=messages.PASSWORD_RESET_SUCCESS_EMAIL_HEADER,
+        user_name=display_name,
+        intro_text=messages.PASSWORD_RESET_SUCCESS_EMAIL_INTRO,
+        body_text=messages.PASSWORD_RESET_SUCCESS_EMAIL_BODY,
+        login_label=messages.PASSWORD_RESET_SUCCESS_EMAIL_LOGIN_LABEL,
+        frontend_login_url=frontend_login_url,
+        security_note=messages.PASSWORD_RESET_SUCCESS_EMAIL_SECURITY_NOTE,
+        sign_off=messages.PASSWORD_RESET_SUCCESS_EMAIL_SIGN_OFF,
+        year=datetime.now(timezone.utc).year,
+    )
+    return subject, plain_body, html_body

@@ -42,7 +42,9 @@ from app.modules.auth.utils import (
     normalize_verification_code,
     resolve_initial_signup_role,
     send_forgot_password_email,
+    send_password_reset_success_email,
     send_verification_email,
+    send_welcome_email,
     validate_email,
     validate_signin_request,
     validate_signup_request,
@@ -391,6 +393,8 @@ def verify_user_email(
 
     db.commit()
 
+    send_welcome_email(user.first_name, user.email)
+
     return VerifyEmailSuccessResponse(message=messages.VERIFICATION_SUCCESS)
 
 
@@ -514,6 +518,8 @@ def reset_forgot_password(
     user.forgot_password_verified = False
 
     db.commit()
+
+    send_password_reset_success_email(user.first_name, user.email)
 
     return ForgotPasswordResetSuccessResponse(message="Password reset successfully")
 

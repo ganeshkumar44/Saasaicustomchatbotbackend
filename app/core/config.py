@@ -50,6 +50,12 @@ class Settings:
             "WIDGET_BASE_URL", "http://127.0.0.1:8000"
         )
 
+        # Frontend app base URL (used for transactional email links)
+        self.FRONTEND_URL: str = os.getenv(
+            "FRONTEND_URL",
+            "http://localhost:5173",
+        ).rstrip("/")
+
         # CORS allowed origins (comma-separated)
         cors_origins = os.getenv(
             "CORS_ORIGINS",
@@ -155,6 +161,11 @@ class Settings:
             f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}"
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
+
+    @property
+    def frontend_login_url(self) -> str:
+        """Build the frontend login URL used in transactional emails."""
+        return f"{self.FRONTEND_URL}/login"
 
     def validate(self) -> None:
         """Raise a clear error when required settings are missing."""

@@ -275,6 +275,43 @@ NOTIFICATION_CHATBOT_UPDATED_EMAIL_SECURITY_NOTE = (
 )
 
 # ---------------------------------------------------------------------------
+# Welcome email (post-verification)
+# ---------------------------------------------------------------------------
+
+WELCOME_EMAIL_SUBJECT = "Welcome to NexGenChat – Your Account is Ready!"
+WELCOME_EMAIL_HEADER = "Welcome to NexGenChat"
+WELCOME_EMAIL_CONGRATULATIONS = "Congratulations! 🎉"
+WELCOME_EMAIL_INTRO = (
+    "Your NexGenChat account has been successfully created and verified."
+)
+WELCOME_EMAIL_BODY = (
+    "You can now log in and start creating AI-powered chatbots for your website."
+)
+WELCOME_EMAIL_LOGIN_LABEL = "Login URL:"
+WELCOME_EMAIL_SECURITY_NOTE = (
+    "If you did not create this account, please contact our support team immediately."
+)
+WELCOME_EMAIL_CLOSING = "Thank you for choosing NexGenChat."
+WELCOME_EMAIL_SIGN_OFF = "Best Regards,\nNexGenChat Team"
+
+# ---------------------------------------------------------------------------
+# Password reset confirmation email
+# ---------------------------------------------------------------------------
+
+PASSWORD_RESET_SUCCESS_EMAIL_SUBJECT = "Your NexGenChat Password Has Been Changed"
+PASSWORD_RESET_SUCCESS_EMAIL_HEADER = "Password Changed"
+PASSWORD_RESET_SUCCESS_EMAIL_INTRO = (
+    "Your NexGenChat account password has been changed successfully."
+)
+PASSWORD_RESET_SUCCESS_EMAIL_BODY = "You can now log in using your new password."
+PASSWORD_RESET_SUCCESS_EMAIL_LOGIN_LABEL = "Login URL:"
+PASSWORD_RESET_SUCCESS_EMAIL_SECURITY_NOTE = (
+    "If you did NOT perform this action, please reset your password immediately "
+    "or contact support."
+)
+PASSWORD_RESET_SUCCESS_EMAIL_SIGN_OFF = "Best Regards,\nNexGenChat Team"
+
+# ---------------------------------------------------------------------------
 # User Details
 # ---------------------------------------------------------------------------
 
