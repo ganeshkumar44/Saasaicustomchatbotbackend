@@ -72,18 +72,58 @@ def get_recent_conversation(
     ]
 
 
+def get_recent_playground_conversation(
+    db: Session,
+    playground_session_id: int | None,
+    *,
+    limit: int | None = None,
+) -> list[tuple[str, str]]:
+    """
+    Return the most recent Playground turns as ``(user, assistant)`` pairs.
+
+    Reuses the same pair shape as widget chat memory so prompt formatting
+    stays identical.
+    """
+    if playground_session_id is None:
+        return []
+
+    # Local import avoids circular imports with the playground module.
+    from app.modules.playground.utils import get_playground_message_pairs
+
+    settings = get_settings()
+    message_limit = limit or settings.RAG_CONVERSATION_MEMORY_MESSAGES
+    pairs = get_playground_message_pairs(db, playground_session_id)
+    if not pairs:
+        return []
+
+    return pairs[-message_limit:]
+
+
 def build_conversation_context(
     db: Session,
     chat_session_id: int | None,
     question: str,
+    playground_session_id: int | None = None,
 ) -> str:
     """
     Build recent conversation history for the AI prompt.
 
     Includes up to the configured number of prior turns so follow-up
     questions like "Who invented it?" can be understood in context.
+
+    When ``playground_session_id`` is provided, history is loaded from
+    playground_messages instead of widget chat_messages.
     """
-    recent_messages = get_recent_conversation(db, chat_session_id)
+    if playground_session_id is not None:
+        recent_messages = get_recent_playground_conversation(
+            db,
+            playground_session_id,
+        )
+        session_label = f"playground:{playground_session_id}"
+    else:
+        recent_messages = get_recent_conversation(db, chat_session_id)
+        session_label = str(chat_session_id)
+
     if not recent_messages:
         return ""
 
@@ -91,7 +131,7 @@ def build_conversation_context(
     logger.info(
         "Including %s prior conversation turns for session_id=%s follow_up=%s",
         len(recent_messages),
-        chat_session_id,
+        session_label,
         is_follow_up_question(question),
     )
     return history

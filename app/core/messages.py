@@ -153,6 +153,17 @@ AI_QUOTA_EXCEEDED = (
     "The AI service has reached its request limit. Please try again later."
 )
 
+# ---------------------------------------------------------------------------
+# Playground
+# ---------------------------------------------------------------------------
+
+PLAYGROUND_SESSION_CREATED_SUCCESS = "Playground session created successfully."
+PLAYGROUND_SESSION_DELETED_SUCCESS = "Playground session deleted successfully."
+PLAYGROUND_SESSION_NOT_FOUND = "Playground session not found."
+PLAYGROUND_SESSION_CHATBOT_MISMATCH = (
+    "Playground session does not belong to the specified chatbot."
+)
+
 OPENAI_AUTHENTICATION_FAILED = "OpenAI API key is invalid or unauthorized."
 OPENAI_RATE_LIMIT_EXCEEDED = (
     "The OpenAI service has reached its request limit. Please try again later."

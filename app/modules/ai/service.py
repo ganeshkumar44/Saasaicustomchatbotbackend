@@ -37,6 +37,7 @@ def generate_ai_answer(
     question: str,
     top_k: int | None = None,
     chat_session_id: int | None = None,
+    playground_session_id: int | None = None,
 ) -> AITestAnswerResponse:
     """
     Generate an AI answer using enhanced RAG context and conversation memory.
@@ -46,6 +47,9 @@ def generate_ai_answer(
     2. Clean and merge context
     3. Include recent conversation when useful
     5. Route to Gemini or OpenAI based on chatbot.ai_model
+
+    Used by both the website widget (``chat_session_id``) and Playground
+    (``playground_session_id``). Persistence is handled by the caller.
     """
     normalized_question = normalize_question(question)
     if not normalized_question:
@@ -56,10 +60,12 @@ def generate_ai_answer(
         raise ChatbotNotFoundError()
 
     logger.info(
-        "Starting AI answer generation for chatbot_id=%s ai_model=%s session_id=%s",
+        "Starting AI answer generation for chatbot_id=%s ai_model=%s "
+        "chat_session_id=%s playground_session_id=%s",
         chatbot_id,
         chatbot.ai_model,
         chat_session_id,
+        playground_session_id,
     )
 
     search_results = rag_service.search_knowledge_base(
@@ -91,6 +97,7 @@ def generate_ai_answer(
         db,
         chat_session_id,
         normalized_question,
+        playground_session_id=playground_session_id,
     )
     prompt = build_ai_prompt(
         context=context,
