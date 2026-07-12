@@ -36,7 +36,7 @@ PLAN_CHATBOT_LIMITS: dict[str, int] = {
     PLAN_FREE: 1,
     PLAN_STARTER: 3,
     PLAN_PRO: 6,
-    PLAN_ENTERPRISE: 20,
+    PLAN_ENTERPRISE: 15,
 }
 
 PLAN_DISPLAY_NAMES: dict[str, str] = {
@@ -70,31 +70,32 @@ PLAN_BILLING_CYCLES: dict[str, str] = {
 PLAN_FEATURES: dict[str, list[str]] = {
     PLAN_FREE: [
         "1 chatbot",
+        "200 website messages/month",
+        "50 playground messages/month",
         "Basic analytics",
         "Email support",
-        "7-day chat history",
     ],
     PLAN_STARTER: [
-        "1,000 conversations/month",
         "3 chatbots",
+        "5,000 website messages/month",
+        "50 playground messages/month",
         "Basic analytics",
         "Email support",
-        "7-day chat history",
     ],
     PLAN_PRO: [
-        "10,000 conversations/month",
         "6 chatbots",
+        "Unlimited website messages",
+        "50 playground messages/month",
         "Advanced analytics",
         "Priority support",
-        "Unlimited chat history",
         "Custom branding",
     ],
     PLAN_ENTERPRISE: [
-        "Unlimited conversations",
-        "20 chatbots",
+        "15 chatbots",
+        "Unlimited website messages",
+        "Unlimited playground messages",
         "Custom analytics",
         "Dedicated support",
-        "Unlimited chat history",
         "Custom branding",
         "API access",
         "SSO & SAML",
@@ -200,18 +201,33 @@ def serialize_user_plan_billing(user_plan: UserPlan) -> UserPlanBillingData:
     )
 
 
+def get_user_plan_by_user_id(db: Session, user_id: int) -> UserPlan | None:
+    """Return the user plan record for a user, if one exists."""
+    return db.execute(
+        select(UserPlan).where(UserPlan.user_id == user_id)
+    ).scalar_one_or_none()
+
+
 def build_default_user_plan(
     user_id: int,
     *,
     created_chatbots_count: int = 0,
     plan_name: str = DEFAULT_PLAN_NAME,
     status: str = PLAN_STATUS_ACTIVE,
+    plan_id: int | None = None,
+    chatbot_limit: int | None = None,
 ) -> UserPlan:
     """Build a default user plan record for a user."""
+    resolved_limit = (
+        chatbot_limit
+        if chatbot_limit is not None
+        else get_chatbot_limit_for_plan(plan_name)
+    )
     return UserPlan(
         user_id=user_id,
+        plan_id=plan_id,
         plan_name=plan_name,
-        chatbot_limit=get_chatbot_limit_for_plan(plan_name),
+        chatbot_limit=resolved_limit,
         created_chatbots_count=created_chatbots_count,
         status=status,
         start_date=datetime.now(timezone.utc),
@@ -222,24 +238,48 @@ def build_default_user_plan(
     )
 
 
-def get_user_plan_by_user_id(db: Session, user_id: int) -> UserPlan | None:
-    """Return the user plan record for a user, if one exists."""
-    return db.execute(
-        select(UserPlan).where(UserPlan.user_id == user_id)
-    ).scalar_one_or_none()
-
-
 def ensure_user_plan_exists(db: Session, user_id: int) -> UserPlan:
     """
     Return existing user plan for a user or create the default Free plan.
 
     Safe to call multiple times; never creates duplicate records.
+    Links plan_id to plan_master when available.
     """
     existing = get_user_plan_by_user_id(db, user_id)
     if existing is not None:
+        if existing.plan_id is None:
+            from app.modules.plan_master.utils import get_plan_by_name
+
+            plan = get_plan_by_name(db, existing.plan_name) or get_plan_by_name(
+                db, DEFAULT_PLAN_NAME
+            )
+            if plan is not None:
+                existing.plan_id = plan.id
+                existing.chatbot_limit = plan.max_chatbots
+                existing.plan_name = plan.plan_name
+                db.flush()
         return existing
 
-    user_plan = build_default_user_plan(user_id)
+    plan_id = None
+    chatbot_limit = get_chatbot_limit_for_plan(DEFAULT_PLAN_NAME)
+    try:
+        from app.modules.plan_master.utils import get_default_plan
+
+        default_plan = get_default_plan(db)
+        plan_id = default_plan.id
+        chatbot_limit = default_plan.max_chatbots
+    except Exception:
+        logger.warning(
+            "plan_master unavailable while creating user plan for user_id=%s; "
+            "using legacy Free defaults",
+            user_id,
+        )
+
+    user_plan = build_default_user_plan(
+        user_id,
+        plan_id=plan_id,
+        chatbot_limit=chatbot_limit,
+    )
     db.add(user_plan)
     db.commit()
     db.refresh(user_plan)
@@ -297,7 +337,7 @@ def sync_existing_user_plans(db_engine: Engine) -> int:
 
 
 def apply_user_plan_migrations(db_engine: Engine) -> None:
-    """Add billing columns to existing user_plan tables when missing."""
+    """Add billing / plan_id columns to existing user_plan tables when missing."""
     inspector = inspect(db_engine)
     if "user_plan" not in inspector.get_table_names():
         return
@@ -321,6 +361,24 @@ def apply_user_plan_migrations(db_engine: Engine) -> None:
         statements.append(
             "ALTER TABLE user_plan ADD COLUMN billing_cycle VARCHAR(20)"
         )
+    if "plan_id" not in existing_columns:
+        statements.append(
+            "ALTER TABLE user_plan ADD COLUMN plan_id INTEGER"
+        )
+        statements.append(
+            "CREATE INDEX IF NOT EXISTS ix_user_plan_plan_id ON user_plan (plan_id)"
+        )
+        statements.append(
+            "DO $$ BEGIN "
+            "IF EXISTS (SELECT 1 FROM information_schema.tables "
+            "WHERE table_name = 'plan_master') "
+            "AND NOT EXISTS (SELECT 1 FROM information_schema.table_constraints "
+            "WHERE constraint_name = 'user_plan_plan_id_fkey' "
+            "AND table_name = 'user_plan') THEN "
+            "ALTER TABLE user_plan ADD CONSTRAINT user_plan_plan_id_fkey "
+            "FOREIGN KEY (plan_id) REFERENCES plan_master(id) ON DELETE SET NULL; "
+            "END IF; END $$;"
+        )
 
     if not statements:
         return
@@ -329,5 +387,47 @@ def apply_user_plan_migrations(db_engine: Engine) -> None:
         for statement in statements:
             connection.execute(text(statement))
 
-    logger.info("Applied %s user_plan billing migration statement(s)", len(statements))
+    logger.info("Applied %s user_plan migration statement(s)", len(statements))
+
+
+def backfill_user_plan_plan_ids(db_engine: Engine) -> int:
+    """Link existing user_plan rows to plan_master by plan_name."""
+    session_factory = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
+    db = session_factory()
+    updated = 0
+
+    try:
+        from app.modules.plan_master.model import PlanMaster
+
+        plans = {
+            plan.plan_name: plan
+            for plan in db.scalars(select(PlanMaster)).all()
+        }
+        if not plans:
+            return 0
+
+        rows = db.scalars(
+            select(UserPlan).where(UserPlan.plan_id.is_(None))
+        ).all()
+
+        for row in rows:
+            plan = plans.get(row.plan_name) or plans.get(DEFAULT_PLAN_NAME)
+            if plan is None:
+                continue
+            row.plan_id = plan.id
+            row.chatbot_limit = plan.max_chatbots
+            row.plan_name = plan.plan_name
+            updated += 1
+
+        if updated:
+            db.commit()
+            logger.info("Backfilled plan_id on %s user_plan row(s)", updated)
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to backfill user_plan.plan_id")
+        raise
+    finally:
+        db.close()
+
+    return updated
 

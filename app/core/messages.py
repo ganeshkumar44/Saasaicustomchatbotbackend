@@ -439,6 +439,13 @@ CHATBOT_CREATION_LIMIT_REACHED = (
     "Please upgrade your subscription to create more chatbots."
 )
 
+WEBSITE_MESSAGE_LIMIT_REACHED = (
+    "You have reached your chatbot message limit. Please upgrade your subscription."
+)
+PLAYGROUND_MESSAGE_LIMIT_REACHED = (
+    "You have reached your Playground message limit for this chatbot."
+)
+
 # ---------------------------------------------------------------------------
 # Widget visitor onboarding
 # ---------------------------------------------------------------------------

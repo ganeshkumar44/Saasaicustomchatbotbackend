@@ -46,6 +46,7 @@ from app.modules.playground.utils import (
     PlaygroundSessionMismatchError,
     PlaygroundSessionNotFoundError,
 )
+from app.modules.chatbot_usage.service import PlaygroundMessageLimitExceededError
 from app.rag import rag_service
 from app.rag.search_service import QueryRequiredError
 
@@ -107,6 +108,15 @@ def _ai_error_response(exc: Exception) -> JSONResponse | None:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"success": False, "message": messages.PLAYGROUND_SESSION_CHATBOT_MISMATCH},
+        )
+    if isinstance(exc, PlaygroundMessageLimitExceededError):
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={
+                "success": False,
+                "error_code": "PLAYGROUND_MESSAGE_LIMIT_REACHED",
+                "message": exc.message,
+            },
         )
     if isinstance(exc, GeminiAPIKeyMissingError):
         return JSONResponse(

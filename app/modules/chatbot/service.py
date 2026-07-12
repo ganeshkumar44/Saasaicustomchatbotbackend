@@ -43,6 +43,7 @@ from app.modules.user_plan.service import (
     reconcile_created_chatbot_count,
     validate_chatbot_creation_limit,
 )
+from app.modules.chatbot_usage.utils import ensure_chatbot_usage_exists
 from app.modules.chatbot.schema import (
     AIModelEnum,
     CreateChatbotDraftData,
@@ -156,6 +157,8 @@ def create_chatbot_draft(db: Session, user: User) -> CreateChatbotDraftSuccessRe
 
     db.add(chatbot)
     increment_created_chatbot_count(db, user.id)
+    db.flush()
+    ensure_chatbot_usage_exists(db, chatbot.id, user.id)
     db.commit()
     db.refresh(chatbot)
 

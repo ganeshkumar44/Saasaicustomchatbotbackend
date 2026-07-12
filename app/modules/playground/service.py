@@ -222,7 +222,8 @@ def generate_playground_answer(
         raise PlaygroundSessionMismatchError()
 
     # Ensure chatbot is still accessible (also covers deleted chatbots).
-    get_accessible_chatbot(db, user, chatbot_id)
+    chatbot = get_accessible_chatbot(db, user, chatbot_id)
+    owner_user_id = chatbot.user_id
 
     normalized_question = ai_service.normalize_question(question)
     if not normalized_question:
@@ -233,6 +234,19 @@ def generate_playground_answer(
         session.id,
         chatbot_id,
         user.id,
+    )
+
+    from app.modules.chatbot_usage.service import (
+        USAGE_CHANNEL_PLAYGROUND,
+        increment_playground_usage,
+        validate_chatbot_usage,
+    )
+
+    validate_chatbot_usage(
+        db,
+        chatbot_id=chatbot_id,
+        owner_user_id=owner_user_id,
+        channel=USAGE_CHANNEL_PLAYGROUND,
     )
 
     start_time = time.perf_counter()
@@ -251,7 +265,7 @@ def generate_playground_answer(
             user_message=normalized_question,
             assistant_message=ai_response.answer,
             response_time=response_time,
-            tokens_used=None,
+            tokens_used=0,
         )
     except Exception:
         logger.exception(
@@ -261,6 +275,23 @@ def generate_playground_answer(
         )
         db.rollback()
         raise
+
+    try:
+        # Providers do not currently return token usage; store 0.
+        increment_playground_usage(
+            db,
+            chatbot_id=chatbot_id,
+            owner_user_id=owner_user_id,
+            tokens_used=0,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Failed to increment playground usage session_id=%s chatbot_id=%s",
+            session.id,
+            chatbot_id,
+        )
 
     logger.info(
         "Playground answer saved session_id=%s chatbot_id=%s response_time=%s",

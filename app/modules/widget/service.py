@@ -343,6 +343,19 @@ def process_public_chat(
         chatbot.id,
     )
 
+    from app.modules.chatbot_usage.service import (
+        USAGE_CHANNEL_WEBSITE,
+        increment_widget_usage,
+        validate_chatbot_usage,
+    )
+
+    validate_chatbot_usage(
+        db,
+        chatbot_id=chatbot.id,
+        owner_user_id=chatbot.user_id,
+        channel=USAGE_CHANNEL_WEBSITE,
+    )
+
     start_time = time.perf_counter()
     ai_response = generate_ai_answer(
         db,
@@ -380,6 +393,23 @@ def process_public_chat(
             chatbot.id,
         )
         raise ChatMessageSaveError() from exc
+
+    try:
+        # Providers do not currently return token usage; store 0.
+        increment_widget_usage(
+            db,
+            chatbot_id=chatbot.id,
+            owner_user_id=chatbot.user_id,
+            tokens_used=0,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Failed to increment website usage chatbot_id=%s session_id=%s",
+            chatbot.id,
+            session.session_id,
+        )
 
     try:
         record_chat_exchange(db, chatbot.id)

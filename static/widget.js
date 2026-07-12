@@ -1127,6 +1127,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
 
   let isOpen = false;
   let isSending = false;
+  let messageLimitReached = false;
 
   function setMaximized(maximized) {
     isMaximized = maximized;
@@ -1369,9 +1370,21 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
 
   function setSendingState(sending) {
     isSending = sending;
-    input.disabled = sending || chatClosed || feedbackModalOpen;
-    sendButton.disabled = sending || chatClosed || feedbackModalOpen;
-    skipButton.disabled = sending || chatClosed || feedbackModalOpen;
+    input.disabled =
+      sending || chatClosed || feedbackModalOpen || messageLimitReached;
+    sendButton.disabled =
+      sending || chatClosed || feedbackModalOpen || messageLimitReached;
+    skipButton.disabled =
+      sending || chatClosed || feedbackModalOpen || messageLimitReached;
+  }
+
+  function applyMessageLimitReached(message) {
+    messageLimitReached = true;
+    addBotMessage(
+      message ||
+        "You have reached your chatbot message limit. Please upgrade your subscription."
+    );
+    setSendingState(false);
   }
 
   function updateEndChatVisibility() {
@@ -1506,6 +1519,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
       const freshHistory = await fetchChatHistory(newSessionId);
 
       chatClosed = false;
+      messageLimitReached = false;
       hasAiResponse = false;
       feedbackModalOpen = false;
       visitorStep = freshHistory.visitor_step || "name";
@@ -1636,7 +1650,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
 
   async function sendMessage() {
     const message = input.value.trim();
-    if (!message || isSending || chatClosed || feedbackModalOpen) {
+    if (!message || isSending || chatClosed || feedbackModalOpen || messageLimitReached) {
       return;
     }
 
@@ -1701,6 +1715,14 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
       if (!response.ok || !data.success) {
         if (data.chatbot_available === false) {
           showUnavailableState(data.message || CHATBOT_UNAVAILABLE_MESSAGE);
+          return;
+        }
+        if (
+          data.error_code === "WEBSITE_MESSAGE_LIMIT_REACHED" ||
+          (typeof data.message === "string" &&
+            data.message.toLowerCase().includes("message limit"))
+        ) {
+          applyMessageLimitReached(data.message);
           return;
         }
         addBotMessage(data.message || "Sorry, something went wrong.");

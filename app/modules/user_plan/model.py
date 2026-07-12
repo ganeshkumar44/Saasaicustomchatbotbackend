@@ -28,7 +28,7 @@ DEFAULT_CURRENT_BILLING = Decimal("0.00")
 
 
 class UserPlan(Base):
-    """Store each user's subscription plan and chatbot creation quota."""
+    """Store each user's subscription assignment and chatbot creation counter."""
 
     __tablename__ = "user_plan"
 
@@ -40,6 +40,13 @@ class UserPlan(Base):
         nullable=False,
         index=True,
     )
+    plan_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("plan_master.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # Denormalized for backward-compatible API responses; source of truth is plan_master.
     plan_name: Mapped[str] = mapped_column(String(50), nullable=False)
     chatbot_limit: Mapped[int] = mapped_column(Integer, nullable=False)
     created_chatbots_count: Mapped[int] = mapped_column(
@@ -85,11 +92,13 @@ class UserPlan(Base):
     )
 
     user = relationship("User", backref="user_plan", uselist=False)
+    plan = relationship("PlanMaster", back_populates="user_plans")
 
     def __repr__(self) -> str:
         return (
             f"<UserPlan id={self.id} user_id={self.user_id} "
-            f"plan_name={self.plan_name!r} chatbot_limit={self.chatbot_limit} "
+            f"plan_id={self.plan_id} plan_name={self.plan_name!r} "
+            f"chatbot_limit={self.chatbot_limit} "
             f"created_chatbots_count={self.created_chatbots_count} "
             f"status={self.status!r}>"
         )

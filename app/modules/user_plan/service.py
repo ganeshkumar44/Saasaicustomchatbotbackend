@@ -61,15 +61,19 @@ def validate_chatbot_creation_limit(db: Session, user: User) -> None:
     Validate whether the user may create another chatbot under their plan.
 
     SuperAdmin and Admin users bypass plan limits.
+    Limits are resolved from plan_master.
     """
     if has_unlimited_chatbot_creation(user):
         return
 
-    user_plan = get_user_plan(db, user.id)
+    from app.modules.plan_master.service import get_plan_limits
 
-    if user_plan.created_chatbots_count >= user_plan.chatbot_limit:
+    user_plan = get_user_plan(db, user.id)
+    limits = get_plan_limits(db, user.id)
+
+    if user_plan.created_chatbots_count >= limits.max_chatbots:
         raise ChatbotCreationLimitExceededError(
-            build_chatbot_creation_limit_message(user_plan.plan_name),
+            build_chatbot_creation_limit_message(limits.plan_name),
         )
 
 

@@ -17,6 +17,7 @@ from app.modules.ai.exceptions import (
     OpenAITimeoutError,
 )
 from app.modules.widget import service
+from app.modules.chatbot_usage.service import WebsiteMessageLimitExceededError
 from app.modules.widget.schema import (
     ChatHistoryResponse,
     PublicChatRequest,
@@ -87,6 +88,15 @@ def public_chat(
     """Receive a visitor message from the widget and return an AI-generated answer."""
     try:
         return service.process_public_chat(db, payload)
+    except WebsiteMessageLimitExceededError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={
+                "success": False,
+                "error_code": "WEBSITE_MESSAGE_LIMIT_REACHED",
+                "message": exc.message,
+            },
+        )
     except service.MessageRequiredError:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,

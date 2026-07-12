@@ -32,11 +32,18 @@ from app.modules.notification.routes import router as notification_router
 from app.modules.manage_users.routes import router as manage_users_router
 from app.modules.manage_chatbot.routes import router as manage_chatbot_router
 from app.modules.playground.routes import router as playground_router
+from app.modules.chatbot_usage.routes import router as chatbot_usage_router
 from app.modules.user_details.utils import apply_user_account_migrations, sync_existing_user_details
 from app.modules.chat_analysis.utils import sync_existing_chat_analysis
 from app.modules.theme.utils import sync_existing_user_themes
 from app.modules.notification.utils import sync_existing_notification_settings
-from app.modules.user_plan.utils import apply_user_plan_migrations, sync_existing_user_plans
+from app.modules.user_plan.utils import (
+    apply_user_plan_migrations,
+    backfill_user_plan_plan_ids,
+    sync_existing_user_plans,
+)
+from app.modules.plan_master.utils import seed_plan_master
+from app.modules.chatbot_usage.utils import sync_existing_chatbot_usage
 
 # Import all ORM models so they register with Base.metadata before create_all().
 import app.modules.auth.model  # noqa: F401
@@ -51,8 +58,10 @@ import app.modules.chat_analysis.model  # noqa: F401
 import app.modules.theme.model  # noqa: F401
 import app.modules.login_history.model  # noqa: F401
 import app.modules.notification.model  # noqa: F401
+import app.modules.plan_master.model  # noqa: F401
 import app.modules.user_plan.model  # noqa: F401
 import app.modules.playground.model  # noqa: F401
+import app.modules.chatbot_usage.model  # noqa: F401
 
 
 @asynccontextmanager
@@ -63,15 +72,18 @@ async def lifespan(app: FastAPI):
     apply_user_account_migrations(engine)
     apply_chatbot_migrations(engine)
     Base.metadata.create_all(bind=engine)
+    seed_plan_master(engine)
     apply_chat_session_migrations(engine)
     apply_chat_message_migrations(engine)
     apply_knowledgebase_migrations(engine)
     apply_user_plan_migrations(engine)
+    backfill_user_plan_plan_ids(engine)
     sync_existing_user_details(engine)
     sync_existing_chat_analysis(engine)
     sync_existing_user_themes(engine)
     sync_existing_notification_settings(engine)
     sync_existing_user_plans(engine)
+    sync_existing_chatbot_usage(engine)
     yield
 
 
@@ -108,6 +120,7 @@ app.include_router(notification_router)
 app.include_router(manage_users_router)
 app.include_router(manage_chatbot_router)
 app.include_router(playground_router)
+app.include_router(chatbot_usage_router)
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
