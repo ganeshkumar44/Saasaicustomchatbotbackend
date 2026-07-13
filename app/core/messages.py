@@ -467,3 +467,17 @@ VISITOR_DETAILS_SAVED = "Visitor details saved successfully."
 THANK_YOU_START_CHAT = "Thank you! You can now ask your question."
 ONBOARDING_INCOMPLETE = "Please complete visitor details before chatting."
 INVALID_VISITOR_STEP = "Invalid onboarding step."
+
+# ---------------------------------------------------------------------------
+# Website feedback
+# ---------------------------------------------------------------------------
+
+FEEDBACK_RATING_REQUIRED = "Rating is required."
+FEEDBACK_RATING_INVALID = "Rating must be an integer between 1 and 5."
+FEEDBACK_NAME_REQUIRED = "Name is required."
+FEEDBACK_NAME_TOO_LONG = "Name must not exceed 100 characters."
+FEEDBACK_EMAIL_REQUIRED = "Email is required."
+FEEDBACK_EMAIL_INVALID = "Please enter a valid email address."
+FEEDBACK_PHONE_TOO_LONG = "Phone number must not exceed 20 characters."
+FEEDBACK_MESSAGE_TOO_LONG = "Feedback message must not exceed 2000 characters."
+FEEDBACK_SUBMITTED_SUCCESS = "Thank you for your feedback."

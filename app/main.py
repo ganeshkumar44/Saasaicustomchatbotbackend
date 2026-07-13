@@ -33,6 +33,7 @@ from app.modules.manage_users.routes import router as manage_users_router
 from app.modules.manage_chatbot.routes import router as manage_chatbot_router
 from app.modules.playground.routes import router as playground_router
 from app.modules.chatbot_usage.routes import router as chatbot_usage_router
+from app.modules.feedback.routes import router as feedback_router
 from app.modules.user_details.utils import apply_user_account_migrations, sync_existing_user_details
 from app.modules.chat_analysis.utils import sync_existing_chat_analysis
 from app.modules.theme.utils import sync_existing_user_themes
@@ -62,6 +63,7 @@ import app.modules.plan_master.model  # noqa: F401
 import app.modules.user_plan.model  # noqa: F401
 import app.modules.playground.model  # noqa: F401
 import app.modules.chatbot_usage.model  # noqa: F401
+import app.modules.feedback.model  # noqa: F401
 
 
 @asynccontextmanager
@@ -121,6 +123,7 @@ app.include_router(manage_users_router)
 app.include_router(manage_chatbot_router)
 app.include_router(playground_router)
 app.include_router(chatbot_usage_router)
+app.include_router(feedback_router)
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
