@@ -28,6 +28,11 @@ const CHAT_END_CONFIRMATION_SUBTITLE =
 const CHAT_FEEDBACK_QUESTION = "Are you satisfied with our AI responses?";
 const THANK_YOU_FEEDBACK = "Your chat has ended. Thank you for your feedback.";
 const START_NEW_CHAT_LABEL = "Start New Chat";
+const THANK_YOU_START_CHAT = "Thank you! You can now ask your question.";
+const LEAD_FORM_TITLE = "Before we start";
+const LEAD_FORM_SUBTITLE =
+  "Please share a few details so we can assist you better.";
+const LEAD_FORM_SUBMIT_LABEL = "Start Chat";
 const CHATBOT_UNAVAILABLE_MESSAGE =
   "This chatbot is currently unavailable. It may have been deleted or there may be a temporary server issue. Please contact the website administrator.";
 
@@ -537,6 +542,119 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
 
     .saas-widget-messages.hidden {
       display: none;
+    }
+
+    .saas-widget-lead-form {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 20px 16px;
+      background: #f7f7f8;
+    }
+
+    .saas-widget-lead-form.visible {
+      display: flex;
+    }
+
+    .saas-widget-lead-card {
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 18px 16px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+      border: 1px solid #ececec;
+    }
+
+    .saas-widget-lead-title {
+      margin: 0 0 6px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #1a1a1a;
+      line-height: 1.3;
+    }
+
+    .saas-widget-lead-subtitle {
+      margin: 0 0 16px;
+      font-size: 13px;
+      color: #666666;
+      line-height: 1.5;
+    }
+
+    .saas-widget-lead-field {
+      margin-bottom: 12px;
+    }
+
+    .saas-widget-lead-label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #444444;
+    }
+
+    .saas-widget-lead-input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: inherit;
+      color: #1a1a1a;
+      background: #ffffff;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .saas-widget-lead-input:focus {
+      border-color: ${config.primary_color};
+      box-shadow: 0 0 0 3px ${config.primary_color}22;
+    }
+
+    .saas-widget-lead-input:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    .saas-widget-lead-error {
+      display: none;
+      margin: 0 0 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #b91c1c;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .saas-widget-lead-error.visible {
+      display: block;
+    }
+
+    .saas-widget-lead-submit {
+      width: 100%;
+      margin-top: 4px;
+      padding: 12px 14px;
+      border: none;
+      border-radius: 10px;
+      background: ${config.primary_color};
+      color: ${config.text_color};
+      font-size: 14px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: opacity 0.2s ease;
+    }
+
+    .saas-widget-lead-submit:hover:not(:disabled) {
+      opacity: 0.92;
+    }
+
+    .saas-widget-lead-submit:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
     }
 
     .saas-widget-popup.open {
@@ -1073,6 +1191,79 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
   endedState.appendChild(endedText);
   endedState.appendChild(startNewChatButton);
 
+  const leadForm = document.createElement("div");
+  leadForm.className = "saas-widget-lead-form";
+
+  const leadCard = document.createElement("div");
+  leadCard.className = "saas-widget-lead-card";
+
+  const leadTitle = document.createElement("h4");
+  leadTitle.className = "saas-widget-lead-title";
+  leadTitle.textContent = LEAD_FORM_TITLE;
+
+  const leadSubtitle = document.createElement("p");
+  leadSubtitle.className = "saas-widget-lead-subtitle";
+  leadSubtitle.textContent = LEAD_FORM_SUBTITLE;
+
+  function createLeadField(id, labelText, inputType, placeholder) {
+    const field = document.createElement("div");
+    field.className = "saas-widget-lead-field";
+
+    const label = document.createElement("label");
+    label.className = "saas-widget-lead-label";
+    label.setAttribute("for", id);
+    label.textContent = labelText;
+
+    const fieldInput = document.createElement("input");
+    fieldInput.className = "saas-widget-lead-input";
+    fieldInput.id = id;
+    fieldInput.name = id;
+    fieldInput.type = inputType;
+    fieldInput.placeholder = placeholder;
+    fieldInput.autocomplete = id === "saas-widget-lead-email" ? "email" : "on";
+
+    field.appendChild(label);
+    field.appendChild(fieldInput);
+    return { field, input: fieldInput };
+  }
+
+  const nameField = createLeadField(
+    "saas-widget-lead-name",
+    "Name",
+    "text",
+    "Enter your name"
+  );
+  const emailField = createLeadField(
+    "saas-widget-lead-email",
+    "Email",
+    "email",
+    "Enter your email"
+  );
+  const phoneField = createLeadField(
+    "saas-widget-lead-phone",
+    "Phone number",
+    "tel",
+    "Enter your phone number"
+  );
+
+  const leadError = document.createElement("p");
+  leadError.className = "saas-widget-lead-error";
+  leadError.setAttribute("role", "alert");
+
+  const leadSubmitButton = document.createElement("button");
+  leadSubmitButton.className = "saas-widget-lead-submit";
+  leadSubmitButton.type = "button";
+  leadSubmitButton.textContent = LEAD_FORM_SUBMIT_LABEL;
+
+  leadCard.appendChild(leadTitle);
+  leadCard.appendChild(leadSubtitle);
+  leadCard.appendChild(nameField.field);
+  leadCard.appendChild(emailField.field);
+  leadCard.appendChild(phoneField.field);
+  leadCard.appendChild(leadError);
+  leadCard.appendChild(leadSubmitButton);
+  leadForm.appendChild(leadCard);
+
   const modalOverlay = document.createElement("div");
   modalOverlay.className = "saas-widget-modal-overlay";
 
@@ -1119,6 +1310,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
 
   popup.appendChild(header);
   popup.appendChild(messages);
+  popup.appendChild(leadForm);
   popup.appendChild(unavailableAlert);
   popup.appendChild(endedState);
   popup.appendChild(footer);
@@ -1376,6 +1568,10 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
       sending || chatClosed || feedbackModalOpen || messageLimitReached;
     skipButton.disabled =
       sending || chatClosed || feedbackModalOpen || messageLimitReached;
+    nameField.input.disabled = sending;
+    emailField.input.disabled = sending;
+    phoneField.input.disabled = sending;
+    leadSubmitButton.disabled = sending;
   }
 
   function applyMessageLimitReached(message) {
@@ -1402,7 +1598,178 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
     footer.classList.add("hidden");
   }
 
+  function setLeadFormError(message) {
+    if (!message) {
+      leadError.textContent = "";
+      leadError.classList.remove("visible");
+      return;
+    }
+    leadError.textContent = message;
+    leadError.classList.add("visible");
+  }
+
+  function showLeadForm() {
+    endedState.classList.remove("visible");
+    unavailableAlert.classList.remove("visible");
+    messages.classList.add("hidden");
+    footer.classList.add("hidden");
+    leadForm.classList.add("visible");
+    endChatButton.classList.add("hidden");
+    setLeadFormError("");
+    setTimeout(() => {
+      if (!onboardingComplete) {
+        nameField.input.focus();
+      }
+    }, 50);
+  }
+
+  function hideLeadForm() {
+    leadForm.classList.remove("visible");
+    setLeadFormError("");
+  }
+
+  function showChatArea() {
+    hideLeadForm();
+    unavailableAlert.classList.remove("visible");
+    endedState.classList.remove("visible");
+    messages.classList.remove("hidden");
+    footer.classList.remove("hidden");
+  }
+
+  function validateLeadFormFields(name, email, phone) {
+    if (!name) {
+      return "Please enter your name.";
+    }
+    if (name.length < 2) {
+      return "Name must be at least 2 characters long.";
+    }
+    if (name.length > 100) {
+      return "Name must not exceed 100 characters.";
+    }
+    if (!/^[A-Za-z ]+$/.test(name)) {
+      return "Name must contain only alphabets and spaces.";
+    }
+    if (!email) {
+      return "Email address is required.";
+    }
+    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
+      return "Please enter a valid email address.";
+    }
+    if (!phone) {
+      return "Phone number is required.";
+    }
+    if (!/^\d{8,15}$/.test(phone)) {
+      return "Phone number must contain 8 to 15 digits only.";
+    }
+    return null;
+  }
+
+  function buildLeadSubmissionQueue(name, email, phone) {
+    const step = (visitorStep || "name").toLowerCase();
+    if (step === "email") {
+      return [
+        { step: "email", value: email },
+        { step: "phone", value: phone },
+      ];
+    }
+    if (step === "phone") {
+      return [{ step: "phone", value: phone }];
+    }
+    return [
+      { step: "name", value: name },
+      { step: "email", value: email },
+      { step: "phone", value: phone },
+    ];
+  }
+
+  async function completeLeadOnboarding(thankYouMessage) {
+    showChatArea();
+    messages.innerHTML = "";
+    input.placeholder = config.input_placeholder || "Type your message...";
+    await addBotMessage(thankYouMessage || THANK_YOU_START_CHAT);
+    if (config.welcome_message) {
+      await addBotMessage(config.welcome_message);
+    }
+    updateEndChatVisibility();
+    input.focus();
+  }
+
+  async function handleLeadFormSubmit() {
+    if (isSending || onboardingComplete || chatClosed || chatbotUnavailable) {
+      return;
+    }
+
+    const name = nameField.input.value.trim();
+    const email = emailField.input.value.trim();
+    const phone = phoneField.input.value.trim().replace(/[\s\-()]/g, "");
+
+    const validationError = validateLeadFormFields(name, email, phone);
+    if (validationError) {
+      setLeadFormError(validationError);
+      return;
+    }
+
+    setLeadFormError("");
+    setSendingState(true);
+
+    try {
+      const queue = buildLeadSubmissionQueue(name, email, phone);
+      let thankYouMessage = THANK_YOU_START_CHAT;
+
+      for (const item of queue) {
+        const { response, data } = await submitVisitorInfo(
+          item.value,
+          false,
+          item.step
+        );
+
+        if (!response.ok || !data.success) {
+          applyOnboardingState(
+            data.next_step || visitorStep,
+            data.question || null,
+            Boolean(data.can_skip),
+            Boolean(data.onboarding_complete)
+          );
+          setLeadFormError(
+            data.message || "Please check your input and try again."
+          );
+          return;
+        }
+
+        applyOnboardingState(
+          data.next_step,
+          data.question,
+          data.can_skip,
+          data.onboarding_complete
+        );
+
+        if (data.visitor_key) {
+          storeVisitorKey(publicKey, data.visitor_key);
+        }
+        if (data.message) {
+          thankYouMessage = data.message;
+        }
+      }
+
+      if (!onboardingComplete) {
+        setLeadFormError("Unable to complete your details. Please try again.");
+        return;
+      }
+
+      nameField.input.value = "";
+      emailField.input.value = "";
+      phoneField.input.value = "";
+      await completeLeadOnboarding(thankYouMessage);
+    } catch (error) {
+      console.error("Widget:", error);
+      setLeadFormError("Sorry, something went wrong. Please try again.");
+    } finally {
+      setSendingState(false);
+    }
+  }
+
   function showUnavailableState(message) {
+    hideLeadForm();
     messages.classList.add("hidden");
     unavailableMessageEl.textContent = message;
     unavailableAlert.classList.add("visible");
@@ -1415,6 +1782,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
     feedbackModalOpen = false;
     setFeedbackPending(currentSessionId, false);
     modalOverlay.classList.remove("open");
+    hideLeadForm();
     messages.classList.add("hidden");
     endedState.classList.add("visible");
     disableChatInput();
@@ -1527,6 +1895,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
       canSkip = Boolean(freshHistory.can_skip);
 
       messages.innerHTML = "";
+      hideLeadForm();
       messages.classList.remove("hidden");
       endedState.classList.remove("visible");
       footer.classList.remove("hidden");
@@ -1541,9 +1910,10 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
         onboardingComplete
       );
 
-      addBotMessage(config.welcome_message);
-      if (!onboardingComplete && freshHistory.question) {
-        addBotMessage(freshHistory.question);
+      if (!onboardingComplete) {
+        showLeadForm();
+      } else {
+        addBotMessage(config.welcome_message);
       }
 
       setSendingState(false);
@@ -1568,21 +1938,14 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
     onboardingComplete = complete;
     updateSkipVisibility();
 
-    if (!complete && question) {
-      input.placeholder =
-        step === "name"
-          ? "Enter your name"
-          : step === "email"
-            ? "Enter your email"
-            : step === "phone"
-              ? "Enter your phone number"
-              : config.input_placeholder || "Type your message...";
+    if (!complete) {
+      input.placeholder = config.input_placeholder || "Type your message...";
     } else {
       input.placeholder = config.input_placeholder || "Type your message...";
     }
   }
 
-  async function submitVisitorInfo(value, skip = false) {
+  async function submitVisitorInfo(value, skip = false, stepOverride = null) {
     const response = await fetch(`${API_BASE_URL}/v1/widget/visitor-info`, {
       method: "POST",
       headers: {
@@ -1590,7 +1953,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
       },
       body: JSON.stringify({
         session_id: currentSessionId,
-        step: visitorStep,
+        step: stepOverride || visitorStep,
         value: value || null,
         skip,
       }),
@@ -1601,6 +1964,11 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
   }
 
   async function handleOnboardingInput(message, skip = false) {
+    if (!onboardingComplete) {
+      showLeadForm();
+      return;
+    }
+
     if (!skip && !message) {
       return;
     }
@@ -1655,7 +2023,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
     }
 
     if (!onboardingComplete) {
-      await handleOnboardingInput(message, false);
+      showLeadForm();
       return;
     }
 
@@ -1700,9 +2068,10 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
           freshHistory.can_skip,
           freshHistory.onboarding_complete
         );
-        if (!freshHistory.onboarding_complete && freshHistory.question) {
+        if (!freshHistory.onboarding_complete) {
+          showLeadForm();
+        } else if (config.welcome_message) {
           addBotMessage(config.welcome_message);
-          addBotMessage(freshHistory.question);
         }
         setSendingState(false);
         return;
@@ -1756,6 +2125,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
     }
 
     if (onboardingComplete) {
+      showChatArea();
       addBotMessage(config.welcome_message);
 
       for (const item of historyMessages) {
@@ -1769,10 +2139,7 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
         canSkip,
         onboardingComplete
       );
-      addBotMessage(config.welcome_message);
-      if (historyData.question) {
-        await addBotMessage(historyData.question);
-      }
+      showLeadForm();
     }
 
     updateEndChatVisibility();
@@ -1824,6 +2191,19 @@ function initWidget(config, publicKey, sessionId, historyData = {}, options = {}
 
   startNewChatButton.addEventListener("click", () => {
     startNewChat();
+  });
+
+  leadSubmitButton.addEventListener("click", () => {
+    void handleLeadFormSubmit();
+  });
+
+  [nameField.input, emailField.input, phoneField.input].forEach((fieldInput) => {
+    fieldInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void handleLeadFormSubmit();
+      }
+    });
   });
 
   sendButton.addEventListener("click", sendMessage);
