@@ -348,7 +348,13 @@ LOGIN_HISTORY_NOT_FOUND = "No login history found."
 CURRENT_PASSWORD_REQUIRED = "Current password is required."
 CURRENT_PASSWORD_INVALID = "Current password is incorrect."
 NEW_PASSWORD_REQUIRED = "New password is required."
-NEW_PASSWORD_SAME_AS_CURRENT = "New password cannot be the same as the current password."
+NEW_PASSWORD_SAME_AS_CURRENT = (
+    "New password must be different from your current password."
+)
+NEW_PASSWORD_TOO_SIMILAR = (
+    "New password is too similar to your current password. "
+    "Please choose a more secure password."
+)
 CONFIRM_NEW_PASSWORD_REQUIRED = "Confirm new password is required."
 PASSWORD_UPDATED_SUCCESS = "Password updated successfully."
 

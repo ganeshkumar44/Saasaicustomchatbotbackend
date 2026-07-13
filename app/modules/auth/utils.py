@@ -3,6 +3,7 @@ import random
 import re
 import smtplib
 from datetime import datetime, timedelta, timezone
+from difflib import SequenceMatcher
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -43,6 +44,7 @@ MOBILE_MIN_LENGTH = 8
 MOBILE_MAX_LENGTH = 15
 PASSWORD_MIN_LENGTH = 8
 PASSWORD_MAX_LENGTH = 100
+PASSWORD_SIMILARITY_THRESHOLD = 0.90
 
 _NAME_PATTERN = re.compile(r"^[A-Za-z]+$")
 _MOBILE_PATTERN = re.compile(rf"^\d{{{MOBILE_MIN_LENGTH},{MOBILE_MAX_LENGTH}}}$")
@@ -89,6 +91,9 @@ __all__ = [
     "validate_email",
     "validate_name",
     "validate_mobile",
+    "is_password_similar",
+    "password_similarity_ratio",
+    "validate_new_password",
     "validate_password",
     "validate_password_match",
     "validate_signin_password",
@@ -364,6 +369,65 @@ def validate_password(value: str | None) -> str | None:
         or not _PASSWORD_SPECIAL.search(value)
     ):
         return messages.PASSWORD_POLICY_FAILED
+
+    return None
+
+
+def password_similarity_ratio(password_a: str, password_b: str) -> float:
+    """
+    Return sequence similarity ratio between two passwords (0.0–1.0).
+
+    Comparison is case-insensitive so near-identical casing variants are caught.
+    """
+    left = password_a.casefold()
+    right = password_b.casefold()
+    if not left and not right:
+        return 1.0
+    if not left or not right:
+        return 0.0
+    return SequenceMatcher(None, left, right).ratio()
+
+
+def is_password_similar(
+    current_password: str,
+    new_password: str,
+    *,
+    threshold: float = PASSWORD_SIMILARITY_THRESHOLD,
+) -> bool:
+    """
+    Return True when new_password is too similar to current_password.
+
+    Uses sequence similarity (edit-distance based). Passwords at or above the
+    threshold ratio are considered too similar.
+    """
+    return password_similarity_ratio(current_password, new_password) >= threshold
+
+
+def validate_new_password(
+    current_password: str,
+    new_password: str,
+    *,
+    threshold: float = PASSWORD_SIMILARITY_THRESHOLD,
+) -> str | None:
+    """
+    Validate that a new password is distinct enough from the current password.
+
+    Returns an error message when:
+    - new password is identical to current password
+    - new password is too similar to current password (default >= 90%)
+
+    Returns None when the new password is acceptably different.
+    Reusable for change-password and future password-reset flows.
+    """
+    if current_password == new_password:
+        return messages.NEW_PASSWORD_SAME_AS_CURRENT
+
+    if is_password_similar(
+        current_password,
+        new_password,
+        threshold=threshold,
+    ):
+        return messages.NEW_PASSWORD_TOO_SIMILAR
 
     return None
 

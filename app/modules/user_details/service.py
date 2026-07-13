@@ -11,7 +11,12 @@ from sqlalchemy.orm import Session
 
 from app.core import messages
 from app.modules.auth.model import User
-from app.modules.auth.utils import hash_password, normalize_email, verify_password
+from app.modules.auth.utils import (
+    hash_password,
+    normalize_email,
+    validate_new_password,
+    verify_password,
+)
 from app.modules.user_details.schema import (
     ActivateAccountRequest,
     ActivateAccountSuccessResponse,
@@ -66,6 +71,10 @@ class CurrentPasswordInvalidError(Exception):
 
 class NewPasswordSameAsCurrentError(Exception):
     """Raised when the new password matches the current password."""
+
+
+class NewPasswordTooSimilarError(Exception):
+    """Raised when the new password is too similar to the current password."""
 
 
 class EmailAlreadyInUseError(Exception):
@@ -224,12 +233,22 @@ def update_password(
         logger.warning("Password update failed; invalid current password user_id=%s", user.id)
         raise CurrentPasswordInvalidError()
 
-    if verify_password(payload.new_password, user.password_hash):
+    new_password_error = validate_new_password(
+        payload.current_password,
+        payload.new_password,
+    )
+    if new_password_error == messages.NEW_PASSWORD_SAME_AS_CURRENT:
         logger.warning(
             "Password update failed; new password matches current password user_id=%s",
             user.id,
         )
         raise NewPasswordSameAsCurrentError()
+    if new_password_error == messages.NEW_PASSWORD_TOO_SIMILAR:
+        logger.warning(
+            "Password update failed; new password too similar to current password user_id=%s",
+            user.id,
+        )
+        raise NewPasswordTooSimilarError()
 
     user.password_hash = hash_password(payload.new_password)
     user.updated_at = datetime.now(timezone.utc)
