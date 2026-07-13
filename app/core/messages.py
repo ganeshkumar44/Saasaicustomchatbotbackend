@@ -481,3 +481,8 @@ FEEDBACK_EMAIL_INVALID = "Please enter a valid email address."
 FEEDBACK_PHONE_TOO_LONG = "Phone number must not exceed 20 characters."
 FEEDBACK_MESSAGE_TOO_LONG = "Feedback message must not exceed 2000 characters."
 FEEDBACK_SUBMITTED_SUCCESS = "Thank you for your feedback."
+FEEDBACK_OWNER_EMAIL_SUBJECT = "New Website Feedback Received - NexGenChat"
+FEEDBACK_OWNER_EMAIL_HEADER = "New Website Feedback"
+FEEDBACK_OWNER_EMAIL_INTRO = (
+    "A user has submitted feedback about the NexGenChat platform."
+)

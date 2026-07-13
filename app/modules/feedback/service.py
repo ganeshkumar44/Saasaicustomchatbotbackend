@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core import messages
 from app.modules.auth.model import User
+from app.modules.auth.utils import send_feedback_owner_email
 from app.modules.feedback.model import (
     FEEDBACK_IP_MAX_LENGTH,
     FEEDBACK_USER_AGENT_MAX_LENGTH,
@@ -90,6 +91,14 @@ def create_feedback(
         feedback.id,
         user.id,
         feedback.rating,
+    )
+
+    send_feedback_owner_email(
+        rating=feedback.rating,
+        name=feedback.name,
+        email=feedback.email,
+        phone_number=feedback.phone_number,
+        message=feedback.message,
     )
 
     return CreateFeedbackSuccessResponse(

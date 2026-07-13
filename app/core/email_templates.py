@@ -333,166 +333,6 @@ def build_forgot_password_email(
     return content.subject, plain_body, html_body
 
 
-@dataclass(frozen=True)
-class NotificationEmailContent:
-    """Content fields for informational notification emails."""
-
-    subject: str
-    header_title: str
-    greeting_name: str | None
-    intro_text: str
-    highlight_text: str | None = None
-    detail_lines: tuple[str, ...] = ()
-    security_note: str | None = None
-    closing_text: str = "Thank you for using our service!"
-
-
-def _plain_notification_email(content: NotificationEmailContent) -> str:
-    greeting = (
-        f"Hello {content.greeting_name.strip()},"
-        if content.greeting_name and content.greeting_name.strip()
-        else "Hello,"
-    )
-    lines = [greeting, "", content.intro_text, ""]
-    if content.highlight_text:
-        lines.append(content.highlight_text)
-        lines.append("")
-    lines.extend(content.detail_lines)
-    if content.detail_lines:
-        lines.append("")
-    if content.security_note:
-        lines.append(content.security_note)
-        lines.append("")
-    lines.extend([content.closing_text, "", f"Regards,\n{COMPANY_NAME} Team"])
-    return "\n".join(lines)
-
-
-def _html_notification_email(content: NotificationEmailContent) -> str:
-    year = datetime.now(timezone.utc).year
-    detail_html = "".join(
-        f'<p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:{MUTED_TEXT_COLOR};">'
-        f"{html.escape(line)}</p>"
-        for line in content.detail_lines
-    )
-    highlight_html = ""
-    if content.highlight_text:
-        highlight_html = f"""
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 24px;">
-                  <tr>
-                    <td align="center" style="background-color:{OTP_BOX_BACKGROUND};border-radius:10px;padding:24px 16px;">
-                      <span style="display:inline-block;font-size:24px;line-height:1.3;font-weight:700;color:{PRIMARY_COLOR};">
-                        {html.escape(content.highlight_text)}
-                      </span>
-                    </td>
-                  </tr>
-                </table>"""
-    security_html = ""
-    if content.security_note:
-        security_html = f"""
-                <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:{MUTED_TEXT_COLOR};">
-                  {html.escape(content.security_note)}
-                </p>"""
-
-    return f"""<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{html.escape(content.subject)}</title>
-  </head>
-  <body style="margin:0;padding:0;background-color:{PAGE_BACKGROUND};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:{TEXT_COLOR};">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:{PAGE_BACKGROUND};padding:32px 16px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background-color:{CARD_BACKGROUND};border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(17,24,39,0.08);">
-            <tr>
-              <td style="background-color:{PRIMARY_COLOR};padding:28px 24px;text-align:center;">
-                <h1 style="margin:0;font-size:28px;line-height:1.2;font-weight:700;color:#FFFFFF;">
-                  {html.escape(content.header_title)}
-                </h1>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:32px 28px 24px;">
-                <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:{TEXT_COLOR};">
-                  {_greeting_line(content.greeting_name)}
-                </p>
-                <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:{TEXT_COLOR};">
-                  {html.escape(content.intro_text)}
-                </p>
-                {highlight_html}
-                {detail_html}
-                {security_html}
-                <p style="margin:0;font-size:15px;line-height:1.6;color:{TEXT_COLOR};">
-                  {html.escape(content.closing_text)}
-                </p>
-              </td>
-            </tr>
-            <tr>
-              <td style="background-color:{FOOTER_BACKGROUND};border-top:1px solid {BORDER_COLOR};padding:18px 24px;text-align:center;">
-                <p style="margin:0;font-size:13px;line-height:1.5;color:{MUTED_TEXT_COLOR};">
-                  &copy; {year} {html.escape(COMPANY_NAME)}. All rights reserved.
-                </p>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>"""
-
-
-def build_notification_email_bodies(
-    content: NotificationEmailContent,
-) -> tuple[str, str]:
-    """Return plain-text and HTML bodies for a notification email."""
-    return _plain_notification_email(content), _html_notification_email(content)
-
-
-def build_new_chatbot_created_email(
-    *,
-    first_name: str | None,
-    chatbot_name: str,
-) -> tuple[str, str, str]:
-    """Build subject, plain body, and HTML body for new chatbot notifications."""
-    from app.core import messages
-
-    content = NotificationEmailContent(
-        subject=messages.NOTIFICATION_NEW_CHATBOT_EMAIL_SUBJECT,
-        header_title=messages.NOTIFICATION_NEW_CHATBOT_EMAIL_HEADER,
-        greeting_name=first_name,
-        intro_text=messages.NOTIFICATION_NEW_CHATBOT_EMAIL_INTRO,
-        highlight_text=chatbot_name,
-        detail_lines=(messages.NOTIFICATION_NEW_CHATBOT_EMAIL_DETAIL,),
-        security_note=messages.NOTIFICATION_NEW_CHATBOT_EMAIL_SECURITY_NOTE,
-    )
-    plain_body, html_body = build_notification_email_bodies(content)
-    return content.subject, plain_body, html_body
-
-
-def build_chatbot_updated_email(
-    *,
-    first_name: str | None,
-    chatbot_name: str,
-    updated_by_label: str,
-) -> tuple[str, str, str]:
-    """Build subject, plain body, and HTML body for chatbot update notifications."""
-    from app.core import messages
-
-    content = NotificationEmailContent(
-        subject=messages.NOTIFICATION_CHATBOT_UPDATED_EMAIL_SUBJECT,
-        header_title=messages.NOTIFICATION_CHATBOT_UPDATED_EMAIL_HEADER,
-        greeting_name=first_name,
-        intro_text=messages.NOTIFICATION_CHATBOT_UPDATED_EMAIL_INTRO,
-        highlight_text=chatbot_name,
-        detail_lines=(f"Updated by: {updated_by_label}",),
-        security_note=messages.NOTIFICATION_CHATBOT_UPDATED_EMAIL_SECURITY_NOTE,
-    )
-    plain_body, html_body = build_notification_email_bodies(content)
-    return content.subject, plain_body, html_body
-
-
 # ---------------------------------------------------------------------------
 # File-based transactional email templates (welcome / password reset success)
 # ---------------------------------------------------------------------------
@@ -596,3 +436,35 @@ def build_password_reset_success_email(
         year=datetime.now(timezone.utc).year,
     )
     return subject, plain_body, html_body
+
+
+def build_feedback_owner_email(
+    *,
+    rating: int,
+    name: str,
+    email: str,
+    phone_number: str | None,
+    message: str | None,
+) -> tuple[str, str, str]:
+    """Build subject, plain body, and HTML body for owner feedback notifications."""
+    from app.core import messages
+
+    stars = "★" * rating + "☆" * max(0, 5 - rating)
+    detail_lines = [
+        f"Rating: {rating}/5 ({stars})",
+        f"Name: {name}",
+        f"Email: {email}",
+        f"Phone: {phone_number or 'Not provided'}",
+        f"Message: {message or 'No message provided'}",
+    ]
+    content = NotificationEmailContent(
+        subject=messages.FEEDBACK_OWNER_EMAIL_SUBJECT,
+        header_title=messages.FEEDBACK_OWNER_EMAIL_HEADER,
+        greeting_name="Team",
+        intro_text=messages.FEEDBACK_OWNER_EMAIL_INTRO,
+        highlight_text=f"{rating}/5 stars",
+        detail_lines=tuple(detail_lines),
+        closing_text="Please review this feedback in the admin dashboard when available.",
+    )
+    plain_body, html_body = build_notification_email_bodies(content)
+    return content.subject, plain_body, html_body

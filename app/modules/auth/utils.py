@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core import messages
 from app.core.config import get_settings
 from app.core.email_templates import (
+    build_feedback_owner_email,
     build_forgot_password_email,
     build_password_reset_success_email,
     build_signup_verification_email,
@@ -80,6 +81,7 @@ __all__ = [
     "normalize_signup_fields",
     "normalize_verification_code",
     "resolve_initial_signup_role",
+    "send_feedback_owner_email",
     "send_forgot_password_email",
     "send_password_reset_success_email",
     "send_verification_email",
@@ -236,6 +238,41 @@ def send_password_reset_success_email(user_name: str, to_email: str) -> None:
             "Failed to send password reset confirmation email to %s",
             to_email,
         )
+
+
+def send_feedback_owner_email(
+    *,
+    rating: int,
+    name: str,
+    email: str,
+    phone_number: str | None,
+    message: str | None,
+) -> None:
+    """
+    Notify the platform owner (SMTP_FROM) when website feedback is submitted.
+
+    Email failures are logged and never raised so feedback submission still
+    succeeds when SMTP delivery fails.
+    """
+    try:
+        settings = get_settings()
+        owner_email = (settings.SMTP_FROM or settings.SMTP_USER or "").strip()
+        if not owner_email:
+            logger.error(
+                "SMTP_FROM is not configured; feedback owner email not sent."
+            )
+            return
+
+        subject, plain_body, html_body = build_feedback_owner_email(
+            rating=rating,
+            name=name,
+            email=email,
+            phone_number=phone_number,
+            message=message,
+        )
+        _send_email(owner_email, subject, plain_body, html_body)
+    except Exception:
+        logger.exception("Failed to send feedback owner notification email")
 
 
 def _is_blank(value: str | None) -> bool:
