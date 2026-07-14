@@ -1,8 +1,13 @@
 """
 SQLAlchemy engine, session factory, and declarative base.
 
-Import `Base` in every ORM model module so tables are registered with
-`Base.metadata` before `create_all()` runs at application startup.
+Import `Base` in every ORM model module so tables register on
+`Base.metadata`. Schema changes are applied with Alembic
+(`alembic revision --autogenerate` / `alembic upgrade head`), not
+`Base.metadata.create_all()`.
+
+For tooling that needs every model registered at once, import
+``app.models`` (see ``app/models/__init__.py``).
 """
 
 from collections.abc import Generator

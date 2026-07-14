@@ -492,3 +492,93 @@ FEEDBACK_OWNER_EMAIL_HEADER = "New Website Feedback"
 FEEDBACK_OWNER_EMAIL_INTRO = (
     "A user has submitted feedback about the NexGenChat platform."
 )
+
+# ---------------------------------------------------------------------------
+# Billing foundation
+# ---------------------------------------------------------------------------
+
+BILLING_PLANS_RETRIEVED_SUCCESS = "Billing plans retrieved successfully."
+BILLING_CURRENT_PLAN_RETRIEVED_SUCCESS = "Current billing plan retrieved successfully."
+BILLING_PAYMENT_HISTORY_RETRIEVED_SUCCESS = (
+    "Payment history retrieved successfully."
+)
+BILLING_SUBSCRIPTION_HISTORY_RETRIEVED_SUCCESS = (
+    "Subscription history retrieved successfully."
+)
+BILLING_INVOICES_RETRIEVED_SUCCESS = "Invoices retrieved successfully."
+BILLING_ACCESS_DENIED = "You are not authorized to view this billing information."
+BILLING_USER_NOT_FOUND = "Billing user not found."
+BILLING_PLAN_NOT_FOUND = "Subscription plan not found."
+BILLING_PLAN_INACTIVE = "The selected plan is not available."
+BILLING_CYCLE_INVALID = (
+    "Invalid billing cycle. Allowed values are monthly, six_month, and yearly."
+)
+BILLING_ALREADY_ON_PLAN = "You are already subscribed to this plan."
+BILLING_CHECKOUT_PREPARED_SUCCESS = "Checkout preview prepared successfully."
+BILLING_PLAN_COMPARISON_RETRIEVED_SUCCESS = (
+    "Plan comparison retrieved successfully."
+)
+BILLING_CHECKOUT_FREE_PLAN = (
+    "Free plan does not require payment. Contact support to switch to Free."
+)
+BILLING_ORDER_CREATED_SUCCESS = "Payment order created successfully."
+BILLING_ORDER_AMOUNT_INVALID = "Payable amount must be greater than zero."
+BILLING_RAZORPAY_NOT_CONFIGURED = (
+    "Payment gateway is not configured. Please contact support."
+)
+BILLING_RAZORPAY_ORDER_FAILED = (
+    "Unable to create payment order. Please try again in a moment."
+)
+BILLING_RAZORPAY_NETWORK_ERROR = (
+    "Payment gateway is temporarily unreachable. Please try again."
+)
+BILLING_PAYMENT_VERIFIED_SUCCESS = "Payment verified successfully."
+BILLING_PAYMENT_VERIFICATION_FAILED = "Payment verification failed."
+BILLING_PAYMENT_ALREADY_VERIFIED = "Payment already verified."
+BILLING_PAYMENT_NOT_FOUND = "Payment transaction not found."
+BILLING_PAYMENT_ORDER_INVALID = "Invalid or unknown payment order."
+BILLING_PAYMENT_NOT_PENDING = "This payment cannot be verified in its current state."
+BILLING_PAYMENT_DETAIL_RETRIEVED_SUCCESS = "Payment details retrieved successfully."
+BILLING_SUBSCRIPTION_CREATED_SUCCESS = "Subscription created successfully."
+BILLING_SUBSCRIPTION_REQUIRED = "A Razorpay subscription id is required."
+BILLING_SUBSCRIPTION_NOT_FOUND = "Subscription not found."
+BILLING_SUBSCRIPTION_INVALID = "Invalid or inactive subscription."
+BILLING_SUBSCRIPTION_EXISTS = "An active auto-renew subscription already exists."
+BILLING_SUBSCRIPTION_ALREADY_ACTIVE = "Auto renew is already enabled."
+BILLING_SUBSCRIPTION_ALREADY_DISABLED = "Auto renew is already disabled."
+BILLING_SUBSCRIPTION_CANCELLED = "This subscription has already been cancelled."
+BILLING_AUTO_RENEW_DISABLED_SUCCESS = (
+    "Auto renew disabled. Your plan stays active until the current billing period ends."
+)
+BILLING_AUTO_RENEW_ENABLED_SUCCESS = "Auto renew enabled successfully."
+BILLING_AUTO_RENEW_REQUIRED = "Auto renew must be enabled to create a subscription."
+BILLING_SUBSCRIPTION_CANCELLED_SUCCESS = (
+    "Auto renewal has been disabled. Your current plan will remain active "
+    "until the billing period ends."
+)
+BILLING_PAYMENT_RETRY_SUCCESS = "Retry payment order created successfully."
+BILLING_PAYMENT_ALREADY_SUCCESSFUL = "This payment already succeeded and cannot be retried."
+BILLING_PAYMENT_RETRY_PENDING = "This payment is still pending and cannot be retried."
+BILLING_PAYMENT_RETRY_INVALID = (
+    "Only failed payments can be retried."
+)
+BILLING_SUBSCRIPTION_STATUS_RETRIEVED_SUCCESS = (
+    "Subscription status retrieved successfully."
+)
+BILLING_RAZORPAY_PLAN_FAILED = (
+    "Unable to prepare the subscription plan. Please try again."
+)
+BILLING_RAZORPAY_SUBSCRIPTION_FAILED = (
+    "Unable to create subscription. Please try again in a moment."
+)
+BILLING_RAZORPAY_CUSTOMER_FAILED = (
+    "Unable to create payment customer. Please try again."
+)
+BILLING_INVOICE_NOT_FOUND = "Invoice not found."
+BILLING_INVOICE_PDF_MISSING = "Invoice PDF is not available yet."
+BILLING_INVOICE_DOWNLOAD_FAILED = "Unable to download the invoice PDF."
+BILLING_INVOICE_EMAIL_FAILED = "Unable to send the invoice email. Please try again."
+BILLING_INVOICE_RESENT_SUCCESS = "Invoice email sent successfully."
+BILLING_INVOICE_DETAIL_RETRIEVED_SUCCESS = "Invoice details retrieved successfully."
+BILLING_INVOICE_CREATED_SUCCESS = "Invoice generated successfully."
+

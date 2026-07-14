@@ -154,9 +154,71 @@ class Settings:
             os.getenv("RAG_KEYWORD_OVERLAP_WEIGHT", "0.3")
         )
 
+        # Billing / checkout (GST used for checkout preview and order amounts)
+        self.GST_PERCENTAGE: float = float(os.getenv("GST_PERCENTAGE", "18"))
+        self.BILLING_CURRENCY: str = os.getenv("BILLING_CURRENCY", "INR").strip() or "INR"
+        self.BILLING_RECOMMENDED_PLAN: str = (
+            os.getenv("BILLING_RECOMMENDED_PLAN", "pro").strip().lower() or "pro"
+        )
+
+        # Razorpay one-time payments (secret stays server-side only)
+        self.RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "").strip()
+        self.RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "").strip()
+        self.RAZORPAY_CURRENCY: str = (
+            os.getenv("RAZORPAY_CURRENCY", self.BILLING_CURRENCY).strip().upper()
+            or "INR"
+        )
+        self.RAZORPAY_ENVIRONMENT: str = (
+            os.getenv("RAZORPAY_ENVIRONMENT", "test").strip().lower() or "test"
+        )
+
+        # Invoice / company letterhead (not hardcoded in PDF generation)
+        self.INVOICE_NUMBER_PREFIX: str = (
+            os.getenv("INVOICE_NUMBER_PREFIX", "NGC").strip().upper() or "NGC"
+        )
+        self.INVOICE_UPLOAD_DIR: str = os.getenv(
+            "INVOICE_UPLOAD_DIR",
+            str(PROJECT_ROOT / "uploads" / "invoices"),
+        ).strip()
+        self.COMPANY_NAME: str = os.getenv("COMPANY_NAME", "NexGenChat").strip() or "NexGenChat"
+        self.COMPANY_ADDRESS: str = os.getenv(
+            "COMPANY_ADDRESS",
+            "India",
+        ).strip()
+        self.COMPANY_GST_NUMBER: str = os.getenv("COMPANY_GST_NUMBER", "").strip()
+        self.COMPANY_SUPPORT_EMAIL: str = os.getenv(
+            "COMPANY_SUPPORT_EMAIL",
+            os.getenv("SMTP_FROM", "support@nexgenchat.com"),
+        ).strip()
+        self.COMPANY_SUPPORT_PHONE: str = os.getenv("COMPANY_SUPPORT_PHONE", "").strip()
+        self.COMPANY_WEBSITE: str = os.getenv(
+            "COMPANY_WEBSITE",
+            self.FRONTEND_URL,
+        ).strip()
+        self.INVOICE_FOOTER: str = os.getenv(
+            "INVOICE_FOOTER",
+            "Thank you for choosing NexGenChat. This is a computer-generated invoice.",
+        ).strip()
+        self.COMPANY_LOGO_PATH: str = os.getenv("COMPANY_LOGO_PATH", "").strip()
+
+        # When true (default), app startup runs ``alembic upgrade head`` automatically
+        # so live PostgreSQL picks up committed migration files on deploy/restart.
+        self.AUTO_RUN_MIGRATIONS: bool = os.getenv(
+            "AUTO_RUN_MIGRATIONS",
+            "true",
+        ).strip().lower() in ("1", "true", "yes", "on")
+
     @property
     def database_url(self) -> str:
-        """Build the SQLAlchemy PostgreSQL connection URL."""
+        """
+        SQLAlchemy PostgreSQL connection URL.
+
+        Prefer ``DATABASE_URL`` when set (useful for Alembic / hosted deploys).
+        Otherwise build from individual ``DB_*`` variables in ``.env``.
+        """
+        explicit = os.getenv("DATABASE_URL", "").strip()
+        if explicit:
+            return explicit
         return (
             f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}"
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"

@@ -17,6 +17,7 @@ from app.modules.chatbot.model import Chatbot
 from app.modules.user_plan.model import (
     DEFAULT_CURRENT_BILLING,
     PLAN_STATUS_ACTIVE,
+    SUBSCRIPTION_STATUS_ACTIVE,
     UserPlan,
 )
 from app.modules.user_plan.schema import (
@@ -215,6 +216,7 @@ def build_default_user_plan(
         if chatbot_limit is not None
         else get_chatbot_limit_for_plan(plan_name)
     )
+    now = datetime.now(timezone.utc)
     return UserPlan(
         user_id=user_id,
         plan_id=plan_id,
@@ -222,11 +224,17 @@ def build_default_user_plan(
         chatbot_limit=resolved_limit,
         created_chatbots_count=created_chatbots_count,
         status=status,
-        start_date=datetime.now(timezone.utc),
+        subscription_status=SUBSCRIPTION_STATUS_ACTIVE,
+        start_date=now,
         end_date=None,
+        subscription_start=now,
+        subscription_end=None,
         current_billing=DEFAULT_CURRENT_BILLING,
         next_billing_date=None,
         billing_cycle=None,
+        is_auto_renew=False,
+        razorpay_customer_id=None,
+        razorpay_subscription_id=None,
     )
 
 
@@ -371,6 +379,40 @@ def apply_user_plan_migrations(db_engine: Engine) -> None:
             "FOREIGN KEY (plan_id) REFERENCES plan_master(id) ON DELETE SET NULL; "
             "END IF; END $$;"
         )
+    if "subscription_status" not in existing_columns:
+        statements.append(
+            "ALTER TABLE user_plan "
+            "ADD COLUMN subscription_status VARCHAR(20) NOT NULL DEFAULT 'active'"
+        )
+    if "subscription_start" not in existing_columns:
+        statements.append(
+            "ALTER TABLE user_plan "
+            "ADD COLUMN subscription_start TIMESTAMP WITH TIME ZONE"
+        )
+    if "subscription_end" not in existing_columns:
+        statements.append(
+            "ALTER TABLE user_plan "
+            "ADD COLUMN subscription_end TIMESTAMP WITH TIME ZONE"
+        )
+    if "is_auto_renew" not in existing_columns:
+        statements.append(
+            "ALTER TABLE user_plan "
+            "ADD COLUMN is_auto_renew BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+    if "razorpay_customer_id" not in existing_columns:
+        statements.append(
+            "ALTER TABLE user_plan "
+            "ADD COLUMN razorpay_customer_id VARCHAR(100)"
+        )
+    if "razorpay_subscription_id" not in existing_columns:
+        statements.append(
+            "ALTER TABLE user_plan "
+            "ADD COLUMN razorpay_subscription_id VARCHAR(100)"
+        )
+        statements.append(
+            "CREATE INDEX IF NOT EXISTS ix_user_plan_razorpay_subscription_id "
+            "ON user_plan (razorpay_subscription_id)"
+        )
 
     if not statements:
         return
@@ -380,6 +422,44 @@ def apply_user_plan_migrations(db_engine: Engine) -> None:
             connection.execute(text(statement))
 
     logger.info("Applied %s user_plan migration statement(s)", len(statements))
+
+
+def backfill_user_plan_subscription_fields(db_engine: Engine) -> int:
+    """Backfill subscription_* fields from legacy status / start_date columns."""
+    session_factory = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
+    db = session_factory()
+    updated = 0
+
+    try:
+        rows = list(db.scalars(select(UserPlan)).all())
+        for row in rows:
+            changed = False
+            if not row.subscription_status:
+                row.subscription_status = row.status or SUBSCRIPTION_STATUS_ACTIVE
+                changed = True
+            if row.subscription_start is None and row.start_date is not None:
+                row.subscription_start = row.start_date
+                changed = True
+            if row.subscription_end is None and row.end_date is not None:
+                row.subscription_end = row.end_date
+                changed = True
+            if changed:
+                updated += 1
+
+        if updated:
+            db.commit()
+            logger.info(
+                "Backfilled subscription fields on %s user_plan row(s)",
+                updated,
+            )
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to backfill user_plan subscription fields")
+        raise
+    finally:
+        db.close()
+
+    return updated
 
 
 def backfill_user_plan_plan_ids(db_engine: Engine) -> int:

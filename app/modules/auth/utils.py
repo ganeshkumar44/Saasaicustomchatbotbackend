@@ -4,6 +4,7 @@ import re
 import smtplib
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -83,6 +84,7 @@ __all__ = [
     "normalize_signup_fields",
     "normalize_verification_code",
     "resolve_initial_signup_role",
+    "send_email_with_attachment",
     "send_feedback_owner_email",
     "send_forgot_password_email",
     "send_password_reset_success_email",
@@ -157,8 +159,14 @@ def _send_email(
     subject: str,
     plain_body: str,
     html_body: str | None = None,
+    *,
+    attachments: list[tuple[str, bytes, str]] | None = None,
 ) -> None:
-    """Send a plain-text or multipart HTML email using configured SMTP settings."""
+    """
+    Send a plain-text or multipart HTML email using configured SMTP settings.
+
+    Optional attachments: list of (filename, content_bytes, mime_subtype).
+    """
     smtp = _get_smtp_settings()
     smtp_user = str(smtp["user"])
     smtp_password = str(smtp["password"])
@@ -169,13 +177,27 @@ def _send_email(
 
     from_email = str(smtp["from_email"])
 
-    message = MIMEMultipart("alternative" if html_body else "mixed")
+    has_attachments = bool(attachments)
+    if has_attachments:
+        message = MIMEMultipart("mixed")
+        body_part = MIMEMultipart("alternative" if html_body else "mixed")
+        body_part.attach(MIMEText(plain_body, "plain"))
+        if html_body:
+            body_part.attach(MIMEText(html_body, "html"))
+        message.attach(body_part)
+        for filename, content, subtype in attachments or []:
+            part = MIMEApplication(content, _subtype=subtype)
+            part.add_header("Content-Disposition", "attachment", filename=filename)
+            message.attach(part)
+    else:
+        message = MIMEMultipart("alternative" if html_body else "mixed")
+        message.attach(MIMEText(plain_body, "plain"))
+        if html_body:
+            message.attach(MIMEText(html_body, "html"))
+
     message["From"] = from_email
     message["To"] = to_email
     message["Subject"] = subject
-    message.attach(MIMEText(plain_body, "plain"))
-    if html_body:
-        message.attach(MIMEText(html_body, "html"))
 
     try:
         with smtplib.SMTP(str(smtp["host"]), int(smtp["port"]), timeout=30) as server:
@@ -185,6 +207,28 @@ def _send_email(
         logger.info("Email sent to %s with subject '%s'", to_email, subject)
     except smtplib.SMTPException:
         logger.exception("Failed to send email to %s", to_email)
+        if has_attachments:
+            raise
+
+
+def send_email_with_attachment(
+    to_email: str,
+    subject: str,
+    plain_body: str,
+    html_body: str | None = None,
+    *,
+    filename: str,
+    content: bytes,
+    mime_subtype: str = "pdf",
+) -> None:
+    """Public helper for modules that need file attachments (e.g. invoices)."""
+    _send_email(
+        to_email,
+        subject,
+        plain_body,
+        html_body,
+        attachments=[(filename, content, mime_subtype)],
+    )
 
 
 def send_verification_email(first_name: str, to_email: str, verification_code: str) -> None:

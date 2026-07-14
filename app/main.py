@@ -6,7 +6,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import get_settings
 from app.core.cors import DynamicCORSMiddleware
-from app.core.database import Base, engine
+from app.core.database import engine
+from app.core.migrations import run_pending_migrations
 from app.modules.auth.routes import router as auth_router, signup_router
 from app.modules.auth.utils import apply_verification_migrations
 from app.modules.chatbot.routes import router as chatbot_router
@@ -34,6 +35,7 @@ from app.modules.manage_chatbot.routes import router as manage_chatbot_router
 from app.modules.playground.routes import router as playground_router
 from app.modules.chatbot_usage.routes import router as chatbot_usage_router
 from app.modules.feedback.routes import router as feedback_router
+from app.modules.billing.routes import router as billing_router
 from app.modules.user_details.utils import apply_user_account_migrations, sync_existing_user_details
 from app.modules.chat_analysis.utils import sync_existing_chat_analysis
 from app.modules.theme.utils import sync_existing_user_themes
@@ -41,45 +43,50 @@ from app.modules.notification.utils import sync_existing_notification_settings
 from app.modules.user_plan.utils import (
     apply_user_plan_migrations,
     backfill_user_plan_plan_ids,
+    backfill_user_plan_subscription_fields,
     sync_existing_user_plans,
 )
-from app.modules.plan_master.utils import seed_plan_master
+from app.modules.plan_master.utils import (
+    apply_plan_master_migrations,
+    backfill_plan_master_billing_fields,
+    seed_plan_master,
+)
+from app.modules.billing.migrations import apply_billing_migrations
 from app.modules.chatbot_usage.utils import sync_existing_chatbot_usage
 
-# Import all ORM models so they register with Base.metadata before create_all().
-import app.modules.auth.model  # noqa: F401
-import app.modules.chatbot.model  # noqa: F401
-import app.modules.knowledgebase.model  # noqa: F401
-import app.modules.chat_sessions.model  # noqa: F401
-import app.modules.chat_messages.model  # noqa: F401
-import app.modules.knowledge_chunks.model  # noqa: F401
-import app.modules.user_details.model  # noqa: F401
-import app.modules.widget.model  # noqa: F401
-import app.modules.chat_analysis.model  # noqa: F401
-import app.modules.theme.model  # noqa: F401
-import app.modules.login_history.model  # noqa: F401
-import app.modules.notification.model  # noqa: F401
-import app.modules.plan_master.model  # noqa: F401
-import app.modules.user_plan.model  # noqa: F401
-import app.modules.playground.model  # noqa: F401
-import app.modules.chatbot_usage.model  # noqa: F401
-import app.modules.feedback.model  # noqa: F401
+# Register every ORM model on Base.metadata (used by tooling / relationships).
+# Schema creation/alteration is owned by Alembic — not create_all().
+import app.models  # noqa: F401
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create database tables on startup if they do not already exist."""
+    """
+    Application startup / shutdown.
+
+    On every start (including live deploy):
+      1. ``run_pending_migrations()`` → ``alembic upgrade head`` (AUTO_RUN_MIGRATIONS)
+      2. Legacy idempotent column backfills + data seeds / sync helpers
+    """
     get_settings().validate()
+    # Apply committed Alembic revisions before serving traffic (live-safe: skips if at head).
+    run_pending_migrations()
+    # Legacy idempotent ALTERs retained during Alembic rollout so older DBs
+    # that have not been upgraded yet still receive missing columns safely.
+    # New schema changes must be added via Alembic revisions only.
     apply_verification_migrations(engine)
     apply_user_account_migrations(engine)
     apply_chatbot_migrations(engine)
-    Base.metadata.create_all(bind=engine)
+    apply_plan_master_migrations(engine)
     seed_plan_master(engine)
+    backfill_plan_master_billing_fields(engine)
+    apply_billing_migrations(engine)
     apply_chat_session_migrations(engine)
     apply_chat_message_migrations(engine)
     apply_knowledgebase_migrations(engine)
     apply_user_plan_migrations(engine)
     backfill_user_plan_plan_ids(engine)
+    backfill_user_plan_subscription_fields(engine)
     sync_existing_user_details(engine)
     sync_existing_chat_analysis(engine)
     sync_existing_user_themes(engine)
@@ -124,6 +131,7 @@ app.include_router(manage_chatbot_router)
 app.include_router(playground_router)
 app.include_router(chatbot_usage_router)
 app.include_router(feedback_router)
+app.include_router(billing_router)
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

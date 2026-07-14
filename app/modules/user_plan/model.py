@@ -5,7 +5,7 @@ User subscription plan ORM model.
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -13,13 +13,28 @@ from app.core.database import Base
 PLAN_STATUS_ACTIVE = "active"
 PLAN_STATUS_EXPIRED = "expired"
 PLAN_STATUS_CANCELLED = "cancelled"
+PLAN_STATUS_PENDING = "pending"
+
+SUBSCRIPTION_STATUS_ACTIVE = "active"
+SUBSCRIPTION_STATUS_CANCELLED = "cancelled"
+SUBSCRIPTION_STATUS_EXPIRED = "expired"
+SUBSCRIPTION_STATUS_PENDING = "pending"
+
+ALLOWED_SUBSCRIPTION_STATUSES = frozenset({
+    SUBSCRIPTION_STATUS_ACTIVE,
+    SUBSCRIPTION_STATUS_CANCELLED,
+    SUBSCRIPTION_STATUS_EXPIRED,
+    SUBSCRIPTION_STATUS_PENDING,
+})
 
 BILLING_CYCLE_MONTHLY = "monthly"
+BILLING_CYCLE_SIX_MONTH = "six_month"
 BILLING_CYCLE_QUARTERLY = "quarterly"
 BILLING_CYCLE_YEARLY = "yearly"
 
 ALLOWED_BILLING_CYCLES = frozenset({
     BILLING_CYCLE_MONTHLY,
+    BILLING_CYCLE_SIX_MONTH,
     BILLING_CYCLE_QUARTERLY,
     BILLING_CYCLE_YEARLY,
 })
@@ -54,9 +69,16 @@ class UserPlan(Base):
         default=0,
         nullable=False,
     )
+    # Legacy status field retained for existing consumers.
     status: Mapped[str] = mapped_column(
         String(50),
         default=PLAN_STATUS_ACTIVE,
+        nullable=False,
+    )
+    subscription_status: Mapped[str] = mapped_column(
+        String(20),
+        default=SUBSCRIPTION_STATUS_ACTIVE,
+        server_default=SUBSCRIPTION_STATUS_ACTIVE,
         nullable=False,
     )
     start_date: Mapped[datetime] = mapped_column(
@@ -65,6 +87,14 @@ class UserPlan(Base):
         nullable=False,
     )
     end_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    subscription_start: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    subscription_end: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )
@@ -79,6 +109,18 @@ class UserPlan(Base):
         nullable=True,
     )
     billing_cycle: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    is_auto_renew: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+    )
+    razorpay_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    razorpay_subscription_id: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -100,5 +142,5 @@ class UserPlan(Base):
             f"plan_id={self.plan_id} plan_name={self.plan_name!r} "
             f"chatbot_limit={self.chatbot_limit} "
             f"created_chatbots_count={self.created_chatbots_count} "
-            f"status={self.status!r}>"
+            f"subscription_status={self.subscription_status!r}>"
         )

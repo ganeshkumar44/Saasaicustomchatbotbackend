@@ -24,6 +24,8 @@ websockets==16.0
 # --- Database ---
 psycopg2-binary==2.9.12
 SQLAlchemy==2.0.50
+# Schema migrations (replaces Base.metadata.create_all at runtime)
+alembic>=1.13.0,<2.0.0
 
 # --- Config, env, validation ---
 email-validator==2.2.0
@@ -46,6 +48,9 @@ httpcore==1.0.9
 httpx==0.28.1
 requests==2.32.5
 urllib3==2.7.0
+
+# --- Payments (Razorpay one-time checkout) ---
+razorpay>=1.4.2
 
 # --- AWS S3 (profile uploads) ---
 boto3==1.43.39
@@ -158,3 +163,4 @@ propcache==0.5.2
 pyee==13.0.1
 soupsieve==2.8.4
 yarl==1.24.2
+reportlab>=4.0
