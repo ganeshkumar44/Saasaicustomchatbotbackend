@@ -35,8 +35,8 @@ PLAN_ENTERPRISE = "enterprise"
 PLAN_CHATBOT_LIMITS: dict[str, int] = {
     PLAN_FREE: 1,
     PLAN_STARTER: 3,
-    PLAN_PRO: 6,
-    PLAN_ENTERPRISE: 15,
+    PLAN_PRO: 4,
+    PLAN_ENTERPRISE: 10,
 }
 
 PLAN_DISPLAY_NAMES: dict[str, str] = {
@@ -69,36 +69,28 @@ PLAN_BILLING_CYCLES: dict[str, str] = {
 
 PLAN_FEATURES: dict[str, list[str]] = {
     PLAN_FREE: [
-        "1 chatbot",
-        "200 website messages/month",
-        "50 playground messages/month",
+        "50 website messages/month",
+        "20 playground messages/month",
         "Basic analytics",
         "Email support",
     ],
     PLAN_STARTER: [
-        "3 chatbots",
         "5,000 website messages/month",
         "50 playground messages/month",
-        "Basic analytics",
+        "Advance analytics",
         "Email support",
     ],
     PLAN_PRO: [
-        "6 chatbots",
-        "Unlimited website messages",
-        "50 playground messages/month",
-        "Advanced analytics",
-        "Priority support",
-        "Custom branding",
+        "10,000 website messages/month",
+        "500 playground messages/month",
+        "Advance analytics",
+        "Email support",
     ],
     PLAN_ENTERPRISE: [
-        "15 chatbots",
-        "Unlimited website messages",
-        "Unlimited playground messages",
-        "Custom analytics",
-        "Dedicated support",
-        "Custom branding",
-        "API access",
-        "SSO & SAML",
+        "Unlimited website messages/month",
+        "Unlimited playground messages/month",
+        "Advance analytics",
+        "Email support",
     ],
 }
 
