@@ -1,0 +1,39 @@
+# Alembic migrations
+
+Schema changes for this FastAPI project are managed with Alembic.
+
+## Prerequisites
+
+- PostgreSQL is running
+- `.env` has valid `DB_*` values (or set `DATABASE_URL`)
+- Dependencies installed (`pip install -r requirements.txt`)
+
+## Common commands
+
+From the project root (`Saasaicustomchatbotbackend/`):
+
+```bash
+# Create a migration from model changes
+alembic revision --autogenerate -m "Describe the change"
+
+# Apply all pending migrations
+alembic upgrade head
+
+# Show current revision
+alembic current
+
+# Show history
+alembic history
+```
+
+## Notes
+
+- Models are registered via `app/models/__init__.py` (imports every `app.modules.*.model`).
+- Autogenerate compares `Base.metadata` to the live database.
+- Always **review** generated files under `alembic/versions/` before upgrading.
+- Do not call `Base.metadata.create_all()` from application startup (`app/main.py`).
+- `alembic/env.py` ignores orphan DB tables (not in models) so autogenerate
+  will not propose `DROP TABLE` for legacy tables.
+- Deploy order: run `alembic upgrade head` before (or as part of) starting the API.
+- With `AUTO_RUN_MIGRATIONS=true` (default), the API runs `upgrade head` on startup
+  automatically — no separate manual step on live after deploy.
