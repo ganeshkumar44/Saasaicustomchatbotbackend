@@ -19,6 +19,7 @@ import app.modules.notification.model  # noqa: F401
 
 # Chatbots & knowledge
 import app.modules.chatbot.model  # noqa: F401
+import app.modules.prompt.model  # noqa: F401
 import app.modules.knowledgebase.model  # noqa: F401
 import app.modules.knowledge_chunks.model  # noqa: F401
 import app.modules.widget.model  # noqa: F401

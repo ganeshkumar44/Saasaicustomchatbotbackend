@@ -12,6 +12,7 @@ from app.modules.auth.routes import router as auth_router, signup_router
 from app.modules.auth.utils import apply_verification_migrations
 from app.modules.chatbot.routes import router as chatbot_router
 from app.modules.chatbot_settings.routes import router as chatbot_settings_router
+from app.modules.prompt.routes import router as prompt_router
 from app.modules.chatbot.utils import apply_chatbot_migrations
 from app.modules.knowledgebase.utils import apply_knowledgebase_migrations
 from app.modules.chat_sessions.utils import apply_chat_session_migrations
@@ -52,6 +53,7 @@ from app.modules.plan_master.utils import (
     seed_plan_master,
 )
 from app.modules.billing.migrations import apply_billing_migrations
+from app.modules.prompt.utils import apply_prompt_migrations
 from app.modules.chatbot_usage.utils import sync_existing_chatbot_usage
 
 # Register every ORM model on Base.metadata (used by tooling / relationships).
@@ -84,6 +86,7 @@ async def lifespan(app: FastAPI):
     apply_chat_session_migrations(engine)
     apply_chat_message_migrations(engine)
     apply_knowledgebase_migrations(engine)
+    apply_prompt_migrations(engine)
     apply_user_plan_migrations(engine)
     backfill_user_plan_plan_ids(engine)
     backfill_user_plan_subscription_fields(engine)
@@ -112,6 +115,7 @@ app.include_router(auth_router)
 app.include_router(signup_router)
 app.include_router(chatbot_router)
 app.include_router(chatbot_settings_router)
+app.include_router(prompt_router)
 app.include_router(knowledgebase_router)
 app.include_router(widget_router)
 app.include_router(widget_static_router)

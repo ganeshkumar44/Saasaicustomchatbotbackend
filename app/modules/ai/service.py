@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.modules.ai.context_builder import build_context_from_chunks
 from app.modules.ai.memory_service import build_conversation_context
 from app.modules.ai.prompt_builder import NO_CONTEXT_ANSWER, build_ai_prompt
+from app.modules.ai.prompt.prompt_service import get_system_prompt_for_chatbot
 from app.modules.ai.schema import AITestAnswerResponse
 from app.modules.ai.providers.provider_factory import get_provider_for_model
 from app.modules.chatbot.model import Chatbot
@@ -99,8 +100,10 @@ def generate_ai_answer(
         normalized_question,
         playground_session_id=playground_session_id,
     )
+    system_prompt = get_system_prompt_for_chatbot(db, chatbot_id)
     prompt = build_ai_prompt(
-        context=context,
+        system_prompt=system_prompt,
+        knowledge_context=context,
         question=normalized_question,
         conversation_history=conversation_history or None,
     )

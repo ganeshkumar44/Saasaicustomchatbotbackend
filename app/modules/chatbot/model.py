@@ -80,6 +80,12 @@ class Chatbot(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    prompt_config = relationship(
+        "ChatbotPrompt",
+        back_populates="chatbot",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<Chatbot id={self.id} user_id={self.user_id} status={self.status!r}>"
