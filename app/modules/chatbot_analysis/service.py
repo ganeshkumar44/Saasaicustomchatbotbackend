@@ -4,12 +4,11 @@ Chatbot analysis business logic.
 
 import logging
 
-from decimal import Decimal
-
 from sqlalchemy.orm import Session
 
 from app.core import messages
 from app.modules.auth.model import User
+from app.modules.chatbot.model import CHATBOT_STATUS_DRAFT
 from app.modules.chatbot_analysis.schema import (
     ChatbotAnalyticsItem,
     ChatbotAnalyticsSuccessResponse,
@@ -19,16 +18,24 @@ from app.modules.chatbot_analysis.schema import (
 from app.modules.chatbot_analysis.utils import (
     build_empty_merged_analytics,
     build_metric_comparison,
-    calculate_merged_average_response_time,
     calculate_merged_resolution_rate,
     fetch_chatbot_analytics_rows,
     fetch_merged_chatbot_analytics_row,
     fetch_merged_period_comparison_metrics,
     get_merged_analytics_period_bounds,
 )
+from app.modules.chatbot_settings.utils import get_owned_chatbot
 from app.modules.user_details.utils import is_admin
 
 logger = logging.getLogger(__name__)
+
+
+class ChatbotAnalyticsNotAvailableError(Exception):
+    """Raised when analytics cannot be produced for the requested chatbot."""
+
+    def __init__(self, message: str = messages.NO_CHATBOT_ANALYTICS) -> None:
+        self.message = message
+        super().__init__(message)
 
 
 def get_chatbot_analytics_details(
@@ -87,27 +94,35 @@ def get_chatbot_analytics_details(
     )
 
 
-def get_merged_chatbot_analytics_details(
+def calculate_chat_metrics(
     db: Session,
     user: User,
+    *,
+    chatbot_id: int | None = None,
 ) -> MergedChatbotAnalyticsSuccessResponse:
-    """Return merged chatbot analytics for the dashboard overview page."""
+    """
+    Build merged analytics metrics for all eligible chatbots or one chatbot.
+
+    Reused by both the global dashboard analytics endpoint and the
+    single-chatbot analytics endpoint.
+    """
     current_start, current_end, previous_start, previous_end = (
         get_merged_analytics_period_bounds()
     )
     logger.info(
-        "Fetching merged chatbot analytics for user_id=%s role=%s admin=%s "
+        "Fetching analytics metrics user_id=%s role=%s admin=%s chatbot_id=%s "
         "current_period=%s to %s previous_period=%s to %s",
         user.id,
         user.role,
         is_admin(user),
+        chatbot_id,
         current_start.isoformat(),
         current_end.isoformat(),
         previous_start.isoformat(),
         previous_end.isoformat(),
     )
 
-    row = fetch_merged_chatbot_analytics_row(db, user)
+    row = fetch_merged_chatbot_analytics_row(db, user, chatbot_id=chatbot_id)
     total_chatbots = int(row.total_chatbots or 0)
 
     if total_chatbots == 0:
@@ -117,7 +132,11 @@ def get_merged_chatbot_analytics_details(
             data=data,
         )
 
-    period_metrics = fetch_merged_period_comparison_metrics(db, user)
+    period_metrics = fetch_merged_period_comparison_metrics(
+        db,
+        user,
+        chatbot_id=chatbot_id,
+    )
     current_period = period_metrics.current
     previous_period = period_metrics.previous
 
@@ -173,18 +192,47 @@ def get_merged_chatbot_analytics_details(
     )
 
     logger.info(
-        "Merged chatbot analytics fetched for user_id=%s total_chatbots=%s "
-        "current_conversations=%s previous_conversations=%s "
-        "current_visitors=%s previous_visitors=%s",
+        "Analytics metrics fetched user_id=%s chatbot_id=%s total_chatbots=%s "
+        "current_conversations=%s previous_conversations=%s",
         user.id,
+        chatbot_id,
         data.total_chatbots,
         current_period.total_conversations,
         previous_period.total_conversations,
-        current_period.total_visitors,
-        previous_period.total_visitors,
     )
 
     return MergedChatbotAnalyticsSuccessResponse(
-        message=messages.MERGED_CHATBOT_ANALYTICS_SUCCESS,
+        message=(
+            messages.CHATBOT_ANALYTICS_SUCCESS
+            if chatbot_id is not None
+            else messages.MERGED_CHATBOT_ANALYTICS_SUCCESS
+        ),
         data=data,
     )
+
+
+def get_merged_chatbot_analytics_details(
+    db: Session,
+    user: User,
+) -> MergedChatbotAnalyticsSuccessResponse:
+    """Return merged chatbot analytics for the dashboard overview page."""
+    return calculate_chat_metrics(db, user)
+
+
+def get_single_chatbot_analytics(
+    db: Session,
+    user: User,
+    chatbot_id: int,
+) -> MergedChatbotAnalyticsSuccessResponse:
+    """
+    Return analytics for a single chatbot using the same response shape as
+    the global merged analytics endpoint.
+    """
+    chatbot = get_owned_chatbot(db, user, chatbot_id)
+
+    if chatbot.status == CHATBOT_STATUS_DRAFT:
+        raise ChatbotAnalyticsNotAvailableError(
+            "Analytics are not available for draft chatbots."
+        )
+
+    return calculate_chat_metrics(db, user, chatbot_id=chatbot.id)

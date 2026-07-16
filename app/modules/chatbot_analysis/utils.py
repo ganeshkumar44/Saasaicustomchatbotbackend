@@ -70,10 +70,16 @@ def get_merged_analytics_period_bounds(
     return current_start, current_end, previous_start, previous_end
 
 
-def _apply_eligible_chatbot_filters(query: Select, user: User) -> Select:
+def _apply_eligible_chatbot_filters(
+    query: Select,
+    user: User,
+    chatbot_id: int | None = None,
+) -> Select:
     """Apply non-draft chatbot filters and role-based ownership restrictions."""
     query = query.where(Chatbot.status != CHATBOT_STATUS_DRAFT)
-    if not is_admin(user):
+    if chatbot_id is not None:
+        query = query.where(Chatbot.id == chatbot_id)
+    elif not is_admin(user):
         query = query.where(Chatbot.user_id == user.id)
     return query
 
@@ -130,6 +136,7 @@ def _merged_session_count_subquery(
     period_end: datetime,
     *,
     resolution_status: str | None = None,
+    chatbot_id: int | None = None,
 ):
     """Count chat sessions in a period for eligible chatbots."""
     query = (
@@ -144,7 +151,9 @@ def _merged_session_count_subquery(
     )
     if resolution_status is not None:
         query = query.where(ChatSession.is_resolved == resolution_status)
-    if not is_admin(user):
+    if chatbot_id is not None:
+        query = query.where(Chatbot.id == chatbot_id)
+    elif not is_admin(user):
         query = query.where(Chatbot.user_id == user.id)
     return query.scalar_subquery()
 
@@ -153,6 +162,8 @@ def _merged_visitor_count_subquery(
     user: User,
     period_start: datetime,
     period_end: datetime,
+    *,
+    chatbot_id: int | None = None,
 ):
     """Count widget visitors created in a period for eligible chatbots."""
     query = (
@@ -165,7 +176,9 @@ def _merged_visitor_count_subquery(
             WidgetVisitor.created_at <= period_end,
         )
     )
-    if not is_admin(user):
+    if chatbot_id is not None:
+        query = query.where(Chatbot.id == chatbot_id)
+    elif not is_admin(user):
         query = query.where(Chatbot.user_id == user.id)
     return query.scalar_subquery()
 
@@ -174,6 +187,8 @@ def _merged_average_response_time_subquery(
     user: User,
     period_start: datetime,
     period_end: datetime,
+    *,
+    chatbot_id: int | None = None,
 ):
     """Average bot response time in a period for eligible chatbots."""
     query = (
@@ -187,7 +202,9 @@ def _merged_average_response_time_subquery(
             ChatMessage.response_time.is_not(None),
         )
     )
-    if not is_admin(user):
+    if chatbot_id is not None:
+        query = query.where(Chatbot.id == chatbot_id)
+    elif not is_admin(user):
         query = query.where(Chatbot.user_id == user.id)
     return query.scalar_subquery()
 
@@ -223,51 +240,57 @@ def build_merged_period_comparison_query(
     current_end: datetime,
     previous_start: datetime,
     previous_end: datetime,
+    *,
+    chatbot_id: int | None = None,
 ) -> Select:
     """Build one aggregate query for current and previous 30-day dashboard metrics."""
     return select(
-        _merged_session_count_subquery(user, current_start, current_end).label(
-            "current_total_conversations"
-        ),
-        _merged_visitor_count_subquery(user, current_start, current_end).label(
-            "current_total_visitors"
-        ),
+        _merged_session_count_subquery(
+            user, current_start, current_end, chatbot_id=chatbot_id
+        ).label("current_total_conversations"),
+        _merged_visitor_count_subquery(
+            user, current_start, current_end, chatbot_id=chatbot_id
+        ).label("current_total_visitors"),
         _merged_session_count_subquery(
             user,
             current_start,
             current_end,
             resolution_status=SESSION_RESOLVED_RESOLVED,
+            chatbot_id=chatbot_id,
         ).label("current_resolved_conversations"),
         _merged_session_count_subquery(
             user,
             current_start,
             current_end,
             resolution_status=SESSION_RESOLVED_UNRESOLVED,
+            chatbot_id=chatbot_id,
         ).label("current_unresolved_conversations"),
-        _merged_average_response_time_subquery(user, current_start, current_end).label(
-            "current_average_response_time"
-        ),
-        _merged_session_count_subquery(user, previous_start, previous_end).label(
-            "previous_total_conversations"
-        ),
-        _merged_visitor_count_subquery(user, previous_start, previous_end).label(
-            "previous_total_visitors"
-        ),
+        _merged_average_response_time_subquery(
+            user, current_start, current_end, chatbot_id=chatbot_id
+        ).label("current_average_response_time"),
+        _merged_session_count_subquery(
+            user, previous_start, previous_end, chatbot_id=chatbot_id
+        ).label("previous_total_conversations"),
+        _merged_visitor_count_subquery(
+            user, previous_start, previous_end, chatbot_id=chatbot_id
+        ).label("previous_total_visitors"),
         _merged_session_count_subquery(
             user,
             previous_start,
             previous_end,
             resolution_status=SESSION_RESOLVED_RESOLVED,
+            chatbot_id=chatbot_id,
         ).label("previous_resolved_conversations"),
         _merged_session_count_subquery(
             user,
             previous_start,
             previous_end,
             resolution_status=SESSION_RESOLVED_UNRESOLVED,
+            chatbot_id=chatbot_id,
         ).label("previous_unresolved_conversations"),
-        _merged_average_response_time_subquery(user, previous_start, previous_end).label(
-            "previous_average_response_time"
-        ),
+        _merged_average_response_time_subquery(
+            user, previous_start, previous_end, chatbot_id=chatbot_id
+        ).label("previous_average_response_time"),
     )
 
 
@@ -275,6 +298,8 @@ def fetch_merged_period_comparison_metrics(
     db: Session,
     user: User,
     reference: datetime | None = None,
+    *,
+    chatbot_id: int | None = None,
 ) -> PeriodComparisonMetrics:
     """Fetch current and previous 30-day merged analytics in a single query."""
     current_start, current_end, previous_start, previous_end = (
@@ -287,6 +312,7 @@ def fetch_merged_period_comparison_metrics(
             current_end,
             previous_start,
             previous_end,
+            chatbot_id=chatbot_id,
         )
     ).one()
 
@@ -391,7 +417,11 @@ def build_chatbot_analytics_query(user: User) -> Select:
     return _apply_eligible_chatbot_filters(query, user)
 
 
-def build_merged_chatbot_analytics_query(user: User) -> Select:
+def build_merged_chatbot_analytics_query(
+    user: User,
+    *,
+    chatbot_id: int | None = None,
+) -> Select:
     """Build an aggregate query for merged chatbot analytics overview."""
     session_count = _chat_session_count_subquery()
     visitor_count = _widget_visitor_count_subquery()
@@ -418,7 +448,7 @@ def build_merged_chatbot_analytics_query(user: User) -> Select:
             0,
         ).label("weighted_response_time_sum"),
     ).join(ChatAnalysis, ChatAnalysis.chatbot_id == Chatbot.id)
-    return _apply_eligible_chatbot_filters(query, user)
+    return _apply_eligible_chatbot_filters(query, user, chatbot_id=chatbot_id)
 
 
 def fetch_chatbot_analytics_rows(db: Session, user: User) -> list:
@@ -427,9 +457,14 @@ def fetch_chatbot_analytics_rows(db: Session, user: User) -> list:
     return db.execute(query).all()
 
 
-def fetch_merged_chatbot_analytics_row(db: Session, user: User):
+def fetch_merged_chatbot_analytics_row(
+    db: Session,
+    user: User,
+    *,
+    chatbot_id: int | None = None,
+):
     """Execute the merged chatbot analytics aggregate query."""
-    query = build_merged_chatbot_analytics_query(user)
+    query = build_merged_chatbot_analytics_query(user, chatbot_id=chatbot_id)
     return db.execute(query).one()
 
 

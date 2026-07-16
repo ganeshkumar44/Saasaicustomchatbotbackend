@@ -156,6 +156,8 @@ def _apply_eligible_chatbot_session_filters(
     user: User,
     period_start: datetime,
     period_end: datetime,
+    *,
+    chatbot_id: int | None = None,
 ):
     """Restrict chart queries to eligible chatbots and the requested period."""
     query = (
@@ -165,7 +167,9 @@ def _apply_eligible_chatbot_session_filters(
         .where(ChatSession.created_at >= period_start)
         .where(ChatSession.created_at <= period_end)
     )
-    if not is_admin(user):
+    if chatbot_id is not None:
+        query = query.where(Chatbot.id == chatbot_id)
+    elif not is_admin(user):
         query = query.where(Chatbot.user_id == user.id)
     return query
 
@@ -176,6 +180,8 @@ def fetch_conversation_chart_rows(
     range_key: str,
     period_start: datetime,
     period_end: datetime,
+    *,
+    chatbot_id: int | None = None,
 ) -> list:
     """Aggregate conversation counts from chat sessions for the chart period."""
     bucket_expression = _get_bucket_expression(range_key).label("bucket")
@@ -189,6 +195,7 @@ def fetch_conversation_chart_rows(
         user,
         period_start,
         period_end,
+        chatbot_id=chatbot_id,
     )
     return db.execute(query).all()
 
@@ -199,6 +206,8 @@ def fetch_unique_visitor_chart_rows(
     range_key: str,
     period_start: datetime,
     period_end: datetime,
+    *,
+    chatbot_id: int | None = None,
 ) -> list:
     """Aggregate unique visitor counts from chat sessions for the chart period."""
     bucket_expression = _get_bucket_expression(range_key).label("bucket")
@@ -213,6 +222,7 @@ def fetch_unique_visitor_chart_rows(
         user,
         period_start,
         period_end,
+        chatbot_id=chatbot_id,
     )
     return db.execute(query).all()
 
@@ -271,6 +281,8 @@ def _apply_eligible_chatbot_resolution_filters(
     user: User,
     period_start: datetime,
     period_end: datetime,
+    *,
+    chatbot_id: int | None = None,
 ):
     """Restrict resolution chart queries to eligible chatbots and the requested period."""
     query = (
@@ -285,7 +297,9 @@ def _apply_eligible_chatbot_resolution_filters(
         .where(ChatSession.last_activity >= period_start)
         .where(ChatSession.last_activity <= period_end)
     )
-    if not is_admin(user):
+    if chatbot_id is not None:
+        query = query.where(Chatbot.id == chatbot_id)
+    elif not is_admin(user):
         query = query.where(Chatbot.user_id == user.id)
     return query
 
@@ -296,6 +310,8 @@ def fetch_resolution_chart_rows(
     range_key: str,
     period_start: datetime,
     period_end: datetime,
+    *,
+    chatbot_id: int | None = None,
 ) -> list:
     """Aggregate resolved and unresolved session counts for the chart period."""
     bucket_expression = _get_resolution_bucket_expression(range_key).label("bucket")
@@ -324,6 +340,7 @@ def fetch_resolution_chart_rows(
         user,
         period_start,
         period_end,
+        chatbot_id=chatbot_id,
     )
     return db.execute(query).all()
 
@@ -390,6 +407,8 @@ def _apply_eligible_chatbot_message_filters(
     user: User,
     period_start: datetime,
     period_end: datetime,
+    *,
+    chatbot_id: int | None = None,
 ):
     """Restrict response time chart queries to eligible chatbots and the requested period."""
     query = (
@@ -400,7 +419,9 @@ def _apply_eligible_chatbot_message_filters(
         .where(ChatMessage.created_at <= period_end)
         .where(ChatMessage.response_time.is_not(None))
     )
-    if not is_admin(user):
+    if chatbot_id is not None:
+        query = query.where(Chatbot.id == chatbot_id)
+    elif not is_admin(user):
         query = query.where(Chatbot.user_id == user.id)
     return query
 
@@ -411,6 +432,8 @@ def fetch_response_time_chart_rows(
     range_key: str,
     period_start: datetime,
     period_end: datetime,
+    *,
+    chatbot_id: int | None = None,
 ) -> list:
     """Aggregate average response times from chat messages for the chart period."""
     if range_key == "7d":
@@ -432,6 +455,7 @@ def fetch_response_time_chart_rows(
         user,
         period_start,
         period_end,
+        chatbot_id=chatbot_id,
     )
     return db.execute(query).all()
 
