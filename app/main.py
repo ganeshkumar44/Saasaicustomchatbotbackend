@@ -36,6 +36,7 @@ from app.modules.manage_chatbot.routes import router as manage_chatbot_router
 from app.modules.playground.routes import router as playground_router
 from app.modules.chatbot_usage.routes import router as chatbot_usage_router
 from app.modules.feedback.routes import router as feedback_router
+from app.modules.contact.routes import router as contact_router
 from app.modules.billing.routes import router as billing_router
 from app.modules.user_details.utils import apply_user_account_migrations, sync_existing_user_details
 from app.modules.chat_analysis.utils import sync_existing_chat_analysis
@@ -135,6 +136,7 @@ app.include_router(manage_chatbot_router)
 app.include_router(playground_router)
 app.include_router(chatbot_usage_router)
 app.include_router(feedback_router)
+app.include_router(contact_router)
 app.include_router(billing_router)
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "static"

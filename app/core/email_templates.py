@@ -468,3 +468,36 @@ def build_feedback_owner_email(
     )
     plain_body, html_body = build_notification_email_bodies(content)
     return content.subject, plain_body, html_body
+
+
+def build_contact_owner_email(
+    *,
+    name: str,
+    email: str,
+    company: str,
+    phone_number: str | None,
+    subject: str,
+    message: str,
+) -> tuple[str, str, str]:
+    """Build subject, plain body, and HTML body for landing contact notifications."""
+    from app.core import messages
+
+    detail_lines = [
+        f"Name: {name}",
+        f"Email: {email}",
+        f"Company: {company}",
+        f"Phone: {phone_number or 'Not provided'}",
+        f"Subject: {subject}",
+        f"Message: {message}",
+    ]
+    content = NotificationEmailContent(
+        subject=messages.CONTACT_OWNER_EMAIL_SUBJECT,
+        header_title=messages.CONTACT_OWNER_EMAIL_HEADER,
+        greeting_name="Team",
+        intro_text=messages.CONTACT_OWNER_EMAIL_INTRO,
+        highlight_text=subject,
+        detail_lines=tuple(detail_lines),
+        closing_text="Follow up with this lead from the contact_submissions table.",
+    )
+    plain_body, html_body = build_notification_email_bodies(content)
+    return content.subject, plain_body, html_body

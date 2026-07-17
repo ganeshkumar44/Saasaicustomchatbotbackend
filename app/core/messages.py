@@ -494,6 +494,31 @@ FEEDBACK_OWNER_EMAIL_INTRO = (
 )
 
 # ---------------------------------------------------------------------------
+# Public landing contact
+# ---------------------------------------------------------------------------
+
+CONTACT_NAME_REQUIRED = "Name is required."
+CONTACT_NAME_TOO_LONG = "Name must not exceed 100 characters."
+CONTACT_EMAIL_REQUIRED = "Email is required."
+CONTACT_EMAIL_INVALID = "Please enter a valid email address."
+CONTACT_COMPANY_REQUIRED = "Company is required."
+CONTACT_COMPANY_TOO_LONG = "Company must not exceed 150 characters."
+CONTACT_PHONE_TOO_LONG = "Phone number must not exceed 20 characters."
+CONTACT_SUBJECT_REQUIRED = "Subject is required."
+CONTACT_SUBJECT_TOO_LONG = "Subject must not exceed 150 characters."
+CONTACT_MESSAGE_REQUIRED = "Message is required."
+CONTACT_MESSAGE_TOO_SHORT = "Message must be at least 10 characters."
+CONTACT_MESSAGE_TOO_LONG = "Message must not exceed 2000 characters."
+CONTACT_SUBMITTED_SUCCESS = (
+    "Thanks for reaching out. Our team will get back to you shortly."
+)
+CONTACT_OWNER_EMAIL_SUBJECT = "New Landing Contact Request - NexGenChat"
+CONTACT_OWNER_EMAIL_HEADER = "New Contact Request"
+CONTACT_OWNER_EMAIL_INTRO = (
+    "A visitor submitted a contact or demo request from the NexGenChat landing page."
+)
+
+# ---------------------------------------------------------------------------
 # Billing foundation
 # ---------------------------------------------------------------------------
 

@@ -36,6 +36,7 @@ import app.modules.user_plan.model  # noqa: F401
 import app.modules.billing.model  # noqa: F401
 import app.modules.chatbot_usage.model  # noqa: F401
 import app.modules.feedback.model  # noqa: F401
+import app.modules.contact.model  # noqa: F401
 
 from app.core.database import Base
 

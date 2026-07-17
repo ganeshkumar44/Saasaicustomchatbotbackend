@@ -227,7 +227,7 @@ class Settings:
     @property
     def frontend_login_url(self) -> str:
         """Build the frontend login URL used in transactional emails."""
-        return f"{self.FRONTEND_URL}/login"
+        return f"{self.FRONTEND_URL}/signin"
 
     def validate(self) -> None:
         """Raise a clear error when required settings are missing."""

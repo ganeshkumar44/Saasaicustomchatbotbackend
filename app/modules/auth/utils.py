@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.core import messages
 from app.core.config import get_settings
 from app.core.email_templates import (
+    build_contact_owner_email,
     build_feedback_owner_email,
     build_forgot_password_email,
     build_password_reset_success_email,
@@ -322,6 +323,45 @@ def send_feedback_owner_email(
         _send_email(owner_email, subject, plain_body, html_body)
     except Exception:
         logger.exception("Failed to send feedback owner notification email")
+
+
+def send_contact_owner_email(
+    *,
+    name: str,
+    email: str,
+    company: str,
+    phone_number: str | None,
+    subject: str,
+    message: str,
+) -> bool:
+    """
+    Notify the platform owner when a landing-page contact form is submitted.
+
+    Returns True when the notification email is handed to SMTP successfully.
+    Failures are logged and never raised so contact persistence still succeeds.
+    """
+    try:
+        settings = get_settings()
+        owner_email = (settings.SMTP_FROM or settings.SMTP_USER or "").strip()
+        if not owner_email:
+            logger.error(
+                "SMTP_FROM is not configured; contact owner email not sent."
+            )
+            return False
+
+        email_subject, plain_body, html_body = build_contact_owner_email(
+            name=name,
+            email=email,
+            company=company,
+            phone_number=phone_number,
+            subject=subject,
+            message=message,
+        )
+        _send_email(owner_email, email_subject, plain_body, html_body)
+        return True
+    except Exception:
+        logger.exception("Failed to send contact owner notification email")
+        return False
 
 
 def _is_blank(value: str | None) -> bool:
