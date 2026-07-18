@@ -90,7 +90,10 @@ def _first_message_subquery():
 
 
 def build_chat_sessions_list_query(user: User) -> Select:
-    """Build the base query for paginated chat session listing."""
+    """Build the base query for paginated chat session listing.
+
+    Only sessions with at least one message are included (chat actually started).
+    """
     message_counts = _message_counts_subquery()
     first_messages = _first_message_subquery()
 
@@ -102,14 +105,15 @@ def build_chat_sessions_list_query(user: User) -> Select:
             _visitor_display_name_expression().label("visitor_name"),
             ChatSession.visitor_email,
             first_messages.c.user_message.label("first_message"),
-            func.coalesce(message_counts.c.total_messages, 0).label("total_messages"),
+            message_counts.c.total_messages.label("total_messages"),
             ChatSession.started_at.label("session_started_at"),
             ChatSession.last_activity,
             ChatSession.is_active,
             ChatSession.is_resolved,
         )
         .join(Chatbot, Chatbot.id == ChatSession.chatbot_id)
-        .outerjoin(message_counts, message_counts.c.chat_session_id == ChatSession.id)
+        # Inner join so empty sessions (widget opened, no messages) are excluded
+        .join(message_counts, message_counts.c.chat_session_id == ChatSession.id)
         .outerjoin(first_messages, first_messages.c.chat_session_id == ChatSession.id)
         .order_by(ChatSession.started_at.desc())
     )
@@ -117,11 +121,13 @@ def build_chat_sessions_list_query(user: User) -> Select:
 
 
 def build_chat_sessions_count_query(user: User) -> Select:
-    """Build a count query for eligible chat sessions."""
+    """Build a count query for eligible chat sessions that have at least one message."""
+    message_counts = _message_counts_subquery()
     query = (
         select(func.count(ChatSession.id))
         .select_from(ChatSession)
         .join(Chatbot, Chatbot.id == ChatSession.chatbot_id)
+        .join(message_counts, message_counts.c.chat_session_id == ChatSession.id)
     )
     return _apply_eligible_chatbot_filters(query, user)
 
